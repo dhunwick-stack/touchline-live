@@ -183,9 +183,8 @@ export default function TeamDetailPage() {
     setJerseyNumber('');
     setPosition('');
     setMessage('Player added.');
-    setSaving(false);
-    await loadTeamData();setHomeFieldName(loadedTeam?.home_field_name || '');
-setHomeFieldAddress(loadedTeam?.home_field_address || '');
+setSaving(false);
+await loadTeamData();
   }
 
   async function handleSavePlayer() {

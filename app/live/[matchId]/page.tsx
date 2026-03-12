@@ -104,37 +104,25 @@ export default function LiveMatchPage() {
       setMatch(loadedMatch);
       setEvents((eventData as MatchEvent[]) ?? []);
 
-      const playerQueries = [] as Promise<any>[];
+      const homePlayersResult = loadedMatch.home_team_id
+  ? await supabase
+      .from('players')
+      .select('*')
+      .eq('team_id', loadedMatch.home_team_id)
+      .eq('active', true)
+      .order('jersey_number', { ascending: true, nullsFirst: false })
+      .order('first_name', { ascending: true })
+  : { data: [], error: null };
 
-      if (loadedMatch.home_team_id) {
-        playerQueries.push(
-          supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.home_team_id)
-            .eq('active', true)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true }),
-        );
-      } else {
-        playerQueries.push(Promise.resolve({ data: [], error: null }));
-      }
-
-      if (loadedMatch.away_team_id) {
-        playerQueries.push(
-          supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.away_team_id)
-            .eq('active', true)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true }),
-        );
-      } else {
-        playerQueries.push(Promise.resolve({ data: [], error: null }));
-      }
-
-      const [homePlayersResult, awayPlayersResult] = await Promise.all(playerQueries);
+const awayPlayersResult = loadedMatch.away_team_id
+  ? await supabase
+      .from('players')
+      .select('*')
+      .eq('team_id', loadedMatch.away_team_id)
+      .eq('active', true)
+      .order('jersey_number', { ascending: true, nullsFirst: false })
+      .order('first_name', { ascending: true })
+  : { data: [], error: null };
 
       if (homePlayersResult.error || awayPlayersResult.error) {
         setError(
