@@ -1,6 +1,5 @@
 'use client';
 
-import { v4 as uuidv4 } from 'uuid';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +7,16 @@ import { slugifyMatch } from '@/lib/utils';
 import type { Season, Team, TrackingMode } from '@/lib/types';
 
 type TeamOptionMode = 'saved' | 'new';
+
+function getDateTimeLocalValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
 
 export default function NewMatchPage() {
   const router = useRouter();
@@ -20,7 +29,7 @@ export default function NewMatchPage() {
 
   const [seasonId, setSeasonId] = useState('');
   const [venue, setVenue] = useState('');
-  const [matchDate, setMatchDate] = useState('');
+  const [matchDate, setMatchDate] = useState(() => getDateTimeLocalValue(new Date()));
 
   const [homeMode, setHomeMode] = useState<TeamOptionMode>('saved');
   const [awayMode, setAwayMode] = useState<TeamOptionMode>('saved');
@@ -114,7 +123,7 @@ export default function NewMatchPage() {
           home_tracking_mode: homeTrackingMode,
           away_tracking_mode: awayTrackingMode,
           venue: venue.trim() || null,
-          match_date: matchDate || null,
+          match_date: matchDate ? new Date(matchDate).toISOString() : null,
           public_slug: slugifyMatch(),
           status: 'not_started',
         })
@@ -154,7 +163,11 @@ export default function NewMatchPage() {
           <h2 className="text-xl font-bold">Match Details</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <Field label="Season">
-              <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3">
+              <select
+                value={seasonId}
+                onChange={(e) => setSeasonId(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              >
                 <option value="">No season</option>
                 {seasons.map((season) => (
                   <option key={season.id} value={season.id}>

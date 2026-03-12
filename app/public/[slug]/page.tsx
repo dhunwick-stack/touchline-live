@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -9,12 +10,16 @@ type PublicMatchRow = Match & {
   away_team: Team | null;
 };
 
-export default function PublicMatchPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const [slug, setSlug] = useState('');
+export default function PublicMatchPage() {
+  const params = useParams();
+
+  const slug =
+    typeof params?.slug === 'string'
+      ? params.slug
+      : Array.isArray(params?.slug)
+        ? params.slug[0]
+        : '';
+
   const [match, setMatch] = useState<PublicMatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
@@ -22,10 +27,6 @@ export default function PublicMatchPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
-
-  useEffect(() => {
-    params.then((resolved) => setSlug(resolved.slug));
-  }, [params]);
 
   useEffect(() => {
     if (!slug) return;
@@ -55,6 +56,14 @@ export default function PublicMatchPage({
 
       const loadedMatch = matchData as PublicMatchRow;
 
+      if (!loadedMatch.id) {
+        if (!cancelled) {
+          setError('Match ID missing.');
+          setLoading(false);
+        }
+        return;
+      }
+
       const { data: eventsData, error: eventsError } = await supabase
         .from('match_events')
         .select('*')
@@ -69,23 +78,25 @@ export default function PublicMatchPage({
         return;
       }
 
-      const homePlayersResult = loadedMatch.home_team_id
-        ? await supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.home_team_id)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true })
-        : { data: [], error: null };
+      const homePlayersResult =
+        loadedMatch.home_team_id && loadedMatch.home_team_id !== 'undefined'
+          ? await supabase
+              .from('players')
+              .select('*')
+              .eq('team_id', loadedMatch.home_team_id)
+              .order('jersey_number', { ascending: true, nullsFirst: false })
+              .order('first_name', { ascending: true })
+          : { data: [], error: null };
 
-      const awayPlayersResult = loadedMatch.away_team_id
-        ? await supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.away_team_id)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true })
-        : { data: [], error: null };
+      const awayPlayersResult =
+        loadedMatch.away_team_id && loadedMatch.away_team_id !== 'undefined'
+          ? await supabase
+              .from('players')
+              .select('*')
+              .eq('team_id', loadedMatch.away_team_id)
+              .order('jersey_number', { ascending: true, nullsFirst: false })
+              .order('first_name', { ascending: true })
+          : { data: [], error: null };
 
       if (!cancelled) {
         setMatch(loadedMatch);
@@ -386,13 +397,6 @@ export default function PublicMatchPage({
                 </dd>
               </div>
             </dl>
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">Live Updates</h3>
-            <p className="mt-3 text-sm text-slate-600">
-              Leave this page open to follow the score, clock, and timeline as the match progresses.
-            </p>
           </div>
         </section>
       </div>
