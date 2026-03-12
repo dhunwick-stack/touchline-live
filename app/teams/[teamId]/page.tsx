@@ -20,6 +20,7 @@ export default function TeamDetailPage() {
         ? params.teamId[0]
         : '';
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
@@ -36,8 +37,21 @@ export default function TeamDetailPage() {
 
   useEffect(() => {
     if (!teamId) return;
-    loadTeamData();
+
+    const savedTeamId = localStorage.getItem('teamId');
+
+    if (!savedTeamId || savedTeamId !== String(teamId)) {
+      window.location.href = '/team-login';
+      return;
+    }
+
+    setAuthChecked(true);
   }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
+    loadTeamData();
+  }, [teamId, authChecked]);
 
   async function loadTeamData() {
     setLoading(true);
@@ -167,7 +181,7 @@ export default function TeamDetailPage() {
     return 'D';
   }
 
-  if (loading) {
+  if (loading || !authChecked) {
     return <main className="mx-auto max-w-6xl px-6 py-8">Loading team...</main>;
   }
 
@@ -216,43 +230,56 @@ export default function TeamDetailPage() {
               </p>
             </div>
           </div>
-<div className="flex flex-wrap gap-3">
-  <Link
-    href={`/teams/${team.id}/stats`}
-    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-  >
-    Stats
-  </Link>
 
-  <Link
-    href={`/teams/${team.id}/roster`}
-    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-  >
-    Roster
-  </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/teams/${team.id}/stats`}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            >
+              Stats
+            </Link>
 
-  <Link
-    href={`/teams/${team.id}/leaders`}
-    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-  >
-    Leaders
-  </Link>
+            <Link
+              href={`/teams/${team.id}/roster`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              Roster
+            </Link>
 
-  <Link
-    href="/matches/new"
-    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-  >
-    New Match
-  </Link>
+            <Link
+              href={`/teams/${team.id}/leaders`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              Leaders
+            </Link>
 
-  <button
-    type="button"
-    onClick={() => setEditing((prev) => !prev)}
-    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-  >
-    {editing ? 'Close Edit' : 'Edit Team'}
-  </button>
-</div>
+            <Link
+              href="/matches/new"
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              New Match
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setEditing((prev) => !prev)}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              {editing ? 'Close Edit' : 'Edit Team'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('teamId');
+                localStorage.removeItem('teamName');
+                window.location.href = '/team-login';
+              }}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </section>
 

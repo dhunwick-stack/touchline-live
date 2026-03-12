@@ -41,6 +41,7 @@ export default function TeamStatsPage() {
         ? params.teamId[0]
         : '';
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('all');
@@ -53,6 +54,19 @@ export default function TeamStatsPage() {
 
   useEffect(() => {
     if (!teamId) return;
+
+    const savedTeamId = localStorage.getItem('teamId');
+
+    if (!savedTeamId || savedTeamId !== String(teamId)) {
+      window.location.href = '/team-login';
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
 
     async function loadBaseData() {
       setLoading(true);
@@ -95,10 +109,10 @@ export default function TeamStatsPage() {
     }
 
     loadBaseData();
-  }, [teamId]);
+  }, [teamId, authChecked]);
 
   useEffect(() => {
-    if (!teamId) return;
+    if (!teamId || !authChecked) return;
 
     async function loadStatsData() {
       setError('');
@@ -168,7 +182,7 @@ export default function TeamStatsPage() {
     }
 
     loadStatsData();
-  }, [teamId, selectedSeasonId]);
+  }, [teamId, selectedSeasonId, authChecked]);
 
   const summary = useMemo<TeamSummary>(() => {
     let played = 0;
@@ -309,11 +323,11 @@ export default function TeamStatsPage() {
     return `${teamGoals}-${oppGoals}`;
   }
 
-  if (loading) {
+  if (loading || !authChecked) {
     return <main className="mx-auto max-w-6xl px-6 py-8">Loading team stats...</main>;
   }
 
-  if (error) {
+  if (error && !team) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
         {error}
@@ -374,7 +388,10 @@ export default function TeamStatsPage() {
       <section className="mt-6 grid gap-4 md:grid-cols-4">
         <StatCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
         <StatCard label="Matches Played" value={summary.played} />
-        <StatCard label="Goals For / Against" value={`${summary.goalsFor} / ${summary.goalsAgainst}`} />
+        <StatCard
+          label="Goals For / Against"
+          value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
+        />
         <StatCard
           label="Goal Difference"
           value={summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference}

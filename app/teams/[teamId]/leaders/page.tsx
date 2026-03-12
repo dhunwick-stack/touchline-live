@@ -30,6 +30,7 @@ export default function TeamLeadersPage() {
         ? params.teamId[0]
         : '';
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -41,6 +42,19 @@ export default function TeamLeadersPage() {
 
   useEffect(() => {
     if (!teamId) return;
+
+    const savedTeamId = localStorage.getItem('teamId');
+
+    if (!savedTeamId || savedTeamId !== String(teamId)) {
+      window.location.href = '/team-login';
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
 
     async function loadBaseData() {
       setLoading(true);
@@ -81,10 +95,10 @@ export default function TeamLeadersPage() {
     }
 
     loadBaseData();
-  }, [teamId]);
+  }, [teamId, authChecked]);
 
   useEffect(() => {
-    if (!teamId) return;
+    if (!teamId || !authChecked) return;
 
     async function loadLeaderData() {
       setError('');
@@ -135,14 +149,12 @@ export default function TeamLeadersPage() {
     }
 
     loadLeaderData();
-  }, [teamId, selectedSeasonId]);
+  }, [teamId, selectedSeasonId, authChecked]);
 
   const leaderRows = useMemo<PlayerLeaderRow[]>(() => {
-    const playerMap = new Map<string, Player>();
     const statsMap = new Map<string, PlayerLeaderRow>();
 
     for (const player of players) {
-      playerMap.set(player.id, player);
       const fullName =
         [player.first_name, player.last_name].filter(Boolean).join(' ') || 'Unnamed Player';
 
@@ -253,11 +265,11 @@ export default function TeamLeadersPage() {
     [leaderRows],
   );
 
-  if (loading) {
+  if (loading || !authChecked) {
     return <main className="mx-auto max-w-7xl px-6 py-8">Loading team leaders...</main>;
   }
 
-  if (error) {
+  if (error && !team) {
     return (
       <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
         {error}

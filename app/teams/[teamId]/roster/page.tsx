@@ -28,6 +28,7 @@ export default function TeamRosterPage() {
         ? params.teamId[0]
         : '';
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +45,21 @@ export default function TeamRosterPage() {
 
   useEffect(() => {
     if (!teamId) return;
-    loadRoster();
+
+    const savedTeamId = localStorage.getItem('teamId');
+
+    if (!savedTeamId || savedTeamId !== String(teamId)) {
+      window.location.href = '/team-login';
+      return;
+    }
+
+    setAuthChecked(true);
   }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
+    loadRoster();
+  }, [teamId, authChecked]);
 
   async function loadRoster() {
     setLoading(true);
@@ -224,7 +238,7 @@ export default function TeamRosterPage() {
     [players],
   );
 
-  if (loading) {
+  if (loading || !authChecked) {
     return <main className="mx-auto max-w-6xl px-6 py-8">Loading roster...</main>;
   }
 
