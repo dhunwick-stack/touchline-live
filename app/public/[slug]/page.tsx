@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -197,9 +198,7 @@ export default function PublicMatchPage() {
     const mins = Math.floor(secondsElapsed / 60)
       .toString()
       .padStart(2, '0');
-    const secs = (secondsElapsed % 60)
-      .toString()
-      .padStart(2, '0');
+    const secs = (secondsElapsed % 60).toString().padStart(2, '0');
 
     return `${mins}:${secs}`;
   }, [secondsElapsed]);
@@ -221,60 +220,55 @@ export default function PublicMatchPage() {
   );
 
   const teamSnapshots = useMemo(() => {
-  function buildSnapshot(side: 'home' | 'away') {
-    const team = side === 'home' ? match?.home_team : match?.away_team;
-    const teamId = side === 'home' ? match?.home_team_id : match?.away_team_id;
+    function buildSnapshot(side: 'home' | 'away') {
+      const team = side === 'home' ? match?.home_team : match?.away_team;
+      const teamId = side === 'home' ? match?.home_team_id : match?.away_team_id;
 
-    if (!team || !teamId) return null;
+      if (!team || !teamId) return null;
 
-    const teamGoalEvents = events.filter(
-      (event) => event.team_id === teamId && event.event_type === 'goal',
-    );
+      const teamGoalEvents = events.filter(
+        (event) => event.team_id === teamId && event.event_type === 'goal',
+      );
 
-    const scorerCounts = new Map<string, number>();
+      const scorerCounts = new Map<string, number>();
 
-    for (const event of teamGoalEvents) {
-      const key =
-        event.player_id ||
-        `override:${event.player_name_override || 'unknown'}`;
+      for (const event of teamGoalEvents) {
+        const key = event.player_id || `override:${event.player_name_override || 'unknown'}`;
+        scorerCounts.set(key, (scorerCounts.get(key) || 0) + 1);
+      }
 
-      scorerCounts.set(key, (scorerCounts.get(key) || 0) + 1);
-    }
+      let topScorerName = 'No scorer yet';
+      let topScorerGoals = 0;
 
-    let topScorerName = 'No scorer yet';
-    let topScorerGoals = 0;
+      for (const [key, count] of scorerCounts.entries()) {
+        if (count > topScorerGoals) {
+          topScorerGoals = count;
 
-    for (const [key, count] of scorerCounts.entries()) {
-      if (count > topScorerGoals) {
-        topScorerGoals = count;
-
-        if (key.startsWith('override:')) {
-          topScorerName = key.replace('override:', '') || 'Unknown';
-        } else {
-          const roster = side === 'home' ? homePlayers : awayPlayers;
-          const player = roster.find((p) => p.id === key);
-          topScorerName = playerDisplayName(player) || 'Unknown';
+          if (key.startsWith('override:')) {
+            topScorerName = key.replace('override:', '') || 'Unknown';
+          } else {
+            const roster = side === 'home' ? homePlayers : awayPlayers;
+            const player = roster.find((p) => p.id === key);
+            topScorerName = playerDisplayName(player) || 'Unknown';
+          }
         }
       }
+
+      return {
+        side,
+        team,
+        record: 'Record coming next',
+        topScorerName,
+        topScorerGoals,
+        recentForm: 'Form coming next',
+      };
     }
 
     return {
-      side,
-      team,
-      record: 'Record coming next',
-      topScorerName,
-      topScorerGoals,
-      recentForm: 'Form coming next',
+      home: buildSnapshot('home'),
+      away: buildSnapshot('away'),
     };
-  }
-
-  return {
-    home: buildSnapshot('home'),
-    away: buildSnapshot('away'),
-  };
-}, [match, events, homePlayers, awayPlayers]);
-
-
+  }, [match, events, homePlayers, awayPlayers]);
 
   if (loading) {
     return (
@@ -339,10 +333,13 @@ export default function PublicMatchPage() {
                 )}
 
                 <div>
-                  <h2 className="text-2xl font-black leading-tight text-white">
+                  <h2
+                    className="text-xl font-black leading-tight md:text-2xl"
+                    style={{ color: '#ffffff' }}
+                  >
                     {match.home_team?.name || 'Home Team'}
                   </h2>
-                  <p className="mt-1 text-sm text-white/75">
+                  <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
                     {match.home_team?.club_name || ''}
                   </p>
                 </div>
@@ -350,32 +347,32 @@ export default function PublicMatchPage() {
             </div>
 
             <div className="text-center">
-  <div className="flex items-center justify-center gap-2">
-    <StatusPill status={match.status} />
-    <PeriodPill
-      status={match.status}
-      clockRunning={match.clock_running}
-      secondsElapsed={secondsElapsed}
-    />
-  </div>
+              <div className="flex items-center justify-center gap-2">
+                <StatusPill status={match.status} />
+                <PeriodPill
+                  status={match.status}
+                  clockRunning={match.clock_running}
+                  secondsElapsed={secondsElapsed}
+                />
+              </div>
 
-  <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
-    <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
-      {match.home_score} - {match.away_score}
-    </div>
+              <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
+                <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
+                  {match.home_score} - {match.away_score}
+                </div>
 
-    <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
-      {formattedClock}
-    </div>
-  </div>
+                <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
+                  {formattedClock}
+                </div>
+              </div>
 
-  <div className="mt-4 space-y-1">
-    <div className="text-sm font-medium text-white/90">
-      {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
-    </div>
-    <div className="text-sm text-white/75">{getVenueName(match)}</div>
-  </div>
-</div>
+              <div className="mt-4 space-y-1">
+                <div className="text-sm font-medium text-white/90">
+                  {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+                </div>
+                <div className="text-sm text-white/75">{getVenueName(match)}</div>
+              </div>
+            </div>
 
             <div className="text-right">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
@@ -384,10 +381,13 @@ export default function PublicMatchPage() {
 
               <div className="mt-2 flex items-center justify-end gap-3">
                 <div>
-                  <h2 className="text-2xl font-black leading-tight text-white">
+                  <h2
+                    className="text-xl font-black leading-tight md:text-2xl"
+                    style={{ color: '#ffffff' }}
+                  >
                     {match.away_team?.name || 'Away Team'}
                   </h2>
-                  <p className="mt-1 text-sm text-white/75">
+                  <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
                     {match.away_team?.club_name || ''}
                   </p>
                 </div>
@@ -419,30 +419,15 @@ export default function PublicMatchPage() {
                 {goalEvents.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">No goals recorded.</p>
                 ) : (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-4">
                     {goalEvents.map((event) => (
-                      <div
+                      <TimelineEventCard
                         key={event.id}
-                        className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-bold tabular-nums text-slate-500">
-                            {event.minute}'
-                          </span>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                              event.team_side === 'home'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-rose-100 text-rose-700'
-                            }`}
-                          >
-                            {event.team_side}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm font-medium text-slate-800">
-                          {prettyEventText(event, match, homePlayers, awayPlayers)}
-                        </p>
-                      </div>
+                        event={event}
+                        match={match}
+                        homePlayers={homePlayers}
+                        awayPlayers={awayPlayers}
+                      />
                     ))}
                   </div>
                 )}
@@ -454,30 +439,15 @@ export default function PublicMatchPage() {
                 {cardEvents.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">No cards recorded.</p>
                 ) : (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-4">
                     {cardEvents.map((event) => (
-                      <div
+                      <TimelineEventCard
                         key={event.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-bold tabular-nums text-slate-500">
-                            {event.minute}'
-                          </span>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                              event.team_side === 'home'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-rose-100 text-rose-700'
-                            }`}
-                          >
-                            {event.team_side}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm font-medium text-slate-800">
-                          {prettyEventText(event, match, homePlayers, awayPlayers)}
-                        </p>
-                      </div>
+                        event={event}
+                        match={match}
+                        homePlayers={homePlayers}
+                        awayPlayers={awayPlayers}
+                      />
                     ))}
                   </div>
                 )}
@@ -500,39 +470,15 @@ export default function PublicMatchPage() {
                 No match events yet.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {events.map((event) => (
-                  <div
+                  <TimelineEventCard
                     key={event.id}
-                    className={`rounded-2xl border p-4 transition-colors hover:bg-white ${
-                      event.event_type === 'goal'
-                        ? 'border-emerald-200 bg-emerald-50'
-                        : 'border-slate-200 bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-bold tabular-nums text-slate-500">
-                        {event.minute}'
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                          event.team_side === 'home'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-rose-100 text-rose-700'
-                        }`}
-                      >
-                        {event.team_side}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-sm font-medium text-slate-800">
-                      {prettyEventText(event, match, homePlayers, awayPlayers)}
-                    </p>
-
-                    {event.notes ? (
-                      <p className="mt-2 text-xs text-slate-500">{event.notes}</p>
-                    ) : null}
-                  </div>
+                    event={event}
+                    match={match}
+                    homePlayers={homePlayers}
+                    awayPlayers={awayPlayers}
+                  />
                 ))}
               </div>
             )}
@@ -585,9 +531,7 @@ export default function PublicMatchPage() {
                 </dd>
               </div>
 
-
-
-          <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4">
                 <dt className="font-semibold text-slate-500">
                   {isFinal ? 'Total Goals' : 'Updates'}
                 </dt>
@@ -598,100 +542,100 @@ export default function PublicMatchPage() {
             </dl>
           </div>
 
-              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-  <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
-  <p className="mt-2 text-sm text-slate-600">
-    View public team pages and season leaders for both sides.
-  </p>
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              View public team pages and season leaders for both sides.
+            </p>
 
-  <div className="mt-5 space-y-4">
-    {match.home_team ? (
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center gap-3">
-          {match.home_team.logo_url ? (
-            <img
-              src={match.home_team.logo_url}
-              alt={`${match.home_team.name} logo`}
-              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-              LOGO
+            <div className="mt-5 space-y-4">
+              {match.home_team ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    {match.home_team.logo_url ? (
+                      <img
+                        src={match.home_team.logo_url}
+                        alt={`${match.home_team.name} logo`}
+                        className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        LOGO
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Home Team
+                      </p>
+                      <p className="truncate font-semibold text-slate-900">
+                        {match.home_team.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href={`/public/team/${match.home_team.id}`}
+                      className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+                    >
+                      Team Page
+                    </Link>
+
+                    <Link
+                      href={`/public/team/${match.home_team.id}/leaders`}
+                      className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+                    >
+                      Leaders
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+
+              {match.away_team ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    {match.away_team.logo_url ? (
+                      <img
+                        src={match.away_team.logo_url}
+                        alt={`${match.away_team.name} logo`}
+                        className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        LOGO
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Away Team
+                      </p>
+                      <p className="truncate font-semibold text-slate-900">
+                        {match.away_team.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href={`/public/team/${match.away_team.id}`}
+                      className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+                    >
+                      Team Page
+                    </Link>
+
+                    <Link
+                      href={`/public/team/${match.away_team.id}/leaders`}
+                      className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+                    >
+                      Leaders
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          )}
-
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Home Team
-            </p>
-            <p className="truncate font-semibold text-slate-900">
-              {match.home_team.name}
-            </p>
           </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            href={`/public/team/${match.home_team.id}`}
-            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
-          >
-            Team Page
-          </Link>
-
-          <Link
-            href={`/public/team/${match.home_team.id}/leaders`}
-            className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-          >
-            Leaders
-          </Link>
-        </div>
-      </div>
-    ) : null}
-
-    {match.away_team ? (
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center gap-3">
-          {match.away_team.logo_url ? (
-            <img
-              src={match.away_team.logo_url}
-              alt={`${match.away_team.name} logo`}
-              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-              LOGO
-            </div>
-          )}
-
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Away Team
-            </p>
-            <p className="truncate font-semibold text-slate-900">
-              {match.away_team.name}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            href={`/public/team/${match.away_team.id}`}
-            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
-          >
-            Team Page
-          </Link>
-
-          <Link
-            href={`/public/team/${match.away_team.id}/leaders`}
-            className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-          >
-            Leaders
-          </Link>
-        </div>
-      </div>
-    ) : null}
-  </div>
-</div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">Team Snapshot</h3>
@@ -822,11 +766,107 @@ export default function PublicMatchPage() {
   );
 }
 
+function TimelineEventCard({
+  event,
+  match,
+  homePlayers,
+  awayPlayers,
+}: {
+  event: MatchEvent;
+  match: PublicMatchRow;
+  homePlayers: Player[];
+  awayPlayers: Player[];
+}) {
+  return (
+    <div className="relative pl-14">
+
+      {/* vertical timeline rail */}
+      <div className="absolute left-[1rem] top-0 bottom-0 w-px bg-slate-200" />
+
+      {/* event icon */}
+      <div className="absolute left-0 top-4 flex w-8 justify-center">
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-full text-sm shadow-sm ring-1 ${
+            event.event_type === 'goal'
+              ? 'bg-[#cfefff] text-sky-900 ring-[#8ecae6]'
+              : event.event_type === 'yellow_card'
+                ? 'bg-yellow-200 text-yellow-900 ring-yellow-400'
+                : event.event_type === 'red_card'
+                  ? 'bg-red-200 text-red-900 ring-red-400'
+                  : 'bg-slate-100 text-slate-700 ring-slate-200'
+          }`}
+        >
+          {event.event_type === 'goal'
+            ? '⚽'
+            : event.event_type === 'yellow_card'
+              ? '🟨'
+              : event.event_type === 'red_card'
+                ? '🟥'
+                : event.event_type === 'substitution'
+                  ? '🔁'
+                  : event.event_type === 'half_end'
+                    ? '⏸'
+                    : event.event_type === 'full_time'
+                      ? '■'
+                      : '•'}
+        </div>
+      </div>
+
+      {/* event card */}
+      <div
+  className={`rounded-2xl border p-4 transition-shadow hover:shadow-md ${
+    event.event_type === 'goal'
+      ? 'border-[#8ecae6] bg-[#cfefff]'
+      : event.event_type === 'yellow_card'
+        ? 'border-yellow-400 bg-yellow-200/90'
+        : event.event_type === 'red_card'
+          ? 'border-red-400 bg-red-200/90'
+          : 'border-slate-200 bg-slate-50'
+  }`}
+>
+        <div className="flex items-center justify-between gap-3">
+
+          {/* left content */}
+          <div className="flex items-center gap-3 min-w-0">
+
+            {/* time pill */}
+            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
+              {event.minute}'
+            </span>
+
+            {/* event text */}
+            <p className="truncate text-sm font-semibold text-slate-900">
+              {prettyEventText(event, match, homePlayers, awayPlayers)}
+            </p>
+
+          </div>
+
+          {/* team badge */}
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+              event.team_side === 'home'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {event.team_side}
+          </span>
+
+        </div>
+
+        {event.notes && (
+          <p className="mt-2 text-xs text-slate-600">{event.notes}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StatusPill({ status }: { status: Match['status'] }) {
   if (status === 'live') {
     return (
       <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-300 ring-1 ring-emerald-400/20">
-        <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
         Live
       </span>
     );
@@ -850,10 +890,10 @@ function StatusPill({ status }: { status: Match['status'] }) {
 
   return (
     <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
-        Not Started
-      </span>
-    );
-  }
+      Not Started
+    </span>
+  );
+}
 
 function PeriodPill({
   status,
@@ -940,8 +980,7 @@ function prettyEventText(
       : match.away_team?.name || 'Away Team';
 
   const primaryName = event.player_name_override || playerDisplayName(primary);
-  const secondaryName =
-    event.secondary_player_name_override || playerDisplayName(secondary);
+  const secondaryName = event.secondary_player_name_override || playerDisplayName(secondary);
 
   if (event.event_type === 'goal') {
     return secondaryName
