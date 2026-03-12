@@ -21,12 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${roboto.className} min-h-screen bg-slate-100 text-slate-900`}>
+      <body className={`${roboto.className} min-h-screen text-slate-900`}>
         <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );
 }
-
-
-

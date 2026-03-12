@@ -1,0 +1,597 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import type { Player, Team } from '@/lib/types';
+
+const POSITION_OPTIONS = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'];
+
+type EditingPlayerState = Record<
+  string,
+  {
+    first_name: string;
+    last_name: string;
+    jersey_number: string;
+    position: string;
+    active: boolean;
+  }
+>;
+
+export default function TeamRosterPage() {
+  const params = useParams();
+  const teamId =
+    typeof params?.teamId === 'string'
+      ? params.teamId
+      : Array.isArray(params?.teamId)
+        ? params.teamId[0]
+        : '';
+
+  const [team, setTeam] = useState<Team | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
+  const [editingPlayers, setEditingPlayers] = useState<EditingPlayerState>({});
+
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
+  const [newJerseyNumber, setNewJerseyNumber] = useState('');
+  const [newPosition, setNewPosition] = useState('');
+  const [newActive, setNewActive] = useState(true);
+
+  useEffect(() => {
+    if (!teamId) return;
+    loadRoster();
+  }, [teamId]);
+
+  async function loadRoster() {
+    setLoading(true);
+    setError('');
+
+    const [{ data: teamData, error: teamError }, { data: playerData, error: playerError }] =
+      await Promise.all([
+        supabase.from('teams').select('*').eq('id', teamId).single(),
+        supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', teamId)
+          .order('active', { ascending: false })
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true }),
+      ]);
+
+    if (teamError || playerError) {
+      setError(teamError?.message || playerError?.message || 'Failed to load roster.');
+      setLoading(false);
+      return;
+    }
+
+    const loadedTeam = teamData as Team;
+    const loadedPlayers = (playerData as Player[]) ?? [];
+
+    setTeam(loadedTeam);
+    setPlayers(loadedPlayers);
+
+    const initialEditing: EditingPlayerState = {};
+    for (const player of loadedPlayers) {
+      initialEditing[player.id] = {
+        first_name: player.first_name || '',
+        last_name: player.last_name || '',
+        jersey_number:
+          player.jersey_number !== null && player.jersey_number !== undefined
+            ? String(player.jersey_number)
+            : '',
+        position: player.position || '',
+        active: player.active !== false,
+      };
+    }
+    setEditingPlayers(initialEditing);
+
+    setLoading(false);
+  }
+
+  async function handleAddPlayer() {
+    if (!teamId) return;
+
+    const first = newFirstName.trim();
+    const last = newLastName.trim();
+
+    if (!first && !last) {
+      setError('Please add at least a first or last name.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    const jerseyValue =
+      newJerseyNumber.trim() === '' ? null : Number.parseInt(newJerseyNumber.trim(), 10);
+
+    const { error } = await supabase.from('players').insert({
+      team_id: teamId,
+      first_name: first || null,
+      last_name: last || null,
+      jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
+      position: newPosition || null,
+      active: newActive,
+    });
+
+    if (error) {
+      setError(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setNewFirstName('');
+    setNewLastName('');
+    setNewJerseyNumber('');
+    setNewPosition('');
+    setNewActive(true);
+
+    await loadRoster();
+    setSaving(false);
+  }
+
+  function startEditing(player: Player) {
+    setEditingIds((prev) => ({ ...prev, [player.id]: true }));
+    setEditingPlayers((prev) => ({
+      ...prev,
+      [player.id]: {
+        first_name: player.first_name || '',
+        last_name: player.last_name || '',
+        jersey_number:
+          player.jersey_number !== null && player.jersey_number !== undefined
+            ? String(player.jersey_number)
+            : '',
+        position: player.position || '',
+        active: player.active !== false,
+      },
+    }));
+  }
+
+  function cancelEditing(playerId: string) {
+    const player = players.find((p) => p.id === playerId);
+    if (!player) return;
+
+    setEditingIds((prev) => ({ ...prev, [playerId]: false }));
+    setEditingPlayers((prev) => ({
+      ...prev,
+      [playerId]: {
+        first_name: player.first_name || '',
+        last_name: player.last_name || '',
+        jersey_number:
+          player.jersey_number !== null && player.jersey_number !== undefined
+            ? String(player.jersey_number)
+            : '',
+        position: player.position || '',
+        active: player.active !== false,
+      },
+    }));
+  }
+
+  async function savePlayer(playerId: string) {
+    const draft = editingPlayers[playerId];
+    if (!draft) return;
+
+    setSaving(true);
+    setError('');
+
+    const jerseyValue =
+      draft.jersey_number.trim() === '' ? null : Number.parseInt(draft.jersey_number.trim(), 10);
+
+    const { error } = await supabase
+      .from('players')
+      .update({
+        first_name: draft.first_name.trim() || null,
+        last_name: draft.last_name.trim() || null,
+        jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
+        position: draft.position || null,
+        active: draft.active,
+      })
+      .eq('id', playerId);
+
+    if (error) {
+      setError(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setEditingIds((prev) => ({ ...prev, [playerId]: false }));
+    await loadRoster();
+    setSaving(false);
+  }
+
+  const activePlayers = useMemo(
+    () => players.filter((player) => player.active !== false),
+    [players],
+  );
+
+  const inactivePlayers = useMemo(
+    () => players.filter((player) => player.active === false),
+    [players],
+  );
+
+  const goalkeepers = useMemo(
+    () =>
+      players.filter(
+        (player) =>
+          player.position?.toLowerCase() === 'goalkeeper' ||
+          player.position?.toLowerCase() === 'gk',
+      ),
+    [players],
+  );
+
+  if (loading) {
+    return <main className="mx-auto max-w-6xl px-6 py-8">Loading roster...</main>;
+  }
+
+  if (error && !team) {
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
+        {error}
+      </main>
+    );
+  }
+
+  if (!team) {
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
+        Team not found.
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-6xl px-6 py-8">
+      <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-4">
+            {team.logo_url ? (
+              <img
+                src={team.logo_url}
+                alt={`${team.name} logo`}
+                className="h-20 w-20 rounded-3xl object-cover ring-1 ring-slate-200"
+              />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                LOGO
+              </div>
+            )}
+
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Team Roster
+              </p>
+              <h1 className="text-4xl font-black tracking-tight text-slate-900">
+                {team.name}
+              </h1>
+              <p className="mt-2 max-w-2xl text-slate-600">
+                Manage players, positions, jersey numbers, and active status for the full squad.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/teams/${team.id}`}
+              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
+            >
+              Team Page
+            </Link>
+
+            <Link
+              href={`/teams/${team.id}/stats`}
+              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+            >
+              Stats
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6 grid gap-4 md:grid-cols-4">
+        <SummaryCard label="Total Players" value={players.length} />
+        <SummaryCard label="Active" value={activePlayers.length} />
+        <SummaryCard label="Inactive" value={inactivePlayers.length} />
+        <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
+      </section>
+
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Add Player</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Add a new player to the roster with jersey number, position, and status.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
+          <Field label="First Name">
+            <input
+              value={newFirstName}
+              onChange={(e) => setNewFirstName(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+
+          <Field label="Last Name">
+            <input
+              value={newLastName}
+              onChange={(e) => setNewLastName(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+
+          <Field label="Jersey #">
+            <input
+              value={newJerseyNumber}
+              onChange={(e) => {
+                const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 2);
+                setNewJerseyNumber(digitsOnly);
+              }}
+              className="w-full rounded-2xl border border-slate-200 px-3 py-3"
+              inputMode="numeric"
+              maxLength={2}
+              placeholder="10"
+            />
+          </Field>
+
+          <Field label="Position">
+            <select
+              value={newPosition}
+              onChange={(e) => setNewPosition(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              <option value="">Select position</option>
+              {POSITION_OPTIONS.map((position) => (
+                <option key={position} value={position}>
+                  {position}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-slate-700">Status</span>
+            <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
+              <input
+                type="checkbox"
+                checked={newActive}
+                onChange={(e) => setNewActive(e.target.checked)}
+                className="h-5 w-5 shrink-0"
+              />
+              <span className="text-sm font-medium text-slate-700">Active</span>
+            </label>
+          </div>
+        </div>
+
+        {error ? <p className="mt-4 text-sm font-medium text-red-600">{error}</p> : null}
+
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={handleAddPlayer}
+            disabled={saving}
+            className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+          >
+            {saving ? 'Saving...' : 'Add Player'}
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Roster</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Edit player details, adjust status, and keep the squad current.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+            {players.length} players
+          </span>
+        </div>
+
+        {players.length === 0 ? (
+          <p className="text-sm text-slate-500">No players added yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {players.map((player) => {
+              const isEditing = !!editingIds[player.id];
+              const draft = editingPlayers[player.id];
+
+              return (
+                <div
+                  key={player.id}
+                  className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
+                >
+                  {!isEditing ? (
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900 ring-1 ring-slate-200">
+                          {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                        </div>
+
+                        <div>
+                          <p className="text-lg font-semibold text-slate-900">
+                            {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
+                              'Unnamed Player'}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {player.position || 'No position'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                            player.active !== false
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {player.active !== false ? 'Active' : 'Inactive'}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => startEditing(player)}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
+                        <Field label="First Name">
+                          <input
+                            value={draft?.first_name || ''}
+                            onChange={(e) =>
+                              setEditingPlayers((prev) => ({
+                                ...prev,
+                                [player.id]: {
+                                  ...prev[player.id],
+                                  first_name: e.target.value,
+                                },
+                              }))
+                            }
+                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                          />
+                        </Field>
+
+                        <Field label="Last Name">
+                          <input
+                            value={draft?.last_name || ''}
+                            onChange={(e) =>
+                              setEditingPlayers((prev) => ({
+                                ...prev,
+                                [player.id]: {
+                                  ...prev[player.id],
+                                  last_name: e.target.value,
+                                },
+                              }))
+                            }
+                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                          />
+                        </Field>
+
+                        <Field label="Jersey #">
+                          <input
+                            value={draft?.jersey_number || ''}
+                            onChange={(e) =>
+                              setEditingPlayers((prev) => ({
+                                ...prev,
+                                [player.id]: {
+                                  ...prev[player.id],
+                                  jersey_number: e.target.value.replace(/\D/g, '').slice(0, 2),
+                                },
+                              }))
+                            }
+                            className="w-full rounded-2xl border border-slate-200 px-3 py-3"
+                            inputMode="numeric"
+                            maxLength={2}
+                            placeholder="10"
+                          />
+                        </Field>
+
+                        <Field label="Position">
+                          <select
+                            value={draft?.position || ''}
+                            onChange={(e) =>
+                              setEditingPlayers((prev) => ({
+                                ...prev,
+                                [player.id]: {
+                                  ...prev[player.id],
+                                  position: e.target.value,
+                                },
+                              }))
+                            }
+                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                          >
+                            <option value="">Select position</option>
+                            {POSITION_OPTIONS.map((position) => (
+                              <option key={position} value={position}>
+                                {position}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-slate-700">Status</span>
+                          <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
+                            <input
+                              type="checkbox"
+                              checked={draft?.active ?? true}
+                              onChange={(e) =>
+                                setEditingPlayers((prev) => ({
+                                  ...prev,
+                                  [player.id]: {
+                                    ...prev[player.id],
+                                    active: e.target.checked,
+                                  },
+                                }))
+                              }
+                              className="h-5 w-5 shrink-0"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Active</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => savePlayer(player.id)}
+                          disabled={saving}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                        >
+                          Save
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => cancelEditing(player.id)}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
