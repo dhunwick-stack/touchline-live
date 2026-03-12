@@ -49,8 +49,13 @@ const eventLabels: Record<EventType, string> = {
 };
 
 export default function LiveMatchPage() {
-  const params = useParams<{ matchId: string }>();
-  const matchId = params.matchId;
+  const params = useParams();
+  const matchId =
+    typeof params?.matchId === 'string'
+      ? params.matchId
+      : Array.isArray(params?.matchId)
+        ? params.matchId[0]
+        : '';
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
@@ -73,6 +78,8 @@ export default function LiveMatchPage() {
   });
 
   useEffect(() => {
+    if (!matchId) return;
+
     async function loadMatch() {
       setLoading(true);
       setError(null);
@@ -280,106 +287,115 @@ export default function LiveMatchPage() {
   }
 
   async function addEvent() {
-    if (!match) return;
+  if (!match) return;
 
-    const validationError = validateEvent();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    const minute = Math.floor(secondsElapsed / 60);
-    const teamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
-
-    const insertPayload = {
-      match_id: match.id,
-      minute,
-      event_type: form.type,
-      team_side: form.side,
-      team_id: teamId,
-      player_id: form.playerId || null,
-      secondary_player_id: form.secondaryPlayerId || null,
-      player_name_override: form.playerNameOverride.trim() || null,
-      secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
-      notes: form.notes.trim() || null,
-    };
-
-    const { data, error } = await supabase
-      .from('match_events')
-      .insert(insertPayload)
-      .select('*')
-      .single();
-
-    if (error) {
-      setSaving(false);
-      setError(error.message);
-      return;
-    }
-
-    let nextHomeScore = match.home_score;
-    let nextAwayScore = match.away_score;
-    let nextStatus = match.status;
-    let nextClockRunning = match.clock_running;
-    let nextPeriodStartedAt = match.period_started_at;
-
-    if (form.type === 'goal') {
-      if (form.side === 'home') nextHomeScore += 1;
-      if (form.side === 'away') nextAwayScore += 1;
-    }
-
-    if (form.type === 'half_end') {
-      nextStatus = 'halftime';
-      nextClockRunning = false;
-      nextPeriodStartedAt = null;
-    }
-
-    if (form.type === 'full_time') {
-      nextStatus = 'final';
-      nextClockRunning = false;
-      nextPeriodStartedAt = null;
-    }
-
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({
-        home_score: nextHomeScore,
-        away_score: nextAwayScore,
-        status: nextStatus,
-        current_minute: minute,
-        elapsed_seconds: secondsElapsed,
-        clock_running: nextClockRunning,
-        period_started_at: nextPeriodStartedAt,
-      })
-      .eq('id', match.id);
-
-    if (updateError) {
-      setSaving(false);
-      setError(updateError.message);
-      return;
-    }
-
-    setEvents((prev) => [data as MatchEvent, ...prev]);
-    setMatch((prev) =>
-      prev
-        ? {
-            ...prev,
-            home_score: nextHomeScore,
-            away_score: nextAwayScore,
-            status: nextStatus,
-            current_minute: minute,
-            elapsed_seconds: secondsElapsed,
-            clock_running: nextClockRunning,
-            period_started_at: nextPeriodStartedAt,
-          }
-        : prev,
-    );
-
-    setSaving(false);
-    resetForm(form.side);
+  const validationError = validateEvent();
+  if (validationError) {
+    setError(validationError);
+    return;
   }
+
+  setSaving(true);
+  setError(null);
+
+  const minute = Math.floor(secondsElapsed / 60);
+  const teamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
+
+  const insertPayload = {
+    match_id: match.id,
+    minute,
+    event_type: form.type,
+    team_side: form.side,
+    team_id: teamId,
+    player_id: form.playerId || null,
+    secondary_player_id: form.secondaryPlayerId || null,
+    player_name_override: form.playerNameOverride.trim() || null,
+    secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
+    notes: form.notes.trim() || null,
+  };
+
+  const { data, error } = await supabase
+    .from('match_events')
+    .insert(insertPayload)
+    .select('*')
+    .single();
+
+  if (error) {
+    setSaving(false);
+    setError(error.message);
+    return;
+  }
+
+  let nextHomeScore = match.home_score;
+  let nextAwayScore = match.away_score;
+  let nextStatus = match.status;
+  let nextClockRunning = match.clock_running;
+  let nextPeriodStartedAt = match.period_started_at;
+  let nextElapsedSeconds = match.elapsed_seconds;
+
+  if (form.type === 'goal') {
+    if (form.side === 'home') nextHomeScore += 1;
+    if (form.side === 'away') nextAwayScore += 1;
+  }
+
+  if (form.type === 'half_end') {
+    nextStatus = 'halftime';
+    nextClockRunning = false;
+    nextPeriodStartedAt = null;
+    nextElapsedSeconds = secondsElapsed;
+  }
+
+  if (form.type === 'full_time') {
+    nextStatus = 'final';
+    nextClockRunning = false;
+    nextPeriodStartedAt = null;
+    nextElapsedSeconds = secondsElapsed;
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    home_score: nextHomeScore,
+    away_score: nextAwayScore,
+    status: nextStatus,
+    current_minute: minute,
+  };
+
+  // Only freeze elapsed time when stopping the clock
+  if (!nextClockRunning) {
+    updatePayload.elapsed_seconds = nextElapsedSeconds;
+    updatePayload.clock_running = false;
+    updatePayload.period_started_at = null;
+  }
+
+  const { error: updateError } = await supabase
+    .from('matches')
+    .update(updatePayload)
+    .eq('id', match.id);
+
+  if (updateError) {
+    setSaving(false);
+    setError(updateError.message);
+    return;
+  }
+
+  setEvents((prev) => [data as MatchEvent, ...prev]);
+  setMatch((prev) =>
+    prev
+      ? {
+          ...prev,
+          home_score: nextHomeScore,
+          away_score: nextAwayScore,
+          status: nextStatus,
+          current_minute: minute,
+          elapsed_seconds: !nextClockRunning ? nextElapsedSeconds : prev.elapsed_seconds,
+          clock_running: nextClockRunning,
+          period_started_at: nextPeriodStartedAt,
+        }
+      : prev,
+  );
+
+  setSaving(false);
+  resetForm(form.side);
+}
 
   async function startLivePeriod() {
     if (!match) return;
@@ -548,7 +564,7 @@ export default function LiveMatchPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-7xl px-6 py-8 pb-32">
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-slate-900 text-white">
         <div className="mx-auto max-w-7xl px-6 py-6">
           <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
@@ -881,6 +897,55 @@ export default function LiveMatchPage() {
             </div>
           )}
         </section>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
+        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              setForm((prev) => ({
+                ...prev,
+                side: 'home',
+                type: 'goal',
+              }))
+            }
+            className="rounded-2xl bg-blue-600 py-4 text-base font-bold text-white"
+          >
+            ⚽ Home Goal
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setForm((prev) => ({
+                ...prev,
+                side: 'away',
+                type: 'goal',
+              }))
+            }
+            className="rounded-2xl bg-rose-600 py-4 text-base font-bold text-white"
+          >
+            ⚽ Away Goal
+          </button>
+
+          <button
+            type="button"
+            onClick={undoLastEvent}
+            disabled={undoing || events.length === 0}
+            className="rounded-2xl bg-slate-800 py-4 text-base font-bold text-white disabled:opacity-40"
+          >
+            ↺ Undo
+          </button>
+
+          <button
+            type="button"
+            onClick={match.clock_running ? pauseClock : startLivePeriod}
+            className="rounded-2xl bg-amber-500 py-4 text-base font-bold text-white"
+          >
+            {match.clock_running ? '⏸ Pause' : '▶ Resume'}
+          </button>
+        </div>
       </div>
     </main>
   );

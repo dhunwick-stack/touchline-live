@@ -28,96 +28,145 @@ export default function PublicMatchPage() {
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
 
+  async function loadPageData(currentSlug: string) {
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .select(`
+        *,
+        home_team:home_team_id (*),
+        away_team:away_team_id (*)
+      `)
+      .eq('public_slug', currentSlug)
+      .single();
+
+    if (matchError || !matchData) {
+      throw new Error(matchError?.message || 'Match not found.');
+    }
+
+    const loadedMatch = matchData as PublicMatchRow;
+
+    const { data: eventsData, error: eventsError } = await supabase
+      .from('match_events')
+      .select('*')
+      .eq('match_id', loadedMatch.id)
+      .order('created_at', { ascending: false });
+
+    if (eventsError) {
+      throw new Error(eventsError.message);
+    }
+
+    const homePlayersResult =
+      loadedMatch.home_team_id && loadedMatch.home_team_id !== 'undefined'
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.home_team_id)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
+
+    const awayPlayersResult =
+      loadedMatch.away_team_id && loadedMatch.away_team_id !== 'undefined'
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.away_team_id)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
+
+    return {
+      match: loadedMatch,
+      events: (eventsData as MatchEvent[]) ?? [],
+      homePlayers: (homePlayersResult.data as Player[]) ?? [],
+      awayPlayers: (awayPlayersResult.data as Player[]) ?? [],
+    };
+  }
+
   useEffect(() => {
     if (!slug) return;
 
-    let cancelled = false;
+    let mounted = true;
 
-    async function loadPageData() {
-      setError('');
+    async function initialLoad() {
+      try {
+        setError('');
+        setLoading(true);
 
-      const { data: matchData, error: matchError } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:home_team_id (*),
-          away_team:away_team_id (*)
-        `)
-        .eq('public_slug', slug)
-        .single();
+        const data = await loadPageData(slug);
 
-      if (matchError || !matchData) {
-        if (!cancelled) {
-          setError(matchError?.message || 'Match not found.');
-          setLoading(false);
-        }
-        return;
-      }
+        if (!mounted) return;
 
-      const loadedMatch = matchData as PublicMatchRow;
-
-      if (!loadedMatch.id) {
-        if (!cancelled) {
-          setError('Match ID missing.');
-          setLoading(false);
-        }
-        return;
-      }
-
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('match_events')
-        .select('*')
-        .eq('match_id', loadedMatch.id)
-        .order('created_at', { ascending: false });
-
-      if (eventsError) {
-        if (!cancelled) {
-          setError(eventsError.message);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const homePlayersResult =
-        loadedMatch.home_team_id && loadedMatch.home_team_id !== 'undefined'
-          ? await supabase
-              .from('players')
-              .select('*')
-              .eq('team_id', loadedMatch.home_team_id)
-              .order('jersey_number', { ascending: true, nullsFirst: false })
-              .order('first_name', { ascending: true })
-          : { data: [], error: null };
-
-      const awayPlayersResult =
-        loadedMatch.away_team_id && loadedMatch.away_team_id !== 'undefined'
-          ? await supabase
-              .from('players')
-              .select('*')
-              .eq('team_id', loadedMatch.away_team_id)
-              .order('jersey_number', { ascending: true, nullsFirst: false })
-              .order('first_name', { ascending: true })
-          : { data: [], error: null };
-
-      if (!cancelled) {
-        setMatch(loadedMatch);
-        setEvents((eventsData as MatchEvent[]) ?? []);
-        setHomePlayers((homePlayersResult.data as Player[]) ?? []);
-        setAwayPlayers((awayPlayersResult.data as Player[]) ?? []);
-        setLoading(false);
+        setMatch(data.match);
+        setEvents(data.events);
+        setHomePlayers(data.homePlayers);
+        setAwayPlayers(data.awayPlayers);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : 'Failed to load scoreboard.');
+      } finally {
+        if (mounted) setLoading(false);
       }
     }
 
-    loadPageData();
-
-    const refreshTimer = window.setInterval(() => {
-      loadPageData();
-    }, 10000);
+    initialLoad();
 
     return () => {
-      cancelled = true;
-      window.clearInterval(refreshTimer);
+      mounted = false;
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!match?.id || !slug) return;
+
+    const channel = supabase
+      .channel(`public-match-${match.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matches',
+          filter: `id=eq.${match.id}`,
+        },
+        async () => {
+          try {
+            const data = await loadPageData(slug);
+            setMatch(data.match);
+            setEvents(data.events);
+            setHomePlayers(data.homePlayers);
+            setAwayPlayers(data.awayPlayers);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_events',
+          filter: `match_id=eq.${match.id}`,
+        },
+        async () => {
+          try {
+            const data = await loadPageData(slug);
+            setMatch(data.match);
+            setEvents(data.events);
+            setHomePlayers(data.homePlayers);
+            setAwayPlayers(data.awayPlayers);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [match?.id, slug]);
 
   useEffect(() => {
     if (!match?.clock_running) return;
@@ -155,6 +204,22 @@ export default function PublicMatchPage() {
     return `${mins}:${secs}`;
   }, [secondsElapsed]);
 
+  const goalEvents = useMemo(
+    () => events.filter((event) => event.event_type === 'goal').slice().reverse(),
+    [events],
+  );
+
+  const cardEvents = useMemo(
+    () =>
+      events
+        .filter(
+          (event) => event.event_type === 'yellow_card' || event.event_type === 'red_card',
+        )
+        .slice()
+        .reverse(),
+    [events],
+  );
+
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-8">
@@ -183,6 +248,8 @@ export default function PublicMatchPage() {
     );
   }
 
+  const isFinal = match.status === 'final';
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <div className="mb-6">
@@ -190,7 +257,7 @@ export default function PublicMatchPage() {
           Touchline Live
         </p>
         <h1 className="text-3xl font-black tracking-tight text-slate-900">
-          Public Match Center
+          {isFinal ? 'Match Recap' : 'Public Match Center'}
         </h1>
       </div>
 
@@ -285,60 +352,140 @@ export default function PublicMatchPage() {
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xl font-bold text-slate-900">Match Timeline</h3>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-              {events.length} events
-            </span>
-          </div>
+        <section className="space-y-6">
+          {isFinal && (
+            <>
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+                <h3 className="text-xl font-bold text-slate-900">Goals</h3>
 
-          {events.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-500">
-              No match events yet.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {events.map((event) => (
-                <div
-                  key={event.id}
-                  className={`rounded-2xl border p-4 transition-colors hover:bg-white ${
-                    event.event_type === 'goal'
-                      ? 'border-emerald-200 bg-emerald-50'
-                      : 'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold tabular-nums text-slate-500">
-                      {event.minute}'
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                        event.team_side === 'home'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-rose-100 text-rose-700'
-                      }`}
-                    >
-                      {event.team_side}
-                    </span>
+                {goalEvents.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-500">No goals recorded.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {goalEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-bold tabular-nums text-slate-500">
+                            {event.minute}'
+                          </span>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                              event.team_side === 'home'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {event.team_side}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-slate-800">
+                          {prettyEventText(event, match, homePlayers, awayPlayers)}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </div>
 
-                  <p className="mt-1 text-sm font-medium text-slate-800">
-                    {prettyEventText(event, match, homePlayers, awayPlayers)}
-                  </p>
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+                <h3 className="text-xl font-bold text-slate-900">Cards</h3>
 
-                  {event.notes ? (
-                    <p className="mt-2 text-xs text-slate-500">{event.notes}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                {cardEvents.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-500">No cards recorded.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cardEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-bold tabular-nums text-slate-500">
+                            {event.minute}'
+                          </span>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                              event.team_side === 'home'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {event.team_side}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-slate-800">
+                          {prettyEventText(event, match, homePlayers, awayPlayers)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900">
+                {isFinal ? 'Full Match Timeline' : 'Match Timeline'}
+              </h3>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                {events.length} events
+              </span>
+            </div>
+
+            {events.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-500">
+                No match events yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {events.map((event) => (
+                  <div
+                    key={event.id}
+                    className={`rounded-2xl border p-4 transition-colors hover:bg-white ${
+                      event.event_type === 'goal'
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold tabular-nums text-slate-500">
+                        {event.minute}'
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                          event.team_side === 'home'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {event.team_side}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-sm font-medium text-slate-800">
+                      {prettyEventText(event, match, homePlayers, awayPlayers)}
+                    </p>
+
+                    {event.notes ? (
+                      <p className="mt-2 text-xs text-slate-500">{event.notes}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="space-y-6">
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">Match Details</h3>
+            <h3 className="text-xl font-bold text-slate-900">
+              {isFinal ? 'Recap Details' : 'Match Details'}
+            </h3>
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex items-start justify-between gap-4">
                 <dt className="font-semibold text-slate-500">Status</dt>
@@ -381,18 +528,24 @@ export default function PublicMatchPage() {
               </div>
 
               <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Refresh</dt>
+                <dt className="font-semibold text-slate-500">
+                  {isFinal ? 'Total Goals' : 'Updates'}
+                </dt>
                 <dd className="text-right font-medium text-slate-900">
-                  Every 10 seconds
+                  {isFinal ? goalEvents.length : 'Realtime'}
                 </dd>
               </div>
             </dl>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">Live Updates</h3>
+            <h3 className="text-xl font-bold text-slate-900">
+              {isFinal ? 'Final Summary' : 'Live Updates'}
+            </h3>
             <p className="mt-3 text-sm text-slate-600">
-              Leave this page open to follow the score, clock, and timeline as the match progresses.
+              {isFinal
+                ? 'This match has ended. The recap above summarizes the final score, goal events, cards, and full timeline.'
+                : 'Leave this page open to follow the score, clock, and timeline as the match progresses.'}
             </p>
           </div>
         </section>
@@ -443,12 +596,26 @@ function PeriodPill({
   clockRunning: boolean;
   secondsElapsed: number;
 }) {
-  if (status === 'final') return null;
+  if (status === 'final') {
+    return (
+      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-100/80 ring-1 ring-white/10">
+        Recap
+      </span>
+    );
+  }
 
   if (status === 'halftime') {
     return (
       <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-100/80 ring-1 ring-white/10">
         Halftime Break
+      </span>
+    );
+  }
+
+  if (status === 'not_started') {
+    return (
+      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-100/80 ring-1 ring-white/10">
+        Pre-Match
       </span>
     );
   }
