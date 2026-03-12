@@ -216,37 +216,43 @@ export default function TeamDetailPage() {
               </p>
             </div>
           </div>
+<div className="flex flex-wrap gap-3">
+  <Link
+    href={`/teams/${team.id}/stats`}
+    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+  >
+    Stats
+  </Link>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/teams/${team.id}/stats`}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              Stats
-            </Link>
+  <Link
+    href={`/teams/${team.id}/roster`}
+    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+  >
+    Roster
+  </Link>
 
-            <Link
-              href={`/teams/${team.id}/roster`}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              Roster
-            </Link>
+  <Link
+    href={`/teams/${team.id}/leaders`}
+    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+  >
+    Leaders
+  </Link>
 
-            <Link
-              href="/matches/new"
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              New Match
-            </Link>
+  <Link
+    href="/matches/new"
+    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+  >
+    New Match
+  </Link>
 
-            <button
-              type="button"
-              onClick={() => setEditing((prev) => !prev)}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              {editing ? 'Close Edit' : 'Edit Team'}
-            </button>
-          </div>
+  <button
+    type="button"
+    onClick={() => setEditing((prev) => !prev)}
+    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+  >
+    {editing ? 'Close Edit' : 'Edit Team'}
+  </button>
+</div>
         </div>
       </section>
 

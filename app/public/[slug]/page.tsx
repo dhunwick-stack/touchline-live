@@ -1,5 +1,5 @@
 'use client';
-
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -219,6 +219,62 @@ export default function PublicMatchPage() {
         .reverse(),
     [events],
   );
+
+  const teamSnapshots = useMemo(() => {
+  function buildSnapshot(side: 'home' | 'away') {
+    const team = side === 'home' ? match?.home_team : match?.away_team;
+    const teamId = side === 'home' ? match?.home_team_id : match?.away_team_id;
+
+    if (!team || !teamId) return null;
+
+    const teamGoalEvents = events.filter(
+      (event) => event.team_id === teamId && event.event_type === 'goal',
+    );
+
+    const scorerCounts = new Map<string, number>();
+
+    for (const event of teamGoalEvents) {
+      const key =
+        event.player_id ||
+        `override:${event.player_name_override || 'unknown'}`;
+
+      scorerCounts.set(key, (scorerCounts.get(key) || 0) + 1);
+    }
+
+    let topScorerName = 'No scorer yet';
+    let topScorerGoals = 0;
+
+    for (const [key, count] of scorerCounts.entries()) {
+      if (count > topScorerGoals) {
+        topScorerGoals = count;
+
+        if (key.startsWith('override:')) {
+          topScorerName = key.replace('override:', '') || 'Unknown';
+        } else {
+          const roster = side === 'home' ? homePlayers : awayPlayers;
+          const player = roster.find((p) => p.id === key);
+          topScorerName = playerDisplayName(player) || 'Unknown';
+        }
+      }
+    }
+
+    return {
+      side,
+      team,
+      record: 'Record coming next',
+      topScorerName,
+      topScorerGoals,
+      recentForm: 'Form coming next',
+    };
+  }
+
+  return {
+    home: buildSnapshot('home'),
+    away: buildSnapshot('away'),
+  };
+}, [match, events, homePlayers, awayPlayers]);
+
+
 
   if (loading) {
     return (
@@ -529,7 +585,9 @@ export default function PublicMatchPage() {
                 </dd>
               </div>
 
-              <div className="flex items-start justify-between gap-4">
+
+
+          <div className="flex items-start justify-between gap-4">
                 <dt className="font-semibold text-slate-500">
                   {isFinal ? 'Total Goals' : 'Updates'}
                 </dt>
@@ -538,6 +596,214 @@ export default function PublicMatchPage() {
                 </dd>
               </div>
             </dl>
+          </div>
+
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+  <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
+  <p className="mt-2 text-sm text-slate-600">
+    View public team pages and season leaders for both sides.
+  </p>
+
+  <div className="mt-5 space-y-4">
+    {match.home_team ? (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center gap-3">
+          {match.home_team.logo_url ? (
+            <img
+              src={match.home_team.logo_url}
+              alt={`${match.home_team.name} logo`}
+              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+            />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+              LOGO
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Home Team
+            </p>
+            <p className="truncate font-semibold text-slate-900">
+              {match.home_team.name}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href={`/public/team/${match.home_team.id}`}
+            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+          >
+            Team Page
+          </Link>
+
+          <Link
+            href={`/public/team/${match.home_team.id}/leaders`}
+            className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+          >
+            Leaders
+          </Link>
+        </div>
+      </div>
+    ) : null}
+
+    {match.away_team ? (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center gap-3">
+          {match.away_team.logo_url ? (
+            <img
+              src={match.away_team.logo_url}
+              alt={`${match.away_team.name} logo`}
+              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+            />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+              LOGO
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Away Team
+            </p>
+            <p className="truncate font-semibold text-slate-900">
+              {match.away_team.name}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href={`/public/team/${match.away_team.id}`}
+            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+          >
+            Team Page
+          </Link>
+
+          <Link
+            href={`/public/team/${match.away_team.id}/leaders`}
+            className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+          >
+            Leaders
+          </Link>
+        </div>
+      </div>
+    ) : null}
+  </div>
+</div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">Team Snapshot</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Quick team context for both sides in this match.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              {teamSnapshots.home ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    {teamSnapshots.home.team.logo_url ? (
+                      <img
+                        src={teamSnapshots.home.team.logo_url}
+                        alt={`${teamSnapshots.home.team.name} logo`}
+                        className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        LOGO
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Home Snapshot
+                      </p>
+                      <p className="truncate font-semibold text-slate-900">
+                        {teamSnapshots.home.team.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <dl className="mt-4 space-y-2 text-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Record</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.home.record}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Top Scorer</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.home.topScorerGoals > 0
+                          ? `${teamSnapshots.home.topScorerName} (${teamSnapshots.home.topScorerGoals})`
+                          : teamSnapshots.home.topScorerName}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Recent Form</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.home.recentForm}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : null}
+
+              {teamSnapshots.away ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    {teamSnapshots.away.team.logo_url ? (
+                      <img
+                        src={teamSnapshots.away.team.logo_url}
+                        alt={`${teamSnapshots.away.team.name} logo`}
+                        className="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        LOGO
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Away Snapshot
+                      </p>
+                      <p className="truncate font-semibold text-slate-900">
+                        {teamSnapshots.away.team.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <dl className="mt-4 space-y-2 text-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Record</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.away.record}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Top Scorer</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.away.topScorerGoals > 0
+                          ? `${teamSnapshots.away.topScorerName} (${teamSnapshots.away.topScorerGoals})`
+                          : teamSnapshots.away.topScorerName}
+                      </dd>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <dt className="font-semibold text-slate-500">Recent Form</dt>
+                      <dd className="text-right font-medium text-slate-900">
+                        {teamSnapshots.away.recentForm}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
