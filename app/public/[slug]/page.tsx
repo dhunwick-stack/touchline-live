@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -6,26 +9,154 @@ type PublicMatchRow = Match & {
   away_team: Team | null;
 };
 
-export const dynamic = 'force-dynamic';
-
-export default async function PublicMatchPage({
+export default function PublicMatchPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
+  const [slug, setSlug] = useState('');
+  const [match, setMatch] = useState<PublicMatchRow | null>(null);
+  const [events, setEvents] = useState<MatchEvent[]>([]);
+  const [homePlayers, setHomePlayers] = useState<Player[]>([]);
+  const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [nowMs, setNowMs] = useState(Date.now());
 
-  const { data: matchData, error: matchError } = await supabase
-    .from('matches')
-    .select(`
-      *,
-      home_team:home_team_id (*),
-      away_team:away_team_id (*)
-    `)
-    .eq('public_slug', slug)
-    .single();
+  useEffect(() => {
+    params.then((resolved) => setSlug(resolved.slug));
+  }, [params]);
 
-  if (matchError || !matchData) {
+  useEffect(() => {
+    if (!slug) return;
+
+    let cancelled = false;
+
+    async function loadPageData() {
+      setError('');
+
+      const { data: matchData, error: matchError } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          home_team:home_team_id (*),
+          away_team:away_team_id (*)
+        `)
+        .eq('public_slug', slug)
+        .single();
+
+      if (matchError || !matchData) {
+        if (!cancelled) {
+          setError(matchError?.message || 'Match not found.');
+          setLoading(false);
+        }
+        return;
+      }
+
+      const loadedMatch = matchData as PublicMatchRow;
+
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', loadedMatch.id)
+        .order('created_at', { ascending: false });
+
+      if (eventsError) {
+        if (!cancelled) {
+          setError(eventsError.message);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const homePlayersResult = loadedMatch.home_team_id
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.home_team_id)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
+
+      const awayPlayersResult = loadedMatch.away_team_id
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.away_team_id)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
+
+      if (!cancelled) {
+        setMatch(loadedMatch);
+        setEvents((eventsData as MatchEvent[]) ?? []);
+        setHomePlayers((homePlayersResult.data as Player[]) ?? []);
+        setAwayPlayers((awayPlayersResult.data as Player[]) ?? []);
+        setLoading(false);
+      }
+    }
+
+    loadPageData();
+
+    const refreshTimer = window.setInterval(() => {
+      loadPageData();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    if (!match?.clock_running) return;
+
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [match?.clock_running]);
+
+  const secondsElapsed = useMemo(() => {
+    if (!match) return 0;
+
+    const base = match.elapsed_seconds || 0;
+
+    if (!match.clock_running || !match.period_started_at) {
+      return base;
+    }
+
+    const startedMs = new Date(match.period_started_at).getTime();
+    const deltaSeconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+
+    return base + deltaSeconds;
+  }, [match, nowMs]);
+
+  const formattedClock = useMemo(() => {
+    const mins = Math.floor(secondsElapsed / 60)
+      .toString()
+      .padStart(2, '0');
+    const secs = (secondsElapsed % 60)
+      .toString()
+      .padStart(2, '0');
+
+    return `${mins}:${secs}`;
+  }, [secondsElapsed]);
+
+  const isLive = useMemo(() => match?.status === 'live', [match?.status]);
+
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          Loading public scoreboard...
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !match) {
     return (
       <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6 py-12">
         <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
@@ -36,44 +167,12 @@ export default async function PublicMatchPage({
             Match not found
           </h1>
           <p className="mt-3 text-slate-600">
-            This public scoreboard link may be invalid or no longer available.
+            {error || 'This public scoreboard link may be invalid or no longer available.'}
           </p>
         </div>
       </main>
     );
   }
-
-  const match = matchData as PublicMatchRow;
-
-  const { data: eventsData } = await supabase
-    .from('match_events')
-    .select('*')
-    .eq('match_id', match.id)
-    .order('created_at', { ascending: false });
-
-  const events = (eventsData as MatchEvent[]) ?? [];
-
-  const [homePlayersResult, awayPlayersResult] = await Promise.all([
-    match.home_team_id
-      ? supabase
-          .from('players')
-          .select('*')
-          .eq('team_id', match.home_team_id)
-          .order('jersey_number', { ascending: true, nullsFirst: false })
-          .order('first_name', { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-    match.away_team_id
-      ? supabase
-          .from('players')
-          .select('*')
-          .eq('team_id', match.away_team_id)
-          .order('jersey_number', { ascending: true, nullsFirst: false })
-          .order('first_name', { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-
-  const homePlayers = (homePlayersResult.data as Player[]) ?? [];
-  const awayPlayers = (awayPlayersResult.data as Player[]) ?? [];
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -83,72 +182,115 @@ export default async function PublicMatchPage({
             Touchline Live
           </p>
           <h1 className="text-3xl font-black tracking-tight text-slate-900">
-            Live Match Center
+            Public Match Center
           </h1>
         </div>
 
-        <div className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
-          Public scoreboard
+        <div className="flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
+          <span
+            className={`inline-block h-2.5 w-2.5 rounded-full ${
+              isLive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+            }`}
+          />
+          {isLive ? 'Live' : prettyStatus(match.status)}
         </div>
       </div>
 
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Home
-            </p>
-            <div className="mt-1 flex items-center gap-3">
-              {match.home_team?.logo_url ? (
-                <img
-                  src={match.home_team.logo_url}
-                  alt={`${match.home_team.name} logo`}
-                  className="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-200"
-                />
-              ) : null}
-              <h2 className="text-2xl font-black text-slate-900">
-                {match.home_team?.name || 'Home Team'}
-              </h2>
-            </div>
-          </div>
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-red-950 text-white">
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200/80">
+                Home
+              </p>
 
-          <div className="rounded-3xl bg-slate-900 px-8 py-5 text-center text-white">
-            <div className="text-sm uppercase tracking-[0.2em] text-slate-300">
-              {prettyStatus(match.status)}
-            </div>
-            <div className="mt-2 text-5xl font-black tracking-tight tabular-nums">
-              {match.home_score} - {match.away_score}
-            </div>
-            <div className="mt-2 text-sm font-medium text-slate-300">
-              {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
-            </div>
-            <div className="mt-1 text-sm text-slate-300">{getVenueName(match)}</div>
-          </div>
+              <div className="mt-2 flex items-center gap-3">
+                {match.home_team?.logo_url ? (
+                  <img
+                    src={match.home_team.logo_url}
+                    alt={`${match.home_team.name} logo`}
+                    className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+                    LOGO
+                  </div>
+                )}
 
-          <div className="md:text-right">
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Away
-            </p>
-            <div className="mt-1 flex items-center justify-end gap-3">
-              <h2 className="text-2xl font-black text-slate-900">
-                {match.away_team?.name || 'Away Team'}
-              </h2>
-              {match.away_team?.logo_url ? (
-                <img
-                  src={match.away_team.logo_url}
-                  alt={`${match.away_team.name} logo`}
-                  className="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-200"
-                />
-              ) : null}
+                <div>
+                  <h2 className="text-2xl font-black leading-tight">
+                    {match.home_team?.name || 'Home Team'}
+                  </h2>
+                  <p className="mt-1 text-sm text-red-200/75">
+                    {match.home_team?.club_name || ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-xs font-bold uppercase tracking-[0.28em] text-red-200/75">
+                {prettyStatus(match.status)}
+              </div>
+
+              <div className="mt-3 text-7xl font-black tracking-tight tabular-nums">
+                {match.home_score} - {match.away_score}
+              </div>
+
+              <div className="mt-3 text-3xl font-semibold tabular-nums text-red-100">
+                {formattedClock}
+              </div>
+
+              {!match.clock_running && match.status === 'live' && (
+                <div className="mt-1 text-xs font-medium uppercase tracking-wide text-red-200/70">
+                  Paused
+                </div>
+              )}
+
+              <div className="mt-4 space-y-1">
+                <div className="text-sm font-medium text-red-100/90">
+                  {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+                </div>
+                <div className="text-sm text-red-200/80">{getVenueName(match)}</div>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200/80">
+                Away
+              </p>
+
+              <div className="mt-2 flex items-center justify-end gap-3">
+                <div>
+                  <h2 className="text-2xl font-black leading-tight">
+                    {match.away_team?.name || 'Away Team'}
+                  </h2>
+                  <p className="mt-1 text-sm text-red-200/75">
+                    {match.away_team?.club_name || ''}
+                  </p>
+                </div>
+
+                {match.away_team?.logo_url ? (
+                  <img
+                    src={match.away_team.logo_url}
+                    alt={`${match.away_team.name} logo`}
+                    className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+                    LOGO
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xl font-bold text-slate-900">Live Timeline</h3>
+            <h3 className="text-xl font-bold text-slate-900">Match Timeline</h3>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
               {events.length} events
             </span>
@@ -163,10 +305,10 @@ export default async function PublicMatchPage({
               {events.map((event) => (
                 <div
                   key={event.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-white"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-slate-500">
+                    <span className="text-sm font-bold tabular-nums text-slate-500">
                       {event.minute}'
                     </span>
                     <span
@@ -205,6 +347,13 @@ export default async function PublicMatchPage({
               </div>
 
               <div className="flex items-start justify-between gap-4">
+                <dt className="font-semibold text-slate-500">Clock</dt>
+                <dd className="text-right font-medium tabular-nums text-slate-900">
+                  {formattedClock}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
                 <dt className="font-semibold text-slate-500">Date</dt>
                 <dd className="text-right font-medium text-slate-900">
                   {match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
@@ -229,7 +378,21 @@ export default async function PublicMatchPage({
                   ) : null}
                 </dd>
               </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <dt className="font-semibold text-slate-500">Refresh</dt>
+                <dd className="text-right font-medium text-slate-900">
+                  Every 10 seconds
+                </dd>
+              </div>
             </dl>
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">Live Updates</h3>
+            <p className="mt-3 text-sm text-slate-600">
+              Leave this page open to follow the score, clock, and timeline as the match progresses.
+            </p>
           </div>
         </section>
       </div>
