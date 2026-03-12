@@ -637,12 +637,13 @@ export default function LiveMatchPage() {
 
                 {match.public_slug && (
                   <Link
-                    href={`/public/${match.public_slug}`}
-                    target="_blank"
-                    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-200"
-                  >
-                    Public Scoreboard
-                  </Link>
+  href={`/public/${match.public_slug}`}
+  target="_blank"
+  className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold shadow-sm ring-1 ring-white/20"
+  style={{ color: '#0f172a' }}
+>
+  Public Scoreboard
+</Link>
                 )}
               </div>
             </div>

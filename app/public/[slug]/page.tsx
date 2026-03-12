@@ -261,11 +261,11 @@ export default function PublicMatchPage() {
         </h1>
       </div>
 
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-red-950 text-white">
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-gradient-to-b from-red-900 to-red-850 text-white">
         <div className="mx-auto max-w-7xl px-6 py-8">
           <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200/80">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Home
               </p>
 
@@ -283,10 +283,10 @@ export default function PublicMatchPage() {
                 )}
 
                 <div>
-                  <h2 className="text-2xl font-black leading-tight">
+                  <h2 className="text-2xl font-black leading-tight text-white">
                     {match.home_team?.name || 'Home Team'}
                   </h2>
-                  <p className="mt-1 text-sm text-red-200/75">
+                  <p className="mt-1 text-sm text-white/75">
                     {match.home_team?.club_name || ''}
                   </p>
                 </div>
@@ -294,42 +294,44 @@ export default function PublicMatchPage() {
             </div>
 
             <div className="text-center">
-              <div className="flex items-center justify-center gap-2">
-                <StatusPill status={match.status} />
-                <PeriodPill
-                  status={match.status}
-                  clockRunning={match.clock_running}
-                  secondsElapsed={secondsElapsed}
-                />
-              </div>
+  <div className="flex items-center justify-center gap-2">
+    <StatusPill status={match.status} />
+    <PeriodPill
+      status={match.status}
+      clockRunning={match.clock_running}
+      secondsElapsed={secondsElapsed}
+    />
+  </div>
 
-              <div className="mt-4 text-7xl font-black tracking-tight tabular-nums">
-                {match.home_score} - {match.away_score}
-              </div>
+  <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
+    <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
+      {match.home_score} - {match.away_score}
+    </div>
 
-              <div className="mt-3 text-3xl font-semibold tabular-nums text-red-100">
-                {formattedClock}
-              </div>
+    <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
+      {formattedClock}
+    </div>
+  </div>
 
-              <div className="mt-4 space-y-1">
-                <div className="text-sm font-medium text-red-100/90">
-                  {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
-                </div>
-                <div className="text-sm text-red-200/80">{getVenueName(match)}</div>
-              </div>
-            </div>
+  <div className="mt-4 space-y-1">
+    <div className="text-sm font-medium text-white/90">
+      {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+    </div>
+    <div className="text-sm text-white/75">{getVenueName(match)}</div>
+  </div>
+</div>
 
             <div className="text-right">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200/80">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Away
               </p>
 
               <div className="mt-2 flex items-center justify-end gap-3">
                 <div>
-                  <h2 className="text-2xl font-black leading-tight">
+                  <h2 className="text-2xl font-black leading-tight text-white">
                     {match.away_team?.name || 'Away Team'}
                   </h2>
-                  <p className="mt-1 text-sm text-red-200/75">
+                  <p className="mt-1 text-sm text-white/75">
                     {match.away_team?.club_name || ''}
                   </p>
                 </div>
@@ -582,10 +584,10 @@ function StatusPill({ status }: { status: Match['status'] }) {
 
   return (
     <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
-      Not Started
-    </span>
-  );
-}
+        Not Started
+      </span>
+    );
+  }
 
 function PeriodPill({
   status,
