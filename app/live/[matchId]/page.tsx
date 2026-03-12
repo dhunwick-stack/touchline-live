@@ -56,8 +56,7 @@ export default function LiveMatchPage() {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [undoing, setUndoing] = useState(false);
@@ -105,24 +104,24 @@ export default function LiveMatchPage() {
       setEvents((eventData as MatchEvent[]) ?? []);
 
       const homePlayersResult = loadedMatch.home_team_id
-  ? await supabase
-      .from('players')
-      .select('*')
-      .eq('team_id', loadedMatch.home_team_id)
-      .eq('active', true)
-      .order('jersey_number', { ascending: true, nullsFirst: false })
-      .order('first_name', { ascending: true })
-  : { data: [], error: null };
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.home_team_id)
+            .eq('active', true)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
 
-const awayPlayersResult = loadedMatch.away_team_id
-  ? await supabase
-      .from('players')
-      .select('*')
-      .eq('team_id', loadedMatch.away_team_id)
-      .eq('active', true)
-      .order('jersey_number', { ascending: true, nullsFirst: false })
-      .order('first_name', { ascending: true })
-  : { data: [], error: null };
+      const awayPlayersResult = loadedMatch.away_team_id
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.away_team_id)
+            .eq('active', true)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
 
       if (homePlayersResult.error || awayPlayersResult.error) {
         setError(
@@ -143,10 +142,29 @@ const awayPlayersResult = loadedMatch.away_team_id
   }, [matchId]);
 
   useEffect(() => {
-    if (!isRunning) return;
-    const timer = setInterval(() => setSecondsElapsed((prev) => prev + 1), 1000);
-    return () => clearInterval(timer);
-  }, [isRunning]);
+    if (!match?.clock_running) return;
+
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [match?.clock_running]);
+
+  const secondsElapsed = useMemo(() => {
+    if (!match) return 0;
+
+    const base = match.elapsed_seconds || 0;
+
+    if (!match.clock_running || !match.period_started_at) {
+      return base;
+    }
+
+    const startedMs = new Date(match.period_started_at).getTime();
+    const deltaSeconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+
+    return base + deltaSeconds;
+  }, [match, nowMs]);
 
   const formattedClock = useMemo(() => {
     const mins = Math.floor(secondsElapsed / 60)
@@ -304,6 +322,8 @@ const awayPlayersResult = loadedMatch.away_team_id
     let nextHomeScore = match.home_score;
     let nextAwayScore = match.away_score;
     let nextStatus = match.status;
+    let nextClockRunning = match.clock_running;
+    let nextPeriodStartedAt = match.period_started_at;
 
     if (form.type === 'goal') {
       if (form.side === 'home') nextHomeScore += 1;
@@ -312,12 +332,14 @@ const awayPlayersResult = loadedMatch.away_team_id
 
     if (form.type === 'half_end') {
       nextStatus = 'halftime';
-      setIsRunning(false);
+      nextClockRunning = false;
+      nextPeriodStartedAt = null;
     }
 
     if (form.type === 'full_time') {
       nextStatus = 'final';
-      setIsRunning(false);
+      nextClockRunning = false;
+      nextPeriodStartedAt = null;
     }
 
     const { error: updateError } = await supabase
@@ -327,6 +349,9 @@ const awayPlayersResult = loadedMatch.away_team_id
         away_score: nextAwayScore,
         status: nextStatus,
         current_minute: minute,
+        elapsed_seconds: secondsElapsed,
+        clock_running: nextClockRunning,
+        period_started_at: nextPeriodStartedAt,
       })
       .eq('id', match.id);
 
@@ -345,6 +370,9 @@ const awayPlayersResult = loadedMatch.away_team_id
             away_score: nextAwayScore,
             status: nextStatus,
             current_minute: minute,
+            elapsed_seconds: secondsElapsed,
+            clock_running: nextClockRunning,
+            period_started_at: nextPeriodStartedAt,
           }
         : prev,
     );
@@ -358,17 +386,32 @@ const awayPlayersResult = loadedMatch.away_team_id
 
     setError(null);
 
+    const startedAt = new Date().toISOString();
     const minute = Math.floor(secondsElapsed / 60);
 
     const { error: statusError } = await supabase
       .from('matches')
-      .update({ status: 'live', current_minute: minute })
+      .update({
+        status: 'live',
+        current_minute: minute,
+        clock_running: true,
+        period_started_at: startedAt,
+      })
       .eq('id', match.id);
 
     if (statusError) {
       setError(statusError.message);
       return;
     }
+
+    setNowMs(Date.now());
+    setMatch({
+      ...match,
+      status: 'live',
+      current_minute: minute,
+      clock_running: true,
+      period_started_at: startedAt,
+    });
 
     const { data: eventData, error: eventError } = await supabase
       .from('match_events')
@@ -387,9 +430,39 @@ const awayPlayersResult = loadedMatch.away_team_id
       return;
     }
 
-    setIsRunning(true);
-    setMatch({ ...match, status: 'live', current_minute: minute });
     setEvents((prev) => [eventData as MatchEvent, ...prev]);
+  }
+
+  async function pauseClock() {
+    if (!match || !match.clock_running) return;
+
+    setError(null);
+
+    const pausedElapsed = secondsElapsed;
+    const minute = Math.floor(pausedElapsed / 60);
+
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        clock_running: false,
+        period_started_at: null,
+        elapsed_seconds: pausedElapsed,
+        current_minute: minute,
+      })
+      .eq('id', match.id);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setMatch({
+      ...match,
+      clock_running: false,
+      period_started_at: null,
+      elapsed_seconds: pausedElapsed,
+      current_minute: minute,
+    });
   }
 
   async function undoLastEvent() {
@@ -476,126 +549,108 @@ const awayPlayersResult = loadedMatch.away_team_id
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
-            <h1 className="text-2xl font-black">{match.home_team?.name || 'Home Team'}</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Tracking: {match.home_tracking_mode.replace('_', ' ')}
-            </p>
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-slate-900 text-white">
+        <div className="mx-auto max-w-7xl px-6 py-6">
+          <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                Home
+              </p>
+              <div className="mt-1 flex items-center gap-3">
+                {match.home_team?.logo_url ? (
+                  <img
+                    src={match.home_team.logo_url}
+                    alt={`${match.home_team.name} logo`}
+                    className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
+                  />
+                ) : null}
+                <h1 className="text-2xl font-black">
+                  {match.home_team?.name || 'Home Team'}
+                </h1>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-sm uppercase tracking-[0.2em] text-slate-400">
+                {match.status}
+              </div>
+
+              <div className="mt-2 text-6xl font-black tabular-nums tracking-tight">
+                {match.home_score} - {match.away_score}
+              </div>
+
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-300">
+                {formattedClock}
+              </div>
+
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                {(match.status === 'not_started' || match.status === 'halftime') && (
+                  <button
+                    onClick={startLivePeriod}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white"
+                  >
+                    {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
+                  </button>
+                )}
+
+                {match.status === 'live' && match.clock_running && (
+                  <button
+                    onClick={pauseClock}
+                    className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white"
+                  >
+                    Pause
+                  </button>
+                )}
+
+                {match.status === 'live' && !match.clock_running && (
+                  <button
+                    onClick={startLivePeriod}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white"
+                  >
+                    Resume
+                  </button>
+                )}
+
+                <button
+                  onClick={undoLastEvent}
+                  disabled={undoing || events.length === 0}
+                  className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 disabled:opacity-40"
+                >
+                  {undoing ? 'Undoing…' : 'Undo'}
+                </button>
+
+                {match.public_slug && (
+                  <Link
+                    href={`/public/${match.public_slug}`}
+                    target="_blank"
+                    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-200"
+                  >
+                    Public Scoreboard
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            <div className="text-right">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                Away
+              </p>
+              <div className="mt-1 flex items-center justify-end gap-3">
+                <h1 className="text-2xl font-black">
+                  {match.away_team?.name || 'Away Team'}
+                </h1>
+                {match.away_team?.logo_url ? (
+                  <img
+                    src={match.away_team.logo_url}
+                    alt={`${match.away_team.name} logo`}
+                    className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
+                  />
+                ) : null}
+              </div>
+            </div>
           </div>
-
-          {/* Full-width Scoreboard Banner */}
-<section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-slate-900 text-white">
-  <div className="mx-auto max-w-7xl px-6 py-6">
-    <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
-      
-      {/* Home */}
-      <div>
-  <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-    Home
-  </p>
-  <div className="mt-1 flex items-center gap-3">
-    {match.home_team?.logo_url ? (
-      <img
-        src={match.home_team.logo_url}
-        alt={`${match.home_team.name} logo`}
-        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
-      />
-    ) : null}
-    <h1 className="text-2xl font-black">
-      {match.home_team?.name || 'Home Team'}
-    </h1>
-  </div>
-</div>
-
-      {/* Score + Clock + Controls */}
-      <div className="text-center">
-        <div className="text-sm uppercase tracking-[0.2em] text-slate-400">
-          {match.status}
         </div>
-
-        <div className="mt-2 text-6xl font-black tabular-nums tracking-tight">
-          {match.home_score} - {match.away_score}
-        </div>
-
-        <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-300">
-          {formattedClock}
-        </div>
-
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          {(match.status === 'not_started' || match.status === 'halftime') && (
-            <button
-              onClick={startLivePeriod}
-              className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white"
-            >
-              {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
-            </button>
-          )}
-
-          {match.status === 'live' && (
-            <button
-              onClick={() => setIsRunning(false)}
-              className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white"
-            >
-              Pause
-            </button>
-          )}
-
-          <button
-            onClick={undoLastEvent}
-            disabled={undoing || events.length === 0}
-            className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 disabled:opacity-40"
-          >
-            {undoing ? 'Undoing…' : 'Undo'}
-          </button>
-          {match.public_slug && (
-  <Link
-    href={`/public/${match.public_slug}`}
-    target="_blank"
-    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-200"
-  >
-    Public Scoreboard
-  </Link>
-)}
-        </div>
-
-      </div>
-
-      {/* Away */}
-      <div className="text-right">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Away
-        </p>
-        <h1 className="text-2xl font-black">
-          {match.away_team?.name || 'Away Team'}
-        </h1>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-          <div className="text-right">
-  <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-    Away
-  </p>
-  <div className="mt-1 flex items-center justify-end gap-3">
-    <h1 className="text-2xl font-black">
-      {match.away_team?.name || 'Away Team'}
-    </h1>
-    {match.away_team?.logo_url ? (
-      <img
-        src={match.away_team.logo_url}
-        alt={`${match.away_team.name} logo`}
-        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
-      />
-    ) : null}
-  </div>
-</div>
-        </div>
-      </div>
+      </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">

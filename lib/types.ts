@@ -56,6 +56,9 @@ export type Match = {
   home_score: number;
   away_score: number;
   public_slug: string;
+  clock_running: boolean;
+  period_started_at: string | null;
+  elapsed_seconds: number;
   created_at: string;
 };
 
