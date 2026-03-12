@@ -155,8 +155,6 @@ export default function PublicMatchPage() {
     return `${mins}:${secs}`;
   }, [secondsElapsed]);
 
-  const isLive = useMemo(() => match?.status === 'live', [match?.status]);
-
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-8">
@@ -187,24 +185,13 @@ export default function PublicMatchPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Touchline Live
-          </p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">
-            Public Match Center
-          </h1>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full ${
-              isLive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-            }`}
-          />
-          {isLive ? 'Live' : prettyStatus(match.status)}
-        </div>
+      <div className="mb-6">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Touchline Live
+        </p>
+        <h1 className="text-3xl font-black tracking-tight text-slate-900">
+          Public Match Center
+        </h1>
       </div>
 
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-red-950 text-white">
@@ -240,23 +227,22 @@ export default function PublicMatchPage() {
             </div>
 
             <div className="text-center">
-              <div className="text-xs font-bold uppercase tracking-[0.28em] text-red-200/75">
-                {prettyStatus(match.status)}
+              <div className="flex items-center justify-center gap-2">
+                <StatusPill status={match.status} />
+                <PeriodPill
+                  status={match.status}
+                  clockRunning={match.clock_running}
+                  secondsElapsed={secondsElapsed}
+                />
               </div>
 
-              <div className="mt-3 text-7xl font-black tracking-tight tabular-nums">
+              <div className="mt-4 text-7xl font-black tracking-tight tabular-nums">
                 {match.home_score} - {match.away_score}
               </div>
 
               <div className="mt-3 text-3xl font-semibold tabular-nums text-red-100">
                 {formattedClock}
               </div>
-
-              {!match.clock_running && match.status === 'live' && (
-                <div className="mt-1 text-xs font-medium uppercase tracking-wide text-red-200/70">
-                  Paused
-                </div>
-              )}
 
               <div className="mt-4 space-y-1">
                 <div className="text-sm font-medium text-red-100/90">
@@ -316,7 +302,11 @@ export default function PublicMatchPage() {
               {events.map((event) => (
                 <div
                   key={event.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-white"
+                  className={`rounded-2xl border p-4 transition-colors hover:bg-white ${
+                    event.event_type === 'goal'
+                      ? 'border-emerald-200 bg-emerald-50'
+                      : 'border-slate-200 bg-slate-50'
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-bold tabular-nums text-slate-500">
@@ -398,9 +388,78 @@ export default function PublicMatchPage() {
               </div>
             </dl>
           </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">Live Updates</h3>
+            <p className="mt-3 text-sm text-slate-600">
+              Leave this page open to follow the score, clock, and timeline as the match progresses.
+            </p>
+          </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function StatusPill({ status }: { status: Match['status'] }) {
+  if (status === 'live') {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-300 ring-1 ring-emerald-400/20">
+        <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        Live
+      </span>
+    );
+  }
+
+  if (status === 'halftime') {
+    return (
+      <span className="inline-flex rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-amber-300 ring-1 ring-amber-400/20">
+        Halftime
+      </span>
+    );
+  }
+
+  if (status === 'final') {
+    return (
+      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
+        Final
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
+      Not Started
+    </span>
+  );
+}
+
+function PeriodPill({
+  status,
+  clockRunning,
+  secondsElapsed,
+}: {
+  status: Match['status'];
+  clockRunning: boolean;
+  secondsElapsed: number;
+}) {
+  if (status === 'final') return null;
+
+  if (status === 'halftime') {
+    return (
+      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-100/80 ring-1 ring-white/10">
+        Halftime Break
+      </span>
+    );
+  }
+
+  const minute = Math.floor(secondsElapsed / 60);
+  const halfLabel = minute >= 45 ? '2nd Half' : '1st Half';
+
+  return (
+    <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-100/80 ring-1 ring-white/10">
+      {clockRunning ? halfLabel : 'Paused'}
+    </span>
   );
 }
 
