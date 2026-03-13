@@ -22,13 +22,19 @@ export type Season = {
 export type Team = {
   id: string;
   name: string;
-  club_name: string | null;
-  age_group: string | null;
-  logo_url: string | null;
-  home_field_name: string | null;
-  home_field_address: string | null;
-  is_reusable: boolean;
-  created_at: string;
+  club_name?: string | null;
+  age_group?: string | null;
+  logo_url?: string | null;
+  home_field_name?: string | null;
+  home_field_address?: string | null;
+  admin_code?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  banner_url?: string | null;
+  created_at?: string | null;
+  home_field_lat?: number | null;
+  home_field_lng?: number | null;
+
 };
 
 export type Player = {

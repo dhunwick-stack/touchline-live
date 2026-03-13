@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import TeamPageIntro from '@/components/TeamPageIntro';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,7 @@ export default function TeamLeadersPage() {
         : '';
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -287,59 +289,17 @@ export default function TeamLeadersPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-4">
-            {team.logo_url ? (
-              <img
-                src={team.logo_url}
-                alt={`${team.name} logo`}
-                className="h-20 w-20 rounded-3xl object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-                LOGO
-              </div>
-            )}
 
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Team Leaders
-              </p>
-              <h1 className="text-4xl font-black tracking-tight text-slate-900">
-                {team.name}
-              </h1>
-              <p className="mt-2 text-slate-600">
-                Top scorers, assist leaders, and discipline leaders by season.
-              </p>
-            </div>
-          </div>
+      {/* --------------------------------------------------- */}
+{/* TEAM PAGE INTRO */}
+{/* --------------------------------------------------- */}
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/teams/${team.id}`}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
-            >
-              Team Page
-            </Link>
-
-            <Link
-              href={`/teams/${team.id}/stats`}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
-            >
-              Stats
-            </Link>
-
-            <Link
-              href={`/teams/${team.id}/roster`}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
-            >
-              Roster
-            </Link>
-          </div>
-        </div>
-      </section>
-
+<TeamPageIntro
+  eyebrow="Team Leaders"
+  title="Leaders"
+  description="See top scorers, assist leaders, and discipline leaders by season."
+/>
+     
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-xl font-bold text-slate-900">Season Filter</h2>

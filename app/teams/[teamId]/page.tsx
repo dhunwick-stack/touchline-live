@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import TeamPageIntro from '@/components/TeamPageIntro';
+import FieldCard from '@/components/FieldCard';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +14,10 @@ type MatchRow = Match & {
 };
 
 export default function TeamDetailPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -19,6 +25,10 @@ export default function TeamDetailPage() {
       : Array.isArray(params?.teamId)
         ? params.teamId[0]
         : '';
+
+  // ---------------------------------------------------
+  // AUTH / PAGE STATE
+  // ---------------------------------------------------
 
   const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
@@ -29,11 +39,22 @@ export default function TeamDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // ---------------------------------------------------
+  // EDIT FORM STATE
+  // ---------------------------------------------------
+
   const [teamName, setTeamName] = useState('');
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [homeFieldName, setHomeFieldName] = useState('');
   const [homeFieldAddress, setHomeFieldAddress] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [secondaryColor, setSecondaryColor] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+
+  // ---------------------------------------------------
+  // TEAM AUTH GUARD
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) return;
@@ -48,10 +69,18 @@ export default function TeamDetailPage() {
     setAuthChecked(true);
   }, [teamId]);
 
+  // ---------------------------------------------------
+  // INITIAL DATA LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!teamId || !authChecked) return;
     loadTeamData();
   }, [teamId, authChecked]);
+
+  // ---------------------------------------------------
+  // LOAD TEAM DATA
+  // ---------------------------------------------------
 
   async function loadTeamData() {
     setLoading(true);
@@ -100,14 +129,25 @@ export default function TeamDetailPage() {
     setPlayers(loadedPlayers);
     setRecentMatches(loadedRecentMatches);
 
+    // -----------------------------------------------
+    // PREFILL EDIT FORM
+    // -----------------------------------------------
+
     setTeamName(loadedTeam.name || '');
     setClubName(loadedTeam.club_name || '');
     setLogoUrl(loadedTeam.logo_url || '');
     setHomeFieldName(loadedTeam.home_field_name || '');
     setHomeFieldAddress(loadedTeam.home_field_address || '');
+    setPrimaryColor(loadedTeam.primary_color || '');
+    setSecondaryColor(loadedTeam.secondary_color || '');
+    setBannerUrl(loadedTeam.banner_url || '');
 
     setLoading(false);
   }
+
+  // ---------------------------------------------------
+  // SAVE TEAM CHANGES
+  // ---------------------------------------------------
 
   async function handleSaveTeam() {
     if (!team) return;
@@ -123,6 +163,9 @@ export default function TeamDetailPage() {
         logo_url: logoUrl.trim() || null,
         home_field_name: homeFieldName.trim() || null,
         home_field_address: homeFieldAddress.trim() || null,
+        primary_color: primaryColor.trim() || null,
+        secondary_color: secondaryColor.trim() || null,
+        banner_url: bannerUrl.trim() || null,
       })
       .eq('id', team.id)
       .select()
@@ -140,6 +183,10 @@ export default function TeamDetailPage() {
     setSaving(false);
   }
 
+  // ---------------------------------------------------
+  // DERIVED VALUES
+  // ---------------------------------------------------
+
   const activePlayers = useMemo(
     () => players.filter((player) => player.active !== false),
     [players],
@@ -155,8 +202,13 @@ export default function TeamDetailPage() {
     [activePlayers],
   );
 
+  // ---------------------------------------------------
+  // MATCH HELPERS
+  // ---------------------------------------------------
+
   function opponentName(match: MatchRow) {
     const isHome = match.home_team_id === teamId;
+
     return isHome
       ? match.away_team?.name || 'Opponent'
       : match.home_team?.name || 'Opponent';
@@ -166,6 +218,7 @@ export default function TeamDetailPage() {
     const isHome = match.home_team_id === teamId;
     const teamGoals = isHome ? match.home_score : match.away_score;
     const oppGoals = isHome ? match.away_score : match.home_score;
+
     return `${teamGoals}-${oppGoals}`;
   }
 
@@ -181,107 +234,59 @@ export default function TeamDetailPage() {
     return 'D';
   }
 
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading || !authChecked) {
-    return <main className="mx-auto max-w-6xl px-6 py-8">Loading team...</main>;
+    return <div>Loading team...</div>;
   }
 
   if (error && !team) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
-        {error}
-      </main>
-    );
+    return <div className="text-red-600">{error}</div>;
   }
 
   if (!team) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
-        Team not found.
-      </main>
-    );
+    return <div className="text-red-600">Team not found.</div>;
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-4">
-            {team.logo_url ? (
-              <img
-                src={team.logo_url}
-                alt={`${team.name} logo`}
-                className="h-20 w-20 rounded-3xl object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-                LOGO
-              </div>
-            )}
+    <>
+     {/* --------------------------------------------------- */}
+{/* TEAM PAGE INTRO */}
+{/* --------------------------------------------------- */}
 
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Team Details
-              </p>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900">
-                {team.name}
-              </h1>
-              <p className="mt-2 text-slate-600">
-                {team.club_name || 'No club name added yet.'}
-              </p>
-            </div>
-          </div>
+<TeamPageIntro
+  eyebrow="Team Overview"
+  title="Overview"
+  description="Overview, roster preview, field details, recent matches, and team settings."
+  rightSlot={
+    <>
+      <button
+        type="button"
+        onClick={() => setEditing((prev) => !prev)}
+        className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+      >
+        {editing ? 'Close Edit' : 'Edit Team'}
+      </button>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/teams/${team.id}/stats`}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              Stats
-            </Link>
+      <Link
+        href={`/teams/${team.id}/stats`}
+        className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+      >
+        View Stats
+      </Link>
+    </>
+  }
+/>
 
-            <Link
-              href={`/teams/${team.id}/roster`}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              Roster
-            </Link>
-
-            <Link
-              href={`/teams/${team.id}/leaders`}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              Leaders
-            </Link>
-
-            <Link
-              href="/matches/new"
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              New Match
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setEditing((prev) => !prev)}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              {editing ? 'Close Edit' : 'Edit Team'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem('teamId');
-                localStorage.removeItem('teamName');
-                window.location.href = '/team-login';
-              }}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------------- */}
 
       <section className="mt-6 grid gap-4 md:grid-cols-3">
         <SummaryCard label="Active Players" value={activePlayers.length} />
@@ -289,47 +294,42 @@ export default function TeamDetailPage() {
         <SummaryCard label="Home Field" value={team.home_field_name || 'Not set'} />
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* FIELD + ROSTER PREVIEW */}
+      {/* --------------------------------------------------- */}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+       {/* ------------------------------------------------- */}
+{/* HOME FIELD CARD */}
+{/* ------------------------------------------------- */}
+
+<FieldCard
+  fieldName={team.home_field_name}
+  fieldAddress={team.home_field_address}
+/> 
+
+
+
+        {/* ------------------------------------------------- */}
+        {/* ROSTER PREVIEW */}
+        {/* ------------------------------------------------- */}
+
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">Home Field</h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
 
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="flex items-start justify-between gap-4">
-              <dt className="font-semibold text-slate-500">Field Name</dt>
-              <dd className="text-right font-medium text-slate-900">
-                {team.home_field_name || 'Not set'}
-              </dd>
-            </div>
-
-            <div className="flex items-start justify-between gap-4">
-              <dt className="font-semibold text-slate-500">Address</dt>
-              <dd className="text-right font-medium text-slate-900">
-                {team.home_field_address || 'Not set'}
-              </dd>
-            </div>
-
-            {team.home_field_address ? (
-              <div className="pt-2">
-                <a
-                  href={`https://maps.apple.com/?q=${encodeURIComponent(team.home_field_address)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                >
-                  Open in Maps
-                </a>
-              </div>
-            ) : null}
+            <Link
+              href={`/teams/${team.id}/roster`}
+              className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600"
+            >
+              View Full Roster
+            </Link>
           </div>
-        </section>
-
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
 
           {activePlayers.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">No players added yet.</p>
           ) : (
-            <div className="mt-4 space-y-3">
+            <div className="space-y-3">
               {activePlayers.slice(0, 8).map((player) => (
                 <div
                   key={player.id}
@@ -350,19 +350,14 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
               ))}
-
-              {activePlayers.length > 8 ? (
-                <Link
-                  href={`/teams/${team.id}/roster`}
-                  className="inline-flex rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-                >
-                  View Full Roster
-                </Link>
-              ) : null}
             </div>
           )}
         </section>
       </div>
+
+      {/* --------------------------------------------------- */}
+      {/* RECENT MATCHES */}
+      {/* --------------------------------------------------- */}
 
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 flex items-center justify-between">
@@ -378,11 +373,16 @@ export default function TeamDetailPage() {
           <div className="space-y-3">
             {recentMatches.map((match) => {
               const result = resultLabel(match);
+
               return (
                 <div
                   key={match.id}
                   className="grid items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 md:grid-cols-[90px_1fr_auto_auto]"
                 >
+                  {/* ------------------------------------------- */}
+                  {/* STATUS */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     {match.status === 'final' ? (
                       <span
@@ -407,6 +407,10 @@ export default function TeamDetailPage() {
                     )}
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* MATCH INFO */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     <p className="font-semibold text-slate-900">
                       vs {opponentName(match)}
@@ -422,9 +426,17 @@ export default function TeamDetailPage() {
                     </p>
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* SCORE */}
+                  {/* ------------------------------------------- */}
+
                   <div className="text-lg font-black tabular-nums text-slate-900">
                     {scoreLine(match)}
                   </div>
+
+                  {/* ------------------------------------------- */}
+                  {/* ACTION */}
+                  {/* ------------------------------------------- */}
 
                   <div>
                     {match.status === 'final' && match.public_slug ? (
@@ -452,6 +464,10 @@ export default function TeamDetailPage() {
         )}
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* EDIT TEAM FORM */}
+      {/* --------------------------------------------------- */}
+
       {editing ? (
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -460,6 +476,10 @@ export default function TeamDetailPage() {
               {team.name}
             </span>
           </div>
+
+          {/* ----------------------------------------------- */}
+          {/* EDIT FIELDS */}
+          {/* ----------------------------------------------- */}
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Team Name">
@@ -506,9 +526,46 @@ export default function TeamDetailPage() {
                 />
               </Field>
             </div>
+
+            <Field label="Primary Color">
+              <input
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                placeholder="#0f172a"
+              />
+            </Field>
+
+            <Field label="Secondary Color">
+              <input
+                value={secondaryColor}
+                onChange={(e) => setSecondaryColor(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                placeholder="#7f1d1d"
+              />
+            </Field>
+
+            <div className="md:col-span-2">
+              <Field label="Banner URL">
+                <input
+                  value={bannerUrl}
+                  onChange={(e) => setBannerUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  placeholder="https://..."
+                />
+              </Field>
+            </div>
           </div>
 
+          {/* ----------------------------------------------- */}
+          {/* SAVE ERROR */}
+          {/* ----------------------------------------------- */}
+
           {error ? <p className="mt-4 text-sm font-medium text-red-600">{error}</p> : null}
+
+          {/* ----------------------------------------------- */}
+          {/* EDIT ACTIONS */}
+          {/* ----------------------------------------------- */}
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -529,6 +586,9 @@ export default function TeamDetailPage() {
                 setLogoUrl(team.logo_url || '');
                 setHomeFieldName(team.home_field_name || '');
                 setHomeFieldAddress(team.home_field_address || '');
+                setPrimaryColor(team.primary_color || '');
+                setSecondaryColor(team.secondary_color || '');
+                setBannerUrl(team.banner_url || '');
               }}
               className="rounded-2xl bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-200"
             >
@@ -537,9 +597,13 @@ export default function TeamDetailPage() {
           </div>
         </section>
       ) : null}
-    </main>
+    </>
   );
 }
+
+// ---------------------------------------------------
+// SUMMARY CARD
+// ---------------------------------------------------
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -551,6 +615,10 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
     </div>
   );
 }
+
+// ---------------------------------------------------
+// FIELD WRAPPER
+// ---------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

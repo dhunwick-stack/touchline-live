@@ -33,6 +33,10 @@ type TeamSummary = {
 };
 
 export default function TeamStatsPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -41,16 +45,35 @@ export default function TeamStatsPage() {
         ? params.teamId[0]
         : '';
 
+  // ---------------------------------------------------
+  // AUTH / PAGE STATE
+  // ---------------------------------------------------
+
   const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // ---------------------------------------------------
+  // BANNER / UI STATE
+  // ---------------------------------------------------
+
+  const [editing, setEditing] = useState(false);
+
+  // ---------------------------------------------------
+  // DATA STATE
+  // ---------------------------------------------------
+
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('all');
   const [players, setPlayers] = useState<Player[]>([]);
   const [finalMatches, setFinalMatches] = useState<MatchRow[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+
+  // ---------------------------------------------------
+  // TEAM AUTH GUARD
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) return;
@@ -64,6 +87,10 @@ export default function TeamStatsPage() {
 
     setAuthChecked(true);
   }, [teamId]);
+
+  // ---------------------------------------------------
+  // LOAD BASE TEAM / SEASON / PLAYER DATA
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId || !authChecked) return;
@@ -89,7 +116,7 @@ export default function TeamStatsPage() {
 
       setTeam(loadedTeam);
       setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeasons.find((s) => s.is_active)?.id || 'all');
+      setSelectedSeasonId(loadedSeasons.find((season) => season.is_active)?.id || 'all');
 
       const { data: playerData, error: playerError } = await supabase
         .from('players')
@@ -110,6 +137,10 @@ export default function TeamStatsPage() {
 
     loadBaseData();
   }, [teamId, authChecked]);
+
+  // ---------------------------------------------------
+  // LOAD MATCH / EVENT STATS DATA
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId || !authChecked) return;
@@ -165,7 +196,7 @@ export default function TeamStatsPage() {
         return;
       }
 
-      const matchIds = loadedFinalMatches.map((m) => m.id);
+      const matchIds = loadedFinalMatches.map((match) => match.id);
 
       const { data: eventData, error: eventError } = await supabase
         .from('match_events')
@@ -183,6 +214,10 @@ export default function TeamStatsPage() {
 
     loadStatsData();
   }, [teamId, selectedSeasonId, authChecked]);
+
+  // ---------------------------------------------------
+  // TEAM SUMMARY
+  // ---------------------------------------------------
 
   const summary = useMemo<TeamSummary>(() => {
     let played = 0;
@@ -221,11 +256,16 @@ export default function TeamStatsPage() {
     };
   }, [finalMatches, teamId]);
 
+  // ---------------------------------------------------
+  // PLAYER STATS
+  // ---------------------------------------------------
+
   const playerStats = useMemo<PlayerStatRow[]>(() => {
     const playerMap = new Map<string, PlayerStatRow>();
 
     for (const player of players) {
       const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
+
       playerMap.set(player.id, {
         playerId: player.id,
         name: fullName || 'Unnamed Player',
@@ -268,10 +308,14 @@ export default function TeamStatsPage() {
     return Array.from(playerMap.values());
   }, [events, players, teamId]);
 
+  // ---------------------------------------------------
+  // LEADERBOARDS
+  // ---------------------------------------------------
+
   const topScorers = useMemo(
     () =>
       playerStats
-        .filter((p) => p.goals > 0)
+        .filter((player) => player.goals > 0)
         .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name)),
     [playerStats],
   );
@@ -279,7 +323,7 @@ export default function TeamStatsPage() {
   const topAssists = useMemo(
     () =>
       playerStats
-        .filter((p) => p.assists > 0)
+        .filter((player) => player.assists > 0)
         .sort((a, b) => b.assists - a.assists || a.name.localeCompare(b.name)),
     [playerStats],
   );
@@ -287,7 +331,7 @@ export default function TeamStatsPage() {
   const discipline = useMemo(
     () =>
       playerStats
-        .filter((p) => p.yellowCards > 0 || p.redCards > 0)
+        .filter((player) => player.yellowCards > 0 || player.redCards > 0)
         .sort(
           (a, b) =>
             b.redCards - a.redCards ||
@@ -296,6 +340,10 @@ export default function TeamStatsPage() {
         ),
     [playerStats],
   );
+
+  // ---------------------------------------------------
+  // MATCH HELPERS
+  // ---------------------------------------------------
 
   function resultLabel(match: MatchRow) {
     if (match.status !== 'final') return null;
@@ -311,6 +359,7 @@ export default function TeamStatsPage() {
 
   function opponentName(match: MatchRow) {
     const isHome = match.home_team_id === teamId;
+
     return isHome
       ? match.away_team?.name || 'Opponent'
       : match.home_team?.name || 'Opponent';
@@ -320,8 +369,13 @@ export default function TeamStatsPage() {
     const isHome = match.home_team_id === teamId;
     const teamGoals = isHome ? match.home_score : match.away_score;
     const oppGoals = isHome ? match.away_score : match.home_score;
+
     return `${teamGoals}-${oppGoals}`;
   }
+
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
 
   if (loading || !authChecked) {
     return <main className="mx-auto max-w-6xl px-6 py-8">Loading team stats...</main>;
@@ -343,30 +397,23 @@ export default function TeamStatsPage() {
     );
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Team Statistics
-          </p>
-          <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
-          <p className="mt-2 text-slate-600">
-            Season summary, player leaders, and recent results.
-          </p>
-        </div>
+      {/* --------------------------------------------------- */}
+      {/* TEAM BANNER */}
+      {/* --------------------------------------------------- */}
 
-        <div className="flex gap-3">
-          <Link
-            href={`/teams/${team.id}`}
-            className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200"
-          >
-            Team Page
-          </Link>
-        </div>
-      </div>
+     
 
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      {/* --------------------------------------------------- */}
+      {/* SEASON FILTER */}
+      {/* --------------------------------------------------- */}
+
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-xl font-bold">Season Filter</h2>
 
@@ -385,6 +432,10 @@ export default function TeamStatsPage() {
         </div>
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------------- */}
+
       <section className="mt-6 grid gap-4 md:grid-cols-4">
         <StatCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
         <StatCard label="Matches Played" value={summary.played} />
@@ -402,6 +453,10 @@ export default function TeamStatsPage() {
         <StatCard label="Clean Sheets" value={summary.cleanSheets} />
         <StatCard label="Points" value={summary.wins * 3 + summary.draws} />
       </section>
+
+      {/* --------------------------------------------------- */}
+      {/* LEADERBOARD CARDS */}
+      {/* --------------------------------------------------- */}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <LeaderboardCard
@@ -422,6 +477,10 @@ export default function TeamStatsPage() {
           }))}
         />
 
+        {/* ------------------------------------------------- */}
+        {/* DISCIPLINE CARD */}
+        {/* ------------------------------------------------- */}
+
         <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-xl font-bold">Discipline</h2>
 
@@ -439,6 +498,7 @@ export default function TeamStatsPage() {
                       {`${player.jersey} ${player.name}`.trim()}
                     </p>
                   </div>
+
                   <div className="ml-4 text-right text-sm font-semibold">
                     <div className="text-amber-600">YC {player.yellowCards}</div>
                     <div className="text-red-600">RC {player.redCards}</div>
@@ -449,6 +509,10 @@ export default function TeamStatsPage() {
           )}
         </div>
       </div>
+
+      {/* --------------------------------------------------- */}
+      {/* RECENT MATCHES */}
+      {/* --------------------------------------------------- */}
 
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 flex items-center justify-between">
@@ -470,6 +534,10 @@ export default function TeamStatsPage() {
                   key={match.id}
                   className="grid items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 md:grid-cols-[90px_1fr_auto_auto]"
                 >
+                  {/* ------------------------------------------- */}
+                  {/* RESULT / STATUS */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     {match.status === 'final' ? (
                       <span
@@ -494,6 +562,10 @@ export default function TeamStatsPage() {
                     )}
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* MATCH INFO */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     <p className="font-semibold text-slate-900">vs {opponentName(match)}</p>
                     <p className="text-sm text-slate-500">
@@ -507,9 +579,17 @@ export default function TeamStatsPage() {
                     </p>
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* SCORE */}
+                  {/* ------------------------------------------- */}
+
                   <div className="text-lg font-black tabular-nums text-slate-900">
                     {scoreLine(match)}
                   </div>
+
+                  {/* ------------------------------------------- */}
+                  {/* ACTION */}
+                  {/* ------------------------------------------- */}
 
                   <div>
                     {match.status === 'final' && match.public_slug ? (
@@ -537,6 +617,10 @@ export default function TeamStatsPage() {
         )}
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* FINAL MATCH RESULTS */}
+      {/* --------------------------------------------------- */}
+
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">Final Match Results</h2>
@@ -557,6 +641,10 @@ export default function TeamStatsPage() {
                   key={match.id}
                   className="grid items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 md:grid-cols-[90px_1fr_auto_auto]"
                 >
+                  {/* ------------------------------------------- */}
+                  {/* RESULT */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
@@ -571,6 +659,10 @@ export default function TeamStatsPage() {
                     </span>
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* MATCH INFO */}
+                  {/* ------------------------------------------- */}
+
                   <div>
                     <p className="font-semibold text-slate-900">vs {opponentName(match)}</p>
                     <p className="text-sm text-slate-500">
@@ -584,9 +676,17 @@ export default function TeamStatsPage() {
                     </p>
                   </div>
 
+                  {/* ------------------------------------------- */}
+                  {/* SCORE */}
+                  {/* ------------------------------------------- */}
+
                   <div className="text-lg font-black tabular-nums text-slate-900">
                     {scoreLine(match)}
                   </div>
+
+                  {/* ------------------------------------------- */}
+                  {/* ACTION */}
+                  {/* ------------------------------------------- */}
 
                   <div>
                     {match.public_slug ? (
@@ -610,14 +710,26 @@ export default function TeamStatsPage() {
   );
 }
 
+// ---------------------------------------------------
+// STAT CARD
+// ---------------------------------------------------
+
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+        {value}
+      </p>
     </div>
   );
 }
+
+// ---------------------------------------------------
+// LEADERBOARD CARD
+// ---------------------------------------------------
 
 function LeaderboardCard({
   title,
@@ -642,7 +754,9 @@ function LeaderboardCard({
               className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
             >
               <p className="min-w-0 truncate font-medium text-slate-900">{row.label}</p>
-              <p className="ml-4 text-lg font-black tabular-nums text-slate-900">{row.value}</p>
+              <p className="ml-4 text-lg font-black tabular-nums text-slate-900">
+                {row.value}
+              </p>
             </div>
           ))}
         </div>

@@ -420,4 +420,23 @@ textarea {
 .goal-highlight {
   animation: goalFlash 1.2s ease-out;
 }
+
+/* --------------------------------------------------- */
+/* FORM REVEAL ANIMATION */
+/* --------------------------------------------------- */
+
+@keyframes subtleSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-subtle-slide-down {
+  animation: subtleSlideDown 220ms ease-out;
+}
 }

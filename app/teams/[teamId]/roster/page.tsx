@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import TeamPageIntro from '@/components/TeamPageIntro';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Player, Team } from '@/lib/types';
 
@@ -20,6 +20,10 @@ type EditingPlayerState = Record<
 >;
 
 export default function TeamRosterPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -28,20 +32,37 @@ export default function TeamRosterPage() {
         ? params.teamId[0]
         : '';
 
+  // ---------------------------------------------------
+  // AUTH / PAGE STATE
+  // ---------------------------------------------------
+
   const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // ---------------------------------------------------
+  // EDITING STATE
+  // ---------------------------------------------------
+
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
   const [editingPlayers, setEditingPlayers] = useState<EditingPlayerState>({});
+
+  // ---------------------------------------------------
+  // NEW PLAYER FORM STATE
+  // ---------------------------------------------------
 
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newJerseyNumber, setNewJerseyNumber] = useState('');
   const [newPosition, setNewPosition] = useState('');
   const [newActive, setNewActive] = useState(true);
+
+  // ---------------------------------------------------
+  // TEAM AUTH GUARD
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) return;
@@ -56,10 +77,18 @@ export default function TeamRosterPage() {
     setAuthChecked(true);
   }, [teamId]);
 
+  // ---------------------------------------------------
+  // INITIAL DATA LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!teamId || !authChecked) return;
     loadRoster();
   }, [teamId, authChecked]);
+
+  // ---------------------------------------------------
+  // LOAD ROSTER + TEAM DATA
+  // ---------------------------------------------------
 
   async function loadRoster() {
     setLoading(true);
@@ -89,7 +118,12 @@ export default function TeamRosterPage() {
     setTeam(loadedTeam);
     setPlayers(loadedPlayers);
 
+    // -----------------------------------------------
+    // PREPARE EDIT DRAFTS FOR EVERY PLAYER
+    // -----------------------------------------------
+
     const initialEditing: EditingPlayerState = {};
+
     for (const player of loadedPlayers) {
       initialEditing[player.id] = {
         first_name: player.first_name || '',
@@ -102,10 +136,14 @@ export default function TeamRosterPage() {
         active: player.active !== false,
       };
     }
-    setEditingPlayers(initialEditing);
 
+    setEditingPlayers(initialEditing);
     setLoading(false);
   }
+
+  // ---------------------------------------------------
+  // ADD PLAYER
+  // ---------------------------------------------------
 
   async function handleAddPlayer() {
     if (!teamId) return;
@@ -139,6 +177,10 @@ export default function TeamRosterPage() {
       return;
     }
 
+    // -----------------------------------------------
+    // RESET FORM
+    // -----------------------------------------------
+
     setNewFirstName('');
     setNewLastName('');
     setNewJerseyNumber('');
@@ -149,8 +191,13 @@ export default function TeamRosterPage() {
     setSaving(false);
   }
 
+  // ---------------------------------------------------
+  // START EDITING PLAYER
+  // ---------------------------------------------------
+
   function startEditing(player: Player) {
     setEditingIds((prev) => ({ ...prev, [player.id]: true }));
+
     setEditingPlayers((prev) => ({
       ...prev,
       [player.id]: {
@@ -166,11 +213,16 @@ export default function TeamRosterPage() {
     }));
   }
 
+  // ---------------------------------------------------
+  // CANCEL EDITING PLAYER
+  // ---------------------------------------------------
+
   function cancelEditing(playerId: string) {
     const player = players.find((p) => p.id === playerId);
     if (!player) return;
 
     setEditingIds((prev) => ({ ...prev, [playerId]: false }));
+
     setEditingPlayers((prev) => ({
       ...prev,
       [playerId]: {
@@ -185,6 +237,10 @@ export default function TeamRosterPage() {
       },
     }));
   }
+
+  // ---------------------------------------------------
+  // SAVE PLAYER
+  // ---------------------------------------------------
 
   async function savePlayer(playerId: string) {
     const draft = editingPlayers[playerId];
@@ -218,6 +274,10 @@ export default function TeamRosterPage() {
     setSaving(false);
   }
 
+  // ---------------------------------------------------
+  // DERIVED VALUES
+  // ---------------------------------------------------
+
   const activePlayers = useMemo(
     () => players.filter((player) => player.active !== false),
     [players],
@@ -238,73 +298,44 @@ export default function TeamRosterPage() {
     [players],
   );
 
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading || !authChecked) {
-    return <main className="mx-auto max-w-6xl px-6 py-8">Loading roster...</main>;
+    return <div>Loading roster...</div>;
   }
 
   if (error && !team) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
-        {error}
-      </main>
-    );
+    return <div className="text-red-600">{error}</div>;
   }
 
   if (!team) {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
-        Team not found.
-      </main>
-    );
+    return <div className="text-red-600">Team not found.</div>;
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
-      <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-4">
-            {team.logo_url ? (
-              <img
-                src={team.logo_url}
-                alt={`${team.name} logo`}
-                className="h-20 w-20 rounded-3xl object-cover ring-1 ring-slate-200"
-              />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-                LOGO
-              </div>
-            )}
+    <>
+      {/* --------------------------------------------------- */}
+      {/* PAGE INTRO */}
+      {/* --------------------------------------------------- */}
+{/* --------------------------------------------------- */}
+{/* TEAM PAGE INTRO */}
+{/* --------------------------------------------------- */}
 
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Team Roster
-              </p>
-              <h1 className="text-4xl font-black tracking-tight text-slate-900">
-                {team.name}
-              </h1>
-              <p className="mt-2 max-w-2xl text-slate-600">
-                Manage players, positions, jersey numbers, and active status for the full squad.
-              </p>
-            </div>
-          </div>
+<TeamPageIntro
+  eyebrow="Team Roster"
+  title="Roster"
+  description="Manage players, jersey numbers, positions, and active squad status."
+/>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/teams/${team.id}`}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
-            >
-              Team Page
-            </Link>
-
-            <Link
-              href={`/teams/${team.id}/stats`}
-              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-            >
-              Stats
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------------- */}
 
       <section className="mt-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Total Players" value={players.length} />
@@ -312,6 +343,10 @@ export default function TeamRosterPage() {
         <SummaryCard label="Inactive" value={inactivePlayers.length} />
         <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
       </section>
+
+      {/* --------------------------------------------------- */}
+      {/* ADD PLAYER */}
+      {/* --------------------------------------------------- */}
 
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
         <div className="mb-5 flex items-center justify-between">
@@ -322,6 +357,10 @@ export default function TeamRosterPage() {
             </p>
           </div>
         </div>
+
+        {/* ----------------------------------------------- */}
+        {/* ADD PLAYER FORM */}
+        {/* ----------------------------------------------- */}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
           <Field label="First Name">
@@ -383,7 +422,15 @@ export default function TeamRosterPage() {
           </div>
         </div>
 
+        {/* ----------------------------------------------- */}
+        {/* FORM ERROR */}
+        {/* ----------------------------------------------- */}
+
         {error ? <p className="mt-4 text-sm font-medium text-red-600">{error}</p> : null}
+
+        {/* ----------------------------------------------- */}
+        {/* ADD PLAYER ACTION */}
+        {/* ----------------------------------------------- */}
 
         <div className="mt-6">
           <button
@@ -397,6 +444,10 @@ export default function TeamRosterPage() {
         </div>
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* ROSTER LIST */}
+      {/* --------------------------------------------------- */}
+
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
         <div className="mb-5 flex items-center justify-between">
           <div>
@@ -405,6 +456,7 @@ export default function TeamRosterPage() {
               Edit player details, adjust status, and keep the squad current.
             </p>
           </div>
+
           <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
             {players.length} players
           </span>
@@ -424,161 +476,177 @@ export default function TeamRosterPage() {
                   className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
                 >
                   {!isEditing ? (
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900 ring-1 ring-slate-200">
-                          {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                    <>
+                      {/* --------------------------------------- */}
+                      {/* PLAYER DISPLAY CARD */}
+                      {/* --------------------------------------- */}
+
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900 ring-1 ring-slate-200">
+                            {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                          </div>
+
+                          <div>
+                            <p className="text-lg font-semibold text-slate-900">
+                              {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
+                                'Unnamed Player'}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {player.position || 'No position'}
+                            </p>
+                          </div>
                         </div>
 
-                        <div>
-                          <p className="text-lg font-semibold text-slate-900">
-                            {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
-                              'Unnamed Player'}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {player.position || 'No position'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                            player.active !== false
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-200 text-slate-700'
-                          }`}
-                        >
-                          {player.active !== false ? 'Active' : 'Inactive'}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => startEditing(player)}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
-                        <Field label="First Name">
-                          <input
-                            value={draft?.first_name || ''}
-                            onChange={(e) =>
-                              setEditingPlayers((prev) => ({
-                                ...prev,
-                                [player.id]: {
-                                  ...prev[player.id],
-                                  first_name: e.target.value,
-                                },
-                              }))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                          />
-                        </Field>
-
-                        <Field label="Last Name">
-                          <input
-                            value={draft?.last_name || ''}
-                            onChange={(e) =>
-                              setEditingPlayers((prev) => ({
-                                ...prev,
-                                [player.id]: {
-                                  ...prev[player.id],
-                                  last_name: e.target.value,
-                                },
-                              }))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                          />
-                        </Field>
-
-                        <Field label="Jersey #">
-                          <input
-                            value={draft?.jersey_number || ''}
-                            onChange={(e) =>
-                              setEditingPlayers((prev) => ({
-                                ...prev,
-                                [player.id]: {
-                                  ...prev[player.id],
-                                  jersey_number: e.target.value.replace(/\D/g, '').slice(0, 2),
-                                },
-                              }))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 px-3 py-3"
-                            inputMode="numeric"
-                            maxLength={2}
-                            placeholder="10"
-                          />
-                        </Field>
-
-                        <Field label="Position">
-                          <select
-                            value={draft?.position || ''}
-                            onChange={(e) =>
-                              setEditingPlayers((prev) => ({
-                                ...prev,
-                                [player.id]: {
-                                  ...prev[player.id],
-                                  position: e.target.value,
-                                },
-                              }))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                              player.active !== false
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}
                           >
-                            <option value="">Select position</option>
-                            {POSITION_OPTIONS.map((position) => (
-                              <option key={position} value={position}>
-                                {position}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
+                            {player.active !== false ? 'Active' : 'Inactive'}
+                          </span>
 
-                        <div className="flex flex-col">
-                          <span className="text-sm font-semibold text-slate-700">Status</span>
-                          <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(player)}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* --------------------------------------- */}
+                      {/* PLAYER EDIT FORM */}
+                      {/* --------------------------------------- */}
+
+                      <div className="space-y-5">
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
+                          <Field label="First Name">
                             <input
-                              type="checkbox"
-                              checked={draft?.active ?? true}
+                              value={draft?.first_name || ''}
                               onChange={(e) =>
                                 setEditingPlayers((prev) => ({
                                   ...prev,
                                   [player.id]: {
                                     ...prev[player.id],
-                                    active: e.target.checked,
+                                    first_name: e.target.value,
                                   },
                                 }))
                               }
-                              className="h-5 w-5 shrink-0"
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                             />
-                            <span className="text-sm font-medium text-slate-700">Active</span>
-                          </label>
+                          </Field>
+
+                          <Field label="Last Name">
+                            <input
+                              value={draft?.last_name || ''}
+                              onChange={(e) =>
+                                setEditingPlayers((prev) => ({
+                                  ...prev,
+                                  [player.id]: {
+                                    ...prev[player.id],
+                                    last_name: e.target.value,
+                                  },
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                            />
+                          </Field>
+
+                          <Field label="Jersey #">
+                            <input
+                              value={draft?.jersey_number || ''}
+                              onChange={(e) =>
+                                setEditingPlayers((prev) => ({
+                                  ...prev,
+                                  [player.id]: {
+                                    ...prev[player.id],
+                                    jersey_number: e.target.value.replace(/\D/g, '').slice(0, 2),
+                                  },
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-slate-200 px-3 py-3"
+                              inputMode="numeric"
+                              maxLength={2}
+                              placeholder="10"
+                            />
+                          </Field>
+
+                          <Field label="Position">
+                            <select
+                              value={draft?.position || ''}
+                              onChange={(e) =>
+                                setEditingPlayers((prev) => ({
+                                  ...prev,
+                                  [player.id]: {
+                                    ...prev[player.id],
+                                    position: e.target.value,
+                                  },
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                            >
+                              <option value="">Select position</option>
+                              {POSITION_OPTIONS.map((position) => (
+                                <option key={position} value={position}>
+                                  {position}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-slate-700">Status</span>
+                            <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
+                              <input
+                                type="checkbox"
+                                checked={draft?.active ?? true}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      active: e.target.checked,
+                                    },
+                                  }))
+                                }
+                                className="h-5 w-5 shrink-0"
+                              />
+                              <span className="text-sm font-medium text-slate-700">Active</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* ----------------------------------- */}
+                        {/* PLAYER EDIT ACTIONS */}
+                        {/* ----------------------------------- */}
+
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => savePlayer(player.id)}
+                            disabled={saving}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                          >
+                            Save
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => cancelEditing(player.id)}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => savePlayer(player.id)}
-                          disabled={saving}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                        >
-                          Save
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => cancelEditing(player.id)}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
               );
@@ -586,9 +654,13 @@ export default function TeamRosterPage() {
           </div>
         )}
       </section>
-    </main>
+    </>
   );
 }
+
+// ---------------------------------------------------
+// SUMMARY CARD
+// ---------------------------------------------------
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -600,6 +672,10 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
     </div>
   );
 }
+
+// ---------------------------------------------------
+// FIELD WRAPPER
+// ---------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
