@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import StatBadge from '@/components/StatBadge';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -298,26 +299,28 @@ export default function TeamLeadersPage() {
   eyebrow="Team Leaders"
   title="Leaders"
   description="See top scorers, assist leaders, and discipline leaders by season."
+  rightSlot={
+    <div className="min-w-[220px]">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Season
+      </label>
+      <select
+        value={selectedSeasonId}
+        onChange={(e) => setSelectedSeasonId(e.target.value)}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+      >
+        <option value="all">All Seasons</option>
+        {seasons.map((season) => (
+          <option key={season.id} value={season.id}>
+            {season.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  }
 />
      
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-xl font-bold text-slate-900">Season Filter</h2>
-
-          <select
-            value={selectedSeasonId}
-            onChange={(e) => setSelectedSeasonId(e.target.value)}
-            className="rounded-2xl border border-slate-200 px-4 py-3"
-          >
-            <option value="all">All Seasons</option>
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+     
 
       <section className="mt-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Final Matches Counted" value={matches.length} />
@@ -425,9 +428,22 @@ function LeaderboardTable({
                   </div>
                 </div>
 
-                <div className="text-right text-2xl font-black tabular-nums text-slate-900">
-                  {row[valueKey]}
-                </div>
+               <div className="flex justify-end">
+  <StatBadge
+    value={row[valueKey]}
+    color={
+      valueKey === 'goals'
+        ? 'green'
+        : valueKey === 'assists'
+          ? 'blue'
+          : valueKey === 'yellowCards'
+            ? 'yellow'
+            : valueKey === 'redCards'
+              ? 'red'
+              : 'slate'
+    }
+  />
+</div>
               </div>
             ))}
           </div>

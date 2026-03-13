@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import TeamPageIntro from '@/components/TeamPageIntro';
+import StatBadge from '@/components/StatBadge';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
@@ -58,7 +60,7 @@ export default function TeamStatsPage() {
   // BANNER / UI STATE
   // ---------------------------------------------------
 
-  const [editing, setEditing] = useState(false);
+  {/* const [editing, setEditing] = useState(false); */}
 
   // ---------------------------------------------------
   // DATA STATE
@@ -378,12 +380,12 @@ export default function TeamStatsPage() {
   // ---------------------------------------------------
 
   if (loading || !authChecked) {
-    return <main className="mx-auto max-w-6xl px-6 py-8">Loading team stats...</main>;
+    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team stats...</main>;
   }
 
   if (error && !team) {
     return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
+      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
         {error}
       </main>
     );
@@ -391,7 +393,7 @@ export default function TeamStatsPage() {
 
   if (!team) {
     return (
-      <main className="mx-auto max-w-6xl px-6 py-8 text-red-600">
+      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
         Team not found.
       </main>
     );
@@ -402,35 +404,45 @@ export default function TeamStatsPage() {
   // ---------------------------------------------------
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <>
       {/* --------------------------------------------------- */}
       {/* TEAM BANNER */}
       {/* --------------------------------------------------- */}
 
-     
-
+    
       {/* --------------------------------------------------- */}
-      {/* SEASON FILTER */}
+      {/* TEAM PAGE INTRO */}
       {/* --------------------------------------------------- */}
 
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-xl font-bold">Season Filter</h2>
+      <TeamPageIntro
+        eyebrow="Team Statistics"
+        title="Stats"
+        description="Season summary, player leaders, recent results, and match performance."
+        rightSlot={
+          <div className="min-w-[220px]">
+            {/* --------------------------------------------- */}
+            {/* SEASON FILTER */}
+            {/* --------------------------------------------- */}
 
-          <select
-            value={selectedSeasonId}
-            onChange={(e) => setSelectedSeasonId(e.target.value)}
-            className="rounded-2xl border border-slate-200 px-4 py-3"
-          >
-            <option value="all">All Seasons</option>
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Season
+            </label>
+
+            <select
+              value={selectedSeasonId}
+              onChange={(e) => setSelectedSeasonId(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+            >
+              <option value="all">All Seasons</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
 
       {/* --------------------------------------------------- */}
       {/* SUMMARY CARDS */}
@@ -462,6 +474,7 @@ export default function TeamStatsPage() {
         <LeaderboardCard
           title="Top Scorers"
           emptyText="No goals recorded yet."
+          color="green"
           rows={topScorers.map((player) => ({
             label: `${player.jersey} ${player.name}`.trim(),
             value: player.goals,
@@ -471,6 +484,7 @@ export default function TeamStatsPage() {
         <LeaderboardCard
           title="Top Assists"
           emptyText="No assists recorded yet."
+          color="blue"
           rows={topAssists.map((player) => ({
             label: `${player.jersey} ${player.name}`.trim(),
             value: player.assists,
@@ -499,9 +513,14 @@ export default function TeamStatsPage() {
                     </p>
                   </div>
 
-                  <div className="ml-4 text-right text-sm font-semibold">
-                    <div className="text-amber-600">YC {player.yellowCards}</div>
-                    <div className="text-red-600">RC {player.redCards}</div>
+                  <div className="ml-4 flex items-center gap-2">
+                    {player.yellowCards > 0 ? (
+                      <StatBadge value={player.yellowCards} color="yellow" />
+                    ) : null}
+
+                    {player.redCards > 0 ? (
+                      <StatBadge value={player.redCards} color="red" />
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -706,7 +725,7 @@ export default function TeamStatsPage() {
           </div>
         )}
       </section>
-    </main>
+    </>
   );
 }
 
@@ -735,10 +754,12 @@ function LeaderboardCard({
   title,
   rows,
   emptyText,
+  color = 'slate',
 }: {
   title: string;
   rows: { label: string; value: number }[];
   emptyText: string;
+  color?: 'green' | 'blue' | 'yellow' | 'red' | 'slate';
 }) {
   return (
     <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -754,9 +775,10 @@ function LeaderboardCard({
               className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
             >
               <p className="min-w-0 truncate font-medium text-slate-900">{row.label}</p>
-              <p className="ml-4 text-lg font-black tabular-nums text-slate-900">
-                {row.value}
-              </p>
+
+              <div className="ml-4 shrink-0">
+                <StatBadge value={row.value} color={color} />
+              </div>
             </div>
           ))}
         </div>
