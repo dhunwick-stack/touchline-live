@@ -1,5 +1,11 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
-export type MatchStatus = 'not_started' | 'live' | 'halftime' | 'final';
+export type MatchStatus =
+  | 'not_started'
+  | 'live'
+  | 'halftime'
+  | 'final'
+  | 'cancelled'
+  | 'postponed';
 export type TeamSide = 'home' | 'away';
 export type EventType =
   | 'goal'
@@ -34,7 +40,6 @@ export type Team = {
   created_at?: string | null;
   home_field_lat?: number | null;
   home_field_lng?: number | null;
-
 };
 
 export type Player = {
@@ -69,6 +74,18 @@ export type Match = {
   is_locked?: boolean | null;
   status_note?: string | null;
   original_match_date?: string | null;
+};
+
+export type MatchLineup = {
+  id: string;
+  match_id: string;
+  team_id: string;
+  player_id: string;
+  team_side: 'home' | 'away';
+  is_starter: boolean;
+  is_bench: boolean;
+  lineup_order: number | null;
+  created_at: string;
 };
 
 export type MatchEvent = {
