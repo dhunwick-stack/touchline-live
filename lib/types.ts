@@ -1,6 +1,7 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
 export type MatchStatus =
   | 'not_started'
+  | 'scheduled'
   | 'live'
   | 'halftime'
   | 'final'
