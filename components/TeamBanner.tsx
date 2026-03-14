@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-
 import { usePathname } from 'next/navigation';
 import type { Team } from '@/lib/types';
 
@@ -18,12 +17,17 @@ export default function TeamBanner({
   editing,
   setEditing,
 }: Props) {
+  // ---------------------------------------------------
+  // ROUTE STATE
+  // ---------------------------------------------------
+
+  const pathname = usePathname();
+  const basePath = `/teams/${teamId}`;
 
   // ---------------------------------------------------
   // BANNER STYLE
   // ---------------------------------------------------
 
-  const pathname = usePathname();
   const bannerStyle = team?.banner_url
     ? {
         backgroundImage: `linear-gradient(rgba(15,23,42,0.45), rgba(15,23,42,0.45)), url(${team.banner_url})`,
@@ -34,22 +38,36 @@ export default function TeamBanner({
         background: `linear-gradient(135deg, ${team?.primary_color || '#7f1d1d'}, ${team?.secondary_color || '#450a0a'})`,
       };
 
+  // ---------------------------------------------------
+  // NAV BUTTON STYLE
+  // ---------------------------------------------------
+
+  function primaryNavClass(isActive: boolean) {
+    return isActive
+      ? 'rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white'
+      : 'rounded-xl px-5 py-3 text-sm font-semibold text-white hover:bg-white/10';
+  }
+
   return (
     <section
       className="relative left-1/2 right-1/2 -mx-[50vw] w-screen text-white"
       style={bannerStyle}
     >
-      {/* overlay */}
+      {/* --------------------------------------------------- */}
+      {/* OVERLAY */}
+      {/* --------------------------------------------------- */}
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/20" />
 
       <div className="relative mx-auto max-w-7xl px-6 py-14">
-
-        {/* floating card */}
+        {/* ------------------------------------------------- */}
+        {/* FLOATING CARD */}
+        {/* ------------------------------------------------- */}
 
         <div className="flex flex-col gap-6 rounded-3xl bg-white/10 p-6 backdrop-blur-md ring-1 ring-white/20 lg:flex-row lg:items-center lg:justify-between">
-
-          {/* team identity */}
+          {/* ----------------------------------------------- */}
+          {/* TEAM IDENTITY */}
+          {/* ----------------------------------------------- */}
 
           <div className="flex items-center gap-4">
             {team.logo_url ? (
@@ -65,64 +83,69 @@ export default function TeamBanner({
             )}
 
             <div>
-              <p className="text-sm uppercase tracking-wide text-white/70">
-                Team
-              </p>
+              <p className="text-sm uppercase tracking-wide text-white/70">Team</p>
 
-              <h1 className="text-3xl font-black tracking-tight">
-                {team.name}
-              </h1>
+              <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
 
-              <p className="text-white/85">
-                {team.club_name || 'No club name'}
-              </p>
+              <p className="text-white/85">{team.club_name || 'No club name'}</p>
             </div>
           </div>
 
-          {/* action nav */}
+          {/* ----------------------------------------------- */}
+          {/* ACTION NAV */}
+          {/* ----------------------------------------------- */}
 
           <div className="flex flex-col gap-4 lg:items-end">
+            {/* --------------------------------------------- */}
+            {/* MAIN NAV */}
+            {/* --------------------------------------------- */}
 
-            {/* main nav */}
-
-            <div className="inline-flex rounded-2xl bg-black/20 p-1.5 backdrop-blur-sm ring-1 ring-white/15">
-
-       <Link
-  href={`/teams/${teamId}/stats`}
-  className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
->
-  Stats
-</Link>
+            <div className="inline-flex flex-wrap rounded-2xl bg-black/20 p-1.5 backdrop-blur-sm ring-1 ring-white/15">
+              <Link
+                href={`${basePath}/stats`}
+                className={primaryNavClass(pathname === `${basePath}/stats`)}
+              >
+                Stats
+              </Link>
 
               <Link
-                href={`/teams/${teamId}/roster`}
-                className="rounded-xl px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
+                href={`${basePath}/roster`}
+                className={primaryNavClass(pathname === `${basePath}/roster`)}
               >
                 Roster
               </Link>
 
               <Link
-                href={`/teams/${teamId}/leaders`}
-                className="rounded-xl px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
+                href={`${basePath}/leaders`}
+                className={primaryNavClass(pathname === `${basePath}/leaders`)}
               >
                 Leaders
               </Link>
 
               <Link
-  href={`/teams/${teamId}`}
-  className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
->
-  Team Page
-</Link>
+                href={`${basePath}/schedule`}
+                className={primaryNavClass(pathname === `${basePath}/schedule`)}
+              >
+                Schedule
+              </Link>
 
+              <Link
+                href={basePath}
+                className={
+                  pathname === basePath
+                    ? 'rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white'
+                    : 'rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15'
+                }
+              >
+                Team Page
+              </Link>
             </div>
 
-            {/* secondary actions */}
+            {/* --------------------------------------------- */}
+            {/* SECONDARY ACTIONS */}
+            {/* --------------------------------------------- */}
 
             <div className="flex flex-wrap gap-3">
-
-
-
               <Link
                 href="/matches/new"
                 className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
@@ -149,7 +172,6 @@ export default function TeamBanner({
               >
                 Logout
               </button>
-
             </div>
           </div>
         </div>

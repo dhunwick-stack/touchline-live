@@ -66,6 +66,9 @@ export type Match = {
   period_started_at: string | null;
   elapsed_seconds: number;
   created_at: string;
+  is_locked?: boolean | null;
+  status_note?: string | null;
+  original_match_date?: string | null;
 };
 
 export type MatchEvent = {

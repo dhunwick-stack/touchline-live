@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -23,6 +24,10 @@ type TeamSummary = {
 };
 
 export default function PublicTeamPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -31,12 +36,21 @@ export default function PublicTeamPage() {
         ? params.teamId[0]
         : '';
 
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
+
   const [team, setTeam] = useState<Team | null>(null);
+  const [nextMatch, setNextMatch] = useState<MatchRow | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // ---------------------------------------------------
+  // LOAD PAGE DATA
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) return;
@@ -49,6 +63,7 @@ export default function PublicTeamPage() {
         { data: teamData, error: teamError },
         { data: playerData, error: playerError },
         { data: matchData, error: matchError },
+        { data: nextMatchData, error: nextMatchError },
       ] = await Promise.all([
         supabase.from('teams').select('*').eq('id', teamId).single(),
         supabase
@@ -68,13 +83,25 @@ export default function PublicTeamPage() {
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .eq('status', 'final')
           .order('match_date', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('matches')
+          .select(`
+            *,
+            home_team:home_team_id (*),
+            away_team:away_team_id (*)
+          `)
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .in('status', ['not_started', 'scheduled', 'live', 'halftime'])
+          .order('match_date', { ascending: true, nullsFirst: false })
+          .limit(1),
       ]);
 
-      if (teamError || playerError || matchError) {
+      if (teamError || playerError || matchError || nextMatchError) {
         setError(
           teamError?.message ||
             playerError?.message ||
             matchError?.message ||
+            nextMatchError?.message ||
             'Failed to load public team page.',
         );
         setLoading(false);
@@ -82,9 +109,11 @@ export default function PublicTeamPage() {
       }
 
       const loadedMatches = (matchData as MatchRow[]) ?? [];
+
       setTeam(teamData as Team);
       setPlayers((playerData as Player[]) ?? []);
       setMatches(loadedMatches);
+      setNextMatch(((nextMatchData as MatchRow[]) ?? [])[0] || null);
 
       if (loadedMatches.length === 0) {
         setEvents([]);
@@ -111,6 +140,10 @@ export default function PublicTeamPage() {
 
     loadPageData();
   }, [teamId]);
+
+  // ---------------------------------------------------
+  // TEAM SUMMARY
+  // ---------------------------------------------------
 
   const summary = useMemo<TeamSummary>(() => {
     let played = 0;
@@ -149,6 +182,10 @@ export default function PublicTeamPage() {
     };
   }, [matches, teamId]);
 
+  // ---------------------------------------------------
+  // TOP SCORER
+  // ---------------------------------------------------
+
   const topScorer = useMemo(() => {
     const goalCounts = new Map<string, number>();
 
@@ -182,11 +219,16 @@ export default function PublicTeamPage() {
     }
 
     const player = players.find((p) => p.id === bestKey);
+
     return {
       name: playerDisplayName(player) || 'Unknown',
       goals: bestCount,
     };
   }, [events, players, teamId]);
+
+  // ---------------------------------------------------
+  // TOP ASSIST
+  // ---------------------------------------------------
 
   const topAssist = useMemo(() => {
     const assistCounts = new Map<string, number>();
@@ -217,11 +259,16 @@ export default function PublicTeamPage() {
     }
 
     const player = players.find((p) => p.id === bestKey);
+
     return {
       name: playerDisplayName(player) || 'Unknown',
       assists: bestCount,
     };
   }, [events, players, teamId]);
+
+  // ---------------------------------------------------
+  // RECENT FORM
+  // ---------------------------------------------------
 
   const recentForm = useMemo(() => {
     return matches.slice(0, 5).map((match) => {
@@ -235,8 +282,20 @@ export default function PublicTeamPage() {
     });
   }, [matches, teamId]);
 
+  // ---------------------------------------------------
+  // HERO STYLE
+  // ---------------------------------------------------
+
+  const nextMatchHeroStyle = {
+    background: `linear-gradient(135deg, ${team?.primary_color || '#0f172a'}, ${team?.secondary_color || '#1e293b'})`,
+  };
+
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team page...</main>;
+    return <main className="mx-auto max-w-7xl px-6 pt-0 pb-8">Loading team page...</main>;
   }
 
   if (error || !team) {
@@ -249,63 +308,20 @@ export default function PublicTeamPage() {
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
             Team not found
           </h1>
-          <p className="mt-3 text-slate-600">
-            {error || 'This team could not be found.'}
-          </p>
+          <p className="mt-3 text-slate-600">{error || 'This team could not be found.'}</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen bg-gradient-to-b from-red-950 via-red-900 to-red-800 text-white">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              {team.logo_url ? (
-                <img
-                  src={team.logo_url}
-                  alt={`${team.name} logo`}
-                  className="h-20 w-20 rounded-3xl object-cover ring-1 ring-white/20"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 text-xs font-bold text-white/70 ring-1 ring-white/15">
-                  LOGO
-                </div>
-              )}
-
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-                  Public Team Page
-                </p>
-                <h1
-                  className="text-3xl font-black leading-tight md:text-4xl"
-                  style={{ color: '#ffffff' }}
-                >
-                  {team.name}
-                </h1>
-                <p className="mt-2 text-sm text-white/75">
-                  {team.club_name || 'Team overview, leaders, roster, and recent results'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/public/team/${team.id}/leaders`}
-                className="inline-flex rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm"
-              >
-                Team Leaders
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
+   <PublicTeamPageShell team={team} teamId={teamId}>
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
-        <SummaryCard label="Goals For / Against" value={`${summary.goalsFor} / ${summary.goalsAgainst}`} />
+        <SummaryCard
+          label="Goals For / Against"
+          value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
+        />
         <SummaryCard
           label="Goal Difference"
           value={summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference}
@@ -315,6 +331,118 @@ export default function PublicTeamPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6">
+          {nextMatch ? (
+            <div
+              className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
+              style={nextMatchHeroStyle}
+            >
+              <div className="bg-black/25 p-6 backdrop-blur-[2px]">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/75">
+                      Next Match
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black tracking-tight text-white">
+                      {nextMatch.home_team?.name || 'Home Team'} vs{' '}
+                      {nextMatch.away_team?.name || 'Away Team'}
+                    </h2>
+                    <p className="mt-2 text-white/80">
+                      {nextMatch.match_date
+                        ? new Intl.DateTimeFormat('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          }).format(new Date(nextMatch.match_date))
+                        : 'Date TBD'}
+                      {nextMatch.venue ? ` • ${nextMatch.venue}` : ''}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
+                    {nextMatch.status === 'live'
+                      ? 'Live'
+                      : nextMatch.status === 'halftime'
+                        ? 'Halftime'
+                        : 'Scheduled'}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                      Home
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      {nextMatch.home_team?.logo_url ? (
+                        <img
+                          src={nextMatch.home_team.logo_url}
+                          alt={`${nextMatch.home_team.name} logo`}
+                          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/25"
+                        />
+                      ) : null}
+                      <h3 className="truncate text-2xl font-black text-white">
+                        {nextMatch.home_team?.name || 'Home Team'}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/15">
+                    <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? 'Live'
+                        : 'Upcoming'}
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-white">
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? `${nextMatch.home_score} - ${nextMatch.away_score}`
+                        : 'vs'}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 md:text-right">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                      Away
+                    </p>
+                    <div className="mt-2 flex items-center justify-end gap-3">
+                      <h3 className="truncate text-2xl font-black text-white">
+                        {nextMatch.away_team?.name || 'Away Team'}
+                      </h3>
+                      {nextMatch.away_team?.logo_url ? (
+                        <img
+                          src={nextMatch.away_team.logo_url}
+                          alt={`${nextMatch.away_team.name} logo`}
+                          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/25"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link
+                    href={`/public/team/${team.id}/schedule`}
+                    className="inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white"
+                  >
+                    Full Schedule
+                  </Link>
+
+                  {nextMatch.public_slug ? (
+                    <Link
+                      href={`/public/${nextMatch.public_slug}`}
+                      className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
+                    >
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? 'Watch Live'
+                        : 'View Match'}
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Recent Matches</h2>
@@ -329,6 +457,7 @@ export default function PublicTeamPage() {
               <div className="space-y-3">
                 {matches.slice(0, 8).map((match) => {
                   const result = resultLabel(match, teamId);
+
                   return (
                     <div
                       key={match.id}
@@ -426,59 +555,62 @@ export default function PublicTeamPage() {
         <section className="space-y-6">
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <h2 className="text-xl font-bold text-slate-900">Team Snapshot</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Quick view of recent performance and team leaders.
+            </p>
 
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Matches Played</dt>
-                <dd className="text-right font-medium text-slate-900">{summary.played}</dd>
-              </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <SnapshotMiniCard label="Matches Played" value={summary.played} />
 
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Top Scorer</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {topScorer.goals > 0 ? `${topScorer.name} (${topScorer.goals})` : topScorer.name}
-                </dd>
-              </div>
+              <SnapshotMiniCard
+                label="Top Scorer"
+                value={
+                  topScorer.goals > 0 ? `${topScorer.name} (${topScorer.goals})` : topScorer.name
+                }
+              />
 
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Top Assist</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {topAssist.assists > 0 ? `${topAssist.name} (${topAssist.assists})` : topAssist.name}
-                </dd>
-              </div>
+              <SnapshotMiniCard
+                label="Top Assist"
+                value={
+                  topAssist.assists > 0
+                    ? `${topAssist.name} (${topAssist.assists})`
+                    : topAssist.name
+                }
+              />
 
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Recent Form</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  <div className="flex justify-end gap-1">
-                    {recentForm.length === 0 ? (
-                      <span className="text-slate-400">—</span>
-                    ) : (
-                      recentForm.map((result, index) => (
-                        <span
-                          key={`${result}-${index}`}
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                            result === 'W'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : result === 'L'
-                                ? 'bg-rose-100 text-rose-700'
-                                : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {result}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </dd>
+              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Recent Form
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {recentForm.length === 0 ? (
+                    <span className="text-sm font-medium text-slate-400">No results yet</span>
+                  ) : (
+                    recentForm.map((result, index) => (
+                      <span
+                        key={`${result}-${index}`}
+                        className={`inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-bold ${
+                          result === 'W'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : result === 'L'
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {result}
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
-            </dl>
+            </div>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <h2 className="text-xl font-bold text-slate-900">Explore More</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Dive deeper into player stats and match recaps.
+              Dive deeper into player stats, schedules, and match recaps.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -488,21 +620,47 @@ export default function PublicTeamPage() {
               >
                 View Leaders
               </Link>
+
+              <Link
+                href={`/public/team/${team.id}/schedule`}
+                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+              >
+                View Schedule
+              </Link>
             </div>
           </div>
         </section>
       </div>
-    </main>
+    </PublicTeamPageShell>
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function SnapshotMiniCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold leading-6 text-slate-900">{value}</p>
     </div>
   );
 }

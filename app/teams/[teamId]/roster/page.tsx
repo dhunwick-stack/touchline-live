@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import TeamPageIntro from '@/components/TeamPageIntro';
 import { useParams } from 'next/navigation';
+import TeamPageIntro from '@/components/TeamPageIntro';
 import { supabase } from '@/lib/supabase';
 import type { Player, Team } from '@/lib/types';
 
@@ -33,7 +33,7 @@ export default function TeamRosterPage() {
         : '';
 
   // ---------------------------------------------------
-  // AUTH / PAGE STATE
+  // PAGE STATE
   // ---------------------------------------------------
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -42,16 +42,11 @@ export default function TeamRosterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  // ---------------------------------------------------
-  // EDITING STATE
-  // ---------------------------------------------------
-
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
   const [editingPlayers, setEditingPlayers] = useState<EditingPlayerState>({});
 
   // ---------------------------------------------------
-  // NEW PLAYER FORM STATE
+  // ADD PLAYER FORM STATE
   // ---------------------------------------------------
 
   const [newFirstName, setNewFirstName] = useState('');
@@ -78,7 +73,7 @@ export default function TeamRosterPage() {
   }, [teamId]);
 
   // ---------------------------------------------------
-  // INITIAL DATA LOAD
+  // INITIAL LOAD
   // ---------------------------------------------------
 
   useEffect(() => {
@@ -87,7 +82,7 @@ export default function TeamRosterPage() {
   }, [teamId, authChecked]);
 
   // ---------------------------------------------------
-  // LOAD ROSTER + TEAM DATA
+  // LOAD ROSTER
   // ---------------------------------------------------
 
   async function loadRoster() {
@@ -118,12 +113,7 @@ export default function TeamRosterPage() {
     setTeam(loadedTeam);
     setPlayers(loadedPlayers);
 
-    // -----------------------------------------------
-    // PREPARE EDIT DRAFTS FOR EVERY PLAYER
-    // -----------------------------------------------
-
     const initialEditing: EditingPlayerState = {};
-
     for (const player of loadedPlayers) {
       initialEditing[player.id] = {
         first_name: player.first_name || '',
@@ -177,10 +167,6 @@ export default function TeamRosterPage() {
       return;
     }
 
-    // -----------------------------------------------
-    // RESET FORM
-    // -----------------------------------------------
-
     setNewFirstName('');
     setNewLastName('');
     setNewJerseyNumber('');
@@ -192,12 +178,11 @@ export default function TeamRosterPage() {
   }
 
   // ---------------------------------------------------
-  // START EDITING PLAYER
+  // EDIT HELPERS
   // ---------------------------------------------------
 
   function startEditing(player: Player) {
     setEditingIds((prev) => ({ ...prev, [player.id]: true }));
-
     setEditingPlayers((prev) => ({
       ...prev,
       [player.id]: {
@@ -213,16 +198,11 @@ export default function TeamRosterPage() {
     }));
   }
 
-  // ---------------------------------------------------
-  // CANCEL EDITING PLAYER
-  // ---------------------------------------------------
-
   function cancelEditing(playerId: string) {
     const player = players.find((p) => p.id === playerId);
     if (!player) return;
 
     setEditingIds((prev) => ({ ...prev, [playerId]: false }));
-
     setEditingPlayers((prev) => ({
       ...prev,
       [playerId]: {
@@ -237,10 +217,6 @@ export default function TeamRosterPage() {
       },
     }));
   }
-
-  // ---------------------------------------------------
-  // SAVE PLAYER
-  // ---------------------------------------------------
 
   async function savePlayer(playerId: string) {
     const draft = editingPlayers[playerId];
@@ -275,7 +251,7 @@ export default function TeamRosterPage() {
   }
 
   // ---------------------------------------------------
-  // DERIVED VALUES
+  // SUMMARY DATA
   // ---------------------------------------------------
 
   const activePlayers = useMemo(
@@ -303,15 +279,23 @@ export default function TeamRosterPage() {
   // ---------------------------------------------------
 
   if (loading || !authChecked) {
-    return <div>Loading roster...</div>;
+    return <main className="mx-auto max-w-7xl px-6 py-8">Loading roster...</main>;
   }
 
   if (error && !team) {
-    return <div className="text-red-600">{error}</div>;
+    return (
+      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
+        {error}
+      </main>
+    );
   }
 
   if (!team) {
-    return <div className="text-red-600">Team not found.</div>;
+    return (
+      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
+        Team not found.
+      </main>
+    );
   }
 
   // ---------------------------------------------------
@@ -323,337 +307,316 @@ export default function TeamRosterPage() {
       {/* --------------------------------------------------- */}
       {/* PAGE INTRO */}
       {/* --------------------------------------------------- */}
-{/* --------------------------------------------------- */}
-{/* TEAM PAGE INTRO */}
-{/* --------------------------------------------------- */}
 
-<TeamPageIntro
-  eyebrow="Team Roster"
-  title="Roster"
-  description="Manage players, jersey numbers, positions, and active squad status."
-/>
+      <TeamPageIntro
+        eyebrow="Team Roster"
+        title="Squad Management"
+        description="Manage players, positions, jersey numbers, and active roster status."
+      />
 
-      {/* --------------------------------------------------- */}
-      {/* SUMMARY CARDS */}
-      {/* --------------------------------------------------- */}
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* --------------------------------------------------- */}
+        {/* ROSTER DASHBOARD LAYOUT */}
+        {/* --------------------------------------------------- */}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Total Players" value={players.length} />
-        <SummaryCard label="Active" value={activePlayers.length} />
-        <SummaryCard label="Inactive" value={inactivePlayers.length} />
-        <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
-      </section>
+        <div className="grid gap-6 lg:grid-cols-[1.6fr_0.9fr]">
+          {/* ------------------------------------------------- */}
+          {/* LEFT COLUMN - ROSTER */}
+          {/* ------------------------------------------------- */}
 
-      {/* --------------------------------------------------- */}
-      {/* ADD PLAYER */}
-      {/* --------------------------------------------------- */}
+          <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Roster</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Edit player details, adjust status, and keep the squad current.
+                </p>
+              </div>
 
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Add Player</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Add a new player to the roster with jersey number, position, and status.
-            </p>
-          </div>
-        </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                {players.length} players
+              </span>
+            </div>
 
-        {/* ----------------------------------------------- */}
-        {/* ADD PLAYER FORM */}
-        {/* ----------------------------------------------- */}
+            {players.length === 0 ? (
+              <p className="text-sm text-slate-500">No players added yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {players.map((player) => {
+                  const isEditing = !!editingIds[player.id];
+                  const draft = editingPlayers[player.id];
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
-          <Field label="First Name">
-            <input
-              value={newFirstName}
-              onChange={(e) => setNewFirstName(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-            />
-          </Field>
+                  return (
+                    <div
+                      key={player.id}
+                      className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
+                    >
+                      {!isEditing ? (
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900 ring-1 ring-slate-200">
+                              {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                            </div>
 
-          <Field label="Last Name">
-            <input
-              value={newLastName}
-              onChange={(e) => setNewLastName(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-            />
-          </Field>
-
-          <Field label="Jersey #">
-            <input
-              value={newJerseyNumber}
-              onChange={(e) => {
-                const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 2);
-                setNewJerseyNumber(digitsOnly);
-              }}
-              className="w-full rounded-2xl border border-slate-200 px-3 py-3"
-              inputMode="numeric"
-              maxLength={2}
-              placeholder="10"
-            />
-          </Field>
-
-          <Field label="Position">
-            <select
-              value={newPosition}
-              onChange={(e) => setNewPosition(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-            >
-              <option value="">Select position</option>
-              {POSITION_OPTIONS.map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-slate-700">Status</span>
-            <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
-              <input
-                type="checkbox"
-                checked={newActive}
-                onChange={(e) => setNewActive(e.target.checked)}
-                className="h-5 w-5 shrink-0"
-              />
-              <span className="text-sm font-medium text-slate-700">Active</span>
-            </label>
-          </div>
-        </div>
-
-        {/* ----------------------------------------------- */}
-        {/* FORM ERROR */}
-        {/* ----------------------------------------------- */}
-
-        {error ? <p className="mt-4 text-sm font-medium text-red-600">{error}</p> : null}
-
-        {/* ----------------------------------------------- */}
-        {/* ADD PLAYER ACTION */}
-        {/* ----------------------------------------------- */}
-
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={handleAddPlayer}
-            disabled={saving}
-            className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-          >
-            {saving ? 'Saving...' : 'Add Player'}
-          </button>
-        </div>
-      </section>
-
-      {/* --------------------------------------------------- */}
-      {/* ROSTER LIST */}
-      {/* --------------------------------------------------- */}
-
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Roster</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Edit player details, adjust status, and keep the squad current.
-            </p>
-          </div>
-
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-            {players.length} players
-          </span>
-        </div>
-
-        {players.length === 0 ? (
-          <p className="text-sm text-slate-500">No players added yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {players.map((player) => {
-              const isEditing = !!editingIds[player.id];
-              const draft = editingPlayers[player.id];
-
-              return (
-                <div
-                  key={player.id}
-                  className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
-                >
-                  {!isEditing ? (
-                    <>
-                      {/* --------------------------------------- */}
-                      {/* PLAYER DISPLAY CARD */}
-                      {/* --------------------------------------- */}
-
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900 ring-1 ring-slate-200">
-                            {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                            <div>
+                              <p className="text-lg font-semibold text-slate-900">
+                                {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
+                                  'Unnamed Player'}
+                              </p>
+                              <p className="text-sm text-slate-500">
+                                {player.position || 'No position'}
+                              </p>
+                            </div>
                           </div>
 
-                          <div>
-                            <p className="text-lg font-semibold text-slate-900">
-                              {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
-                                'Unnamed Player'}
-                            </p>
-                            <p className="text-sm text-slate-500">
-                              {player.position || 'No position'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                              player.active !== false
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {player.active !== false ? 'Active' : 'Inactive'}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => startEditing(player)}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* --------------------------------------- */}
-                      {/* PLAYER EDIT FORM */}
-                      {/* --------------------------------------- */}
-
-                      <div className="space-y-5">
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_120px_220px_140px]">
-                          <Field label="First Name">
-                            <input
-                              value={draft?.first_name || ''}
-                              onChange={(e) =>
-                                setEditingPlayers((prev) => ({
-                                  ...prev,
-                                  [player.id]: {
-                                    ...prev[player.id],
-                                    first_name: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                            />
-                          </Field>
-
-                          <Field label="Last Name">
-                            <input
-                              value={draft?.last_name || ''}
-                              onChange={(e) =>
-                                setEditingPlayers((prev) => ({
-                                  ...prev,
-                                  [player.id]: {
-                                    ...prev[player.id],
-                                    last_name: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                            />
-                          </Field>
-
-                          <Field label="Jersey #">
-                            <input
-                              value={draft?.jersey_number || ''}
-                              onChange={(e) =>
-                                setEditingPlayers((prev) => ({
-                                  ...prev,
-                                  [player.id]: {
-                                    ...prev[player.id],
-                                    jersey_number: e.target.value.replace(/\D/g, '').slice(0, 2),
-                                  },
-                                }))
-                              }
-                              className="w-full rounded-2xl border border-slate-200 px-3 py-3"
-                              inputMode="numeric"
-                              maxLength={2}
-                              placeholder="10"
-                            />
-                          </Field>
-
-                          <Field label="Position">
-                            <select
-                              value={draft?.position || ''}
-                              onChange={(e) =>
-                                setEditingPlayers((prev) => ({
-                                  ...prev,
-                                  [player.id]: {
-                                    ...prev[player.id],
-                                    position: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                                player.active !== false
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}
                             >
-                              <option value="">Select position</option>
-                              {POSITION_OPTIONS.map((position) => (
-                                <option key={position} value={position}>
-                                  {position}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
+                              {player.active !== false ? 'Active' : 'Inactive'}
+                            </span>
 
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-700">Status</span>
-                            <label className="mt-2 flex h-[52px] items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-3">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(player)}
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-5">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <Field label="First Name">
                               <input
-                                type="checkbox"
-                                checked={draft?.active ?? true}
+                                value={draft?.first_name || ''}
                                 onChange={(e) =>
                                   setEditingPlayers((prev) => ({
                                     ...prev,
                                     [player.id]: {
                                       ...prev[player.id],
-                                      active: e.target.checked,
+                                      first_name: e.target.value,
                                     },
                                   }))
                                 }
-                                className="h-5 w-5 shrink-0"
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
                               />
-                              <span className="text-sm font-medium text-slate-700">Active</span>
-                            </label>
+                            </Field>
+
+                            <Field label="Last Name">
+                              <input
+                                value={draft?.last_name || ''}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      last_name: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                              />
+                            </Field>
+
+                            <Field label="Jersey #">
+                              <input
+                                value={draft?.jersey_number || ''}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      jersey_number: e.target.value.replace(/\D/g, '').slice(0, 2),
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-2xl border border-slate-200 px-3 py-3"
+                                inputMode="numeric"
+                                maxLength={2}
+                                placeholder="10"
+                              />
+                            </Field>
+
+                            <Field label="Position">
+                              <select
+                                value={draft?.position || ''}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      position: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                              >
+                                <option value="">Select position</option>
+                                {POSITION_OPTIONS.map((position) => (
+                                  <option key={position} value={position}>
+                                    {position}
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+
+                            <div className="md:col-span-2">
+                              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                <span className="text-sm font-semibold text-slate-700">Active</span>
+                                <input
+                                  type="checkbox"
+                                  checked={draft?.active ?? true}
+                                  onChange={(e) =>
+                                    setEditingPlayers((prev) => ({
+                                      ...prev,
+                                      [player.id]: {
+                                        ...prev[player.id],
+                                        active: e.target.checked,
+                                      },
+                                    }))
+                                  }
+                                  className="h-5 w-5 shrink-0"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => savePlayer(player.id)}
+                              disabled={saving}
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => cancelEditing(player.id)}
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
 
-                        {/* ----------------------------------- */}
-                        {/* PLAYER EDIT ACTIONS */}
-                        {/* ----------------------------------- */}
+          {/* ------------------------------------------------- */}
+          {/* RIGHT COLUMN */}
+          {/* ------------------------------------------------- */}
 
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() => savePlayer(player.id)}
-                            disabled={saving}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                          >
-                            Save
-                          </button>
+          <div className="space-y-6">
+            {/* ----------------------------------------------- */}
+            {/* ADD PLAYER */}
+            {/* ----------------------------------------------- */}
 
-                          <button
-                            type="button"
-                            onClick={() => cancelEditing(player.id)}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
+            <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+              <div className="mb-5">
+                <h2 className="text-2xl font-bold text-slate-900">Add Player</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add a new player to the roster with jersey number, position, and status.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <Field label="First Name">
+                  <input
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  />
+                </Field>
+
+                <Field label="Last Name">
+                  <input
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  />
+                </Field>
+
+                <Field label="Jersey #">
+                  <input
+                    value={newJerseyNumber}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 2);
+                      setNewJerseyNumber(digitsOnly);
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 px-3 py-3"
+                    inputMode="numeric"
+                    maxLength={2}
+                    placeholder="10"
+                  />
+                </Field>
+
+                <Field label="Position">
+                  <select
+                    value={newPosition}
+                    onChange={(e) => setNewPosition(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  >
+                    <option value="">Select position</option>
+                    {POSITION_OPTIONS.map((position) => (
+                      <option key={position} value={position}>
+                        {position}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <span className="text-sm font-semibold text-slate-700">Active</span>
+                  <input
+                    type="checkbox"
+                    checked={newActive}
+                    onChange={(e) => setNewActive(e.target.checked)}
+                    className="h-5 w-5 shrink-0"
+                  />
                 </div>
-              );
-            })}
+
+                {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+
+                <button
+                  type="button"
+                  onClick={handleAddPlayer}
+                  disabled={saving}
+                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : 'Add Player'}
+                </button>
+              </div>
+            </section>
+
+            {/* ----------------------------------------------- */}
+            {/* ROSTER SUMMARY */}
+            {/* ----------------------------------------------- */}
+
+            <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+              <h2 className="text-xl font-bold text-slate-900">Roster Summary</h2>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <SummaryCard label="Total Players" value={players.length} />
+                <SummaryCard label="Active" value={activePlayers.length} />
+                <SummaryCard label="Inactive" value={inactivePlayers.length} />
+                <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
+              </div>
+            </section>
           </div>
-        )}
-      </section>
+        </div>
+      </main>
     </>
   );
 }
@@ -664,10 +627,8 @@ export default function TeamRosterPage() {
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
+    <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
     </div>
   );

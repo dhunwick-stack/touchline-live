@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import MatchActionsCard from '@/components/MatchActionsCard';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -49,6 +50,10 @@ const eventLabels: Record<EventType, string> = {
 };
 
 export default function LiveMatchPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const matchId =
     typeof params?.matchId === 'string'
@@ -56,6 +61,10 @@ export default function LiveMatchPage() {
       : Array.isArray(params?.matchId)
         ? params.matchId[0]
         : '';
+
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
@@ -67,6 +76,10 @@ export default function LiveMatchPage() {
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ---------------------------------------------------
+  // EVENT FORM STATE
+  // ---------------------------------------------------
+
   const [form, setForm] = useState<EventFormState>({
     type: 'goal',
     side: 'home',
@@ -76,6 +89,10 @@ export default function LiveMatchPage() {
     secondaryPlayerNameOverride: '',
     notes: '',
   });
+
+  // ---------------------------------------------------
+  // LOAD MATCH + PLAYERS + EVENTS
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!matchId) return;
@@ -148,6 +165,10 @@ export default function LiveMatchPage() {
     loadMatch();
   }, [matchId]);
 
+  // ---------------------------------------------------
+  // LIVE CLOCK
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!match?.clock_running) return;
 
@@ -157,6 +178,10 @@ export default function LiveMatchPage() {
 
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
+
+  // ---------------------------------------------------
+  // DERIVED MATCH CLOCK
+  // ---------------------------------------------------
 
   const secondsElapsed = useMemo(() => {
     if (!match) return 0;
@@ -181,6 +206,10 @@ export default function LiveMatchPage() {
     return `${mins}:${secs}`;
   }, [secondsElapsed]);
 
+  // ---------------------------------------------------
+  // DERIVED FORM / TEAM STATE
+  // ---------------------------------------------------
+
   const selectedTrackingMode = useMemo<TrackingMode>(() => {
     if (!match) return 'basic';
     return form.side === 'home' ? match.home_tracking_mode : match.away_tracking_mode;
@@ -196,6 +225,16 @@ export default function LiveMatchPage() {
       ? match.home_team?.name || 'Home Team'
       : match.away_team?.name || 'Away Team';
   }, [form.side, match]);
+
+  const editingDisabled =
+    !!match &&
+    (match.is_locked === true ||
+      match.status === 'cancelled' ||
+      match.status === 'postponed');
+
+  // ---------------------------------------------------
+  // FORM HELPERS
+  // ---------------------------------------------------
 
   function resetForm(nextSide?: TeamSide) {
     setForm((prev) => ({
@@ -256,6 +295,7 @@ export default function LiveMatchPage() {
 
   function validateEvent() {
     if (!match) return 'Match not loaded.';
+    if (editingDisabled) return 'This match is not editable in its current state.';
     if (form.type === 'half_end' || form.type === 'full_time') return null;
 
     if (selectedTrackingMode === 'score_only' && form.type !== 'goal') {
@@ -286,119 +326,122 @@ export default function LiveMatchPage() {
     return null;
   }
 
+  // ---------------------------------------------------
+  // EVENT ACTIONS
+  // ---------------------------------------------------
+
   async function addEvent() {
-  if (!match) return;
+    if (!match) return;
 
-  const validationError = validateEvent();
-  if (validationError) {
-    setError(validationError);
-    return;
-  }
+    const validationError = validateEvent();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
-  setSaving(true);
-  setError(null);
+    setSaving(true);
+    setError(null);
 
-  const minute = Math.floor(secondsElapsed / 60);
-  const teamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
+    const minute = Math.floor(secondsElapsed / 60);
+    const teamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
 
-  const insertPayload = {
-    match_id: match.id,
-    minute,
-    event_type: form.type,
-    team_side: form.side,
-    team_id: teamId,
-    player_id: form.playerId || null,
-    secondary_player_id: form.secondaryPlayerId || null,
-    player_name_override: form.playerNameOverride.trim() || null,
-    secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
-    notes: form.notes.trim() || null,
-  };
+    const insertPayload = {
+      match_id: match.id,
+      minute,
+      event_type: form.type,
+      team_side: form.side,
+      team_id: teamId,
+      player_id: form.playerId || null,
+      secondary_player_id: form.secondaryPlayerId || null,
+      player_name_override: form.playerNameOverride.trim() || null,
+      secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
+      notes: form.notes.trim() || null,
+    };
 
-  const { data, error } = await supabase
-    .from('match_events')
-    .insert(insertPayload)
-    .select('*')
-    .single();
+    const { data, error } = await supabase
+      .from('match_events')
+      .insert(insertPayload)
+      .select('*')
+      .single();
 
-  if (error) {
+    if (error) {
+      setSaving(false);
+      setError(error.message);
+      return;
+    }
+
+    let nextHomeScore = match.home_score;
+    let nextAwayScore = match.away_score;
+    let nextStatus = match.status;
+    let nextClockRunning = match.clock_running;
+    let nextPeriodStartedAt = match.period_started_at;
+    let nextElapsedSeconds = match.elapsed_seconds;
+
+    if (form.type === 'goal') {
+      if (form.side === 'home') nextHomeScore += 1;
+      if (form.side === 'away') nextAwayScore += 1;
+    }
+
+    if (form.type === 'half_end') {
+      nextStatus = 'halftime';
+      nextClockRunning = false;
+      nextPeriodStartedAt = null;
+      nextElapsedSeconds = secondsElapsed;
+    }
+
+    if (form.type === 'full_time') {
+      nextStatus = 'final';
+      nextClockRunning = false;
+      nextPeriodStartedAt = null;
+      nextElapsedSeconds = secondsElapsed;
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      home_score: nextHomeScore,
+      away_score: nextAwayScore,
+      status: nextStatus,
+      current_minute: minute,
+    };
+
+    if (!nextClockRunning) {
+      updatePayload.elapsed_seconds = nextElapsedSeconds;
+      updatePayload.clock_running = false;
+      updatePayload.period_started_at = null;
+    }
+
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update(updatePayload)
+      .eq('id', match.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError(updateError.message);
+      return;
+    }
+
+    setEvents((prev) => [data as MatchEvent, ...prev]);
+    setMatch((prev) =>
+      prev
+        ? {
+            ...prev,
+            home_score: nextHomeScore,
+            away_score: nextAwayScore,
+            status: nextStatus,
+            current_minute: minute,
+            elapsed_seconds: !nextClockRunning ? nextElapsedSeconds : prev.elapsed_seconds,
+            clock_running: nextClockRunning,
+            period_started_at: nextPeriodStartedAt,
+          }
+        : prev,
+    );
+
     setSaving(false);
-    setError(error.message);
-    return;
+    resetForm(form.side);
   }
-
-  let nextHomeScore = match.home_score;
-  let nextAwayScore = match.away_score;
-  let nextStatus = match.status;
-  let nextClockRunning = match.clock_running;
-  let nextPeriodStartedAt = match.period_started_at;
-  let nextElapsedSeconds = match.elapsed_seconds;
-
-  if (form.type === 'goal') {
-    if (form.side === 'home') nextHomeScore += 1;
-    if (form.side === 'away') nextAwayScore += 1;
-  }
-
-  if (form.type === 'half_end') {
-    nextStatus = 'halftime';
-    nextClockRunning = false;
-    nextPeriodStartedAt = null;
-    nextElapsedSeconds = secondsElapsed;
-  }
-
-  if (form.type === 'full_time') {
-    nextStatus = 'final';
-    nextClockRunning = false;
-    nextPeriodStartedAt = null;
-    nextElapsedSeconds = secondsElapsed;
-  }
-
-  const updatePayload: Record<string, unknown> = {
-    home_score: nextHomeScore,
-    away_score: nextAwayScore,
-    status: nextStatus,
-    current_minute: minute,
-  };
-
-  // Only freeze elapsed time when stopping the clock
-  if (!nextClockRunning) {
-    updatePayload.elapsed_seconds = nextElapsedSeconds;
-    updatePayload.clock_running = false;
-    updatePayload.period_started_at = null;
-  }
-
-  const { error: updateError } = await supabase
-    .from('matches')
-    .update(updatePayload)
-    .eq('id', match.id);
-
-  if (updateError) {
-    setSaving(false);
-    setError(updateError.message);
-    return;
-  }
-
-  setEvents((prev) => [data as MatchEvent, ...prev]);
-  setMatch((prev) =>
-    prev
-      ? {
-          ...prev,
-          home_score: nextHomeScore,
-          away_score: nextAwayScore,
-          status: nextStatus,
-          current_minute: minute,
-          elapsed_seconds: !nextClockRunning ? nextElapsedSeconds : prev.elapsed_seconds,
-          clock_running: nextClockRunning,
-          period_started_at: nextPeriodStartedAt,
-        }
-      : prev,
-  );
-
-  setSaving(false);
-  resetForm(form.side);
-}
 
   async function startLivePeriod() {
-    if (!match) return;
+    if (!match || editingDisabled) return;
 
     setError(null);
 
@@ -450,7 +493,7 @@ export default function LiveMatchPage() {
   }
 
   async function pauseClock() {
-    if (!match || !match.clock_running) return;
+    if (!match || !match.clock_running || editingDisabled) return;
 
     setError(null);
 
@@ -482,7 +525,7 @@ export default function LiveMatchPage() {
   }
 
   async function undoLastEvent() {
-    if (!match || events.length === 0) return;
+    if (!match || events.length === 0 || editingDisabled) return;
 
     const latest = events[0];
     setUndoing(true);
@@ -551,6 +594,10 @@ export default function LiveMatchPage() {
     setUndoing(false);
   }
 
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading) {
     return <main className="mx-auto max-w-7xl px-6 py-8">Loading match...</main>;
   }
@@ -563,8 +610,16 @@ export default function LiveMatchPage() {
     return <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">Match not found.</main>;
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-8 pb-32">
+      {/* --------------------------------------------------- */}
+      {/* MATCH HEADER / SCOREBOARD */}
+      {/* --------------------------------------------------- */}
+
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-slate-900 text-white">
         <div className="mx-auto max-w-7xl px-6 py-6">
           <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
@@ -572,19 +627,41 @@ export default function LiveMatchPage() {
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
                 Home
               </p>
-              <div className="mt-1 flex items-center gap-3">
-                {match.home_team?.logo_url ? (
-                  <img
-                    src={match.home_team.logo_url}
-                    alt={`${match.home_team.name} logo`}
-                    className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
-                  />
-                ) : null}
-                <h1 className="text-2xl font-black">
-                  {match.home_team?.name || 'Home Team'}
-                </h1>
-              </div>
-            </div>
+              <div>
+ {/* <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+    Home
+  </p> */}
+
+  <div className="mt-1 flex items-center gap-3">
+    {match.home_team?.logo_url ? (
+      <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
+        <img
+          src={match.home_team.logo_url}
+          alt={`${match.home_team.name} logo`}
+          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+        />
+      </Link>
+    ) : null}
+
+    <div>
+      <Link
+        href={`/teams/${match.home_team_id}`}
+        className="text-2xl font-black transition hover:opacity-80 hover:underline"
+      >
+        {match.home_team?.name || 'Home Team'}
+      </Link>
+
+      <div className="mt-1">
+        <Link
+          href={`/teams/${match.home_team_id}`}
+          className="text-xs font-semibold uppercase tracking-wide text-slate-300 hover:text-white"
+        >
+          View Team Page
+        </Link>
+      </div>
+    </div>
+  </div>
+</div></div>
 
             <div className="text-center">
               <div className="text-sm uppercase tracking-[0.2em] text-slate-400">
@@ -599,11 +676,18 @@ export default function LiveMatchPage() {
                 {formattedClock}
               </div>
 
+              {editingDisabled ? (
+                <div className="mt-4 inline-flex rounded-full bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-300 ring-1 ring-amber-400/20">
+                  Editing disabled for this match state
+                </div>
+              ) : null}
+
               <div className="mt-5 flex flex-wrap justify-center gap-3">
                 {(match.status === 'not_started' || match.status === 'halftime') && (
                   <button
                     onClick={startLivePeriod}
-                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white"
+                    disabled={editingDisabled}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
                   </button>
@@ -612,7 +696,8 @@ export default function LiveMatchPage() {
                 {match.status === 'live' && match.clock_running && (
                   <button
                     onClick={pauseClock}
-                    className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white"
+                    disabled={editingDisabled}
+                    className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     Pause
                   </button>
@@ -621,7 +706,8 @@ export default function LiveMatchPage() {
                 {match.status === 'live' && !match.clock_running && (
                   <button
                     onClick={startLivePeriod}
-                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white"
+                    disabled={editingDisabled}
+                    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     Resume
                   </button>
@@ -629,7 +715,7 @@ export default function LiveMatchPage() {
 
                 <button
                   onClick={undoLastEvent}
-                  disabled={undoing || events.length === 0}
+                  disabled={undoing || events.length === 0 || editingDisabled}
                   className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 disabled:opacity-40"
                 >
                   {undoing ? 'Undoing…' : 'Undo'}
@@ -637,44 +723,88 @@ export default function LiveMatchPage() {
 
                 {match.public_slug && (
                   <Link
-  href={`/public/${match.public_slug}`}
-  target="_blank"
-  className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold shadow-sm ring-1 ring-white/20"
-  style={{ color: '#0f172a' }}
->
-  Public Scoreboard
-</Link>
+                    href={`/public/${match.public_slug}`}
+                    target="_blank"
+                    className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold shadow-sm ring-1 ring-white/20"
+                    style={{ color: '#0f172a' }}
+                  >
+                    Public Scoreboard
+                  </Link>
                 )}
               </div>
             </div>
 
-            <div className="text-right">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-                Away
-              </p>
-              <div className="mt-1 flex items-center justify-end gap-3">
-                <h1 className="text-2xl font-black">
-                  {match.away_team?.name || 'Away Team'}
-                </h1>
-                {match.away_team?.logo_url ? (
-                  <img
-                    src={match.away_team.logo_url}
-                    alt={`${match.away_team.name} logo`}
-                    className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20"
-                  />
-                ) : null}
-              </div>
-            </div>
+           <div className="text-right">
+  <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+    Away
+  </p>
+
+  <div className="mt-1 flex items-center justify-end gap-3">
+    <div className="text-right">
+      <Link
+        href={`/teams/${match.away_team_id}`}
+        className="text-2xl font-black transition hover:opacity-80 hover:underline"
+      >
+        {match.away_team?.name || 'Away Team'}
+      </Link>
+
+      <div className="mt-1">
+        <Link
+          href={`/teams/${match.away_team_id}`}
+          className="text-xs font-semibold uppercase tracking-wide text-slate-300 hover:text-white"
+        >
+          View Team Page
+        </Link>
+      </div>
+    </div>
+
+    {match.away_team?.logo_url ? (
+      <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
+        <img
+          src={match.away_team.logo_url}
+          alt={`${match.away_team.name} logo`}
+          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+        />
+      </Link>
+    ) : null}
+  </div>
+</div>
           </div>
         </div>
       </section>
+
+      {/* --------------------------------------------------- */}
+      {/* MATCH ACTIONS */}
+      {/* --------------------------------------------------- */}
+
+      <div className="mt-6">
+        <MatchActionsCard
+          match={match}
+          onUpdated={(updatedMatch) =>
+            setMatch((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    ...updatedMatch,
+                  }
+                : (updatedMatch as MatchRow)
+            )
+          }
+        />
+      </div>
+
+      {/* --------------------------------------------------- */}
+      {/* EVENT ENTRY + TIMELINE */}
+      {/* --------------------------------------------------- */}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold">Roster-Aware Event Entry</h2>
-              <p className="text-sm text-slate-600">The form adapts to each side’s tracking mode.</p>
+              <p className="text-sm text-slate-600">
+                The form adapts to each side’s tracking mode.
+              </p>
             </div>
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
               {selectedTeamName}
@@ -687,7 +817,8 @@ export default function LiveMatchPage() {
                 <button
                   type="button"
                   onClick={() => resetForm('home')}
-                  className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
+                  disabled={editingDisabled}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${
                     form.side === 'home' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'
                   }`}
                 >
@@ -696,7 +827,8 @@ export default function LiveMatchPage() {
                 <button
                   type="button"
                   onClick={() => resetForm('away')}
-                  className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
+                  disabled={editingDisabled}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${
                     form.side === 'away' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800'
                   }`}
                 >
@@ -731,7 +863,8 @@ export default function LiveMatchPage() {
                       key={option.value}
                       type="button"
                       onClick={() => setForm((prev) => ({ ...prev, type: option.value }))}
-                      className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
+                      disabled={editingDisabled}
+                      className={`rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${
                         form.type === option.value
                           ? 'bg-slate-900 text-white'
                           : 'bg-slate-100 text-slate-700'
@@ -750,7 +883,8 @@ export default function LiveMatchPage() {
                   <select
                     value={form.playerId}
                     onChange={(e) => setForm((prev) => ({ ...prev, playerId: e.target.value }))}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    disabled={editingDisabled}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                   >
                     <option value="">Select player</option>
                     {selectedPlayers.map((player) => (
@@ -769,7 +903,8 @@ export default function LiveMatchPage() {
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, secondaryPlayerId: e.target.value }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  disabled={editingDisabled}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                 >
                   <option value="">No assist</option>
                   {selectedPlayers
@@ -790,7 +925,8 @@ export default function LiveMatchPage() {
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, secondaryPlayerId: e.target.value }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  disabled={editingDisabled}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                 >
                   <option value="">Select player</option>
                   {selectedPlayers
@@ -814,7 +950,8 @@ export default function LiveMatchPage() {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, playerNameOverride: e.target.value }))
                       }
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                      disabled={editingDisabled}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                       placeholder="e.g. #10 or Smith"
                     />
                   </Field>
@@ -829,7 +966,8 @@ export default function LiveMatchPage() {
                             secondaryPlayerNameOverride: e.target.value,
                           }))
                         }
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                        disabled={editingDisabled}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                         placeholder="Optional assist"
                       />
                     </Field>
@@ -841,7 +979,8 @@ export default function LiveMatchPage() {
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3"
+                disabled={editingDisabled}
+                className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                 placeholder="Sideline note, context, or detail"
               />
             </Field>
@@ -851,7 +990,7 @@ export default function LiveMatchPage() {
             <button
               type="button"
               onClick={addEvent}
-              disabled={saving}
+              disabled={saving || editingDisabled}
               className="w-full rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
             >
               {saving ? 'Saving Event...' : 'Add Event'}
@@ -900,6 +1039,10 @@ export default function LiveMatchPage() {
         </section>
       </div>
 
+      {/* --------------------------------------------------- */}
+      {/* QUICK ACTION BAR */}
+      {/* --------------------------------------------------- */}
+
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
         <div className="mx-auto grid max-w-6xl grid-cols-4 gap-3">
           <button
@@ -911,7 +1054,8 @@ export default function LiveMatchPage() {
                 type: 'goal',
               }))
             }
-            className="rounded-2xl bg-blue-600 py-4 text-base font-bold text-white"
+            disabled={editingDisabled}
+            className="rounded-2xl bg-blue-600 py-4 text-base font-bold text-white disabled:opacity-40"
           >
             ⚽ Home Goal
           </button>
@@ -925,7 +1069,8 @@ export default function LiveMatchPage() {
                 type: 'goal',
               }))
             }
-            className="rounded-2xl bg-rose-600 py-4 text-base font-bold text-white"
+            disabled={editingDisabled}
+            className="rounded-2xl bg-rose-600 py-4 text-base font-bold text-white disabled:opacity-40"
           >
             ⚽ Away Goal
           </button>
@@ -933,7 +1078,7 @@ export default function LiveMatchPage() {
           <button
             type="button"
             onClick={undoLastEvent}
-            disabled={undoing || events.length === 0}
+            disabled={undoing || events.length === 0 || editingDisabled}
             className="rounded-2xl bg-slate-800 py-4 text-base font-bold text-white disabled:opacity-40"
           >
             ↺ Undo
@@ -942,7 +1087,8 @@ export default function LiveMatchPage() {
           <button
             type="button"
             onClick={match.clock_running ? pauseClock : startLivePeriod}
-            className="rounded-2xl bg-amber-500 py-4 text-base font-bold text-white"
+            disabled={editingDisabled}
+            className="rounded-2xl bg-amber-500 py-4 text-base font-bold text-white disabled:opacity-40"
           >
             {match.clock_running ? '⏸ Pause' : '▶ Resume'}
           </button>
@@ -951,6 +1097,10 @@ export default function LiveMatchPage() {
     </main>
   );
 }
+
+// ---------------------------------------------------
+// FIELD WRAPPER
+// ---------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

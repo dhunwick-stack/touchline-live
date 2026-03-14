@@ -38,6 +38,12 @@ export default function AppChrome({
               Teams
             </Link>
 
+            {/*/ <Link href="/schedule"
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Schedules
+            </Link> */}
+
             <Link
               href="/matches"
               className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"

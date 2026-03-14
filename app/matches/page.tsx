@@ -56,16 +56,16 @@ export default function MatchesPage() {
   );
 
   const upcomingMatches = useMemo(
-    () =>
-      matches
-        .filter((match) => match.status === 'not_started')
-        .sort((a, b) => {
-          const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-          const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-          return aTime - bTime;
-        }),
-    [matches],
-  );
+  () =>
+    matches
+      .filter((match) => ['not_started', 'scheduled'].includes(match.status))
+      .sort((a, b) => {
+        const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      }),
+  [matches],
+);
 
   const recentResults = useMemo(
     () =>
@@ -268,17 +268,23 @@ function MatchCard({
             <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
               <div className="mt-1 flex items-center gap-3">
-                {match.home_team?.logo_url ? (
-                  <img
-                    src={match.home_team.logo_url}
-                    alt={`${match.home_team.name} logo`}
-                    className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                ) : null}
-                <h3 className="truncate text-xl font-black text-slate-900">
-                  {match.home_team?.name || 'Home Team'}
-                </h3>
-              </div>
+  {match.home_team?.logo_url ? (
+    <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
+      <img
+        src={match.home_team.logo_url}
+        alt={`${match.home_team.name} logo`}
+        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+      />
+    </Link>
+  ) : null}
+
+  <Link
+    href={`/teams/${match.home_team_id}`}
+    className="text-2xl font-black transition hover:opacity-80 hover:underline"
+  >
+    {match.home_team?.name || 'Home Team'}
+  </Link>
+</div>
             </div>
 
             <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
@@ -290,17 +296,23 @@ function MatchCard({
             <div className="min-w-0 md:text-right">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
               <div className="mt-1 flex items-center justify-end gap-3">
-                <h3 className="truncate text-xl font-black text-slate-900">
-                  {match.away_team?.name || 'Away Team'}
-                </h3>
-                {match.away_team?.logo_url ? (
-                  <img
-                    src={match.away_team.logo_url}
-                    alt={`${match.away_team.name} logo`}
-                    className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                ) : null}
-              </div>
+  <Link
+    href={`/teams/${match.away_team_id}`}
+    className="text-2xl font-black transition hover:opacity-80 hover:underline"
+  >
+    {match.away_team?.name || 'Away Team'}
+  </Link>
+
+  {match.away_team?.logo_url ? (
+    <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
+      <img
+        src={match.away_team.logo_url}
+        alt={`${match.away_team.name} logo`}
+        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+      />
+    </Link>
+  ) : null}
+</div>
             </div>
           </div>
 
@@ -356,6 +368,22 @@ function StatusBadge({ status }: { status: Match['status'] }) {
     return (
       <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
         Final
+      </span>
+    );
+  }
+
+  if (status === 'postponed') {
+    return (
+      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+        Postponed
+      </span>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">
+        Cancelled
       </span>
     );
   }
