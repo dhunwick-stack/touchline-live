@@ -312,102 +312,62 @@ export default function PublicMatchPage() {
       </div>
 
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
-  <div className="mx-auto max-w-7xl px-6 py-8">
-    <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-          Home
-        </p>
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+                Home
+              </p>
 
-        <div className="mt-2 flex items-center gap-3">
-          {match.home_team?.logo_url ? (
-            <img
-              src={match.home_team.logo_url}
-              alt={`${match.home_team.name} logo`}
-              className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
-            />
-          ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
-              LOGO
+              <PublicScoreboardTeamLink
+                team={match.home_team}
+                href={match.home_team ? `/public/team/${match.home_team.id}` : '#'}
+                align="left"
+              />
             </div>
-          )}
 
-          <div>
-            <h2
-              className="text-xl font-black leading-tight md:text-2xl"
-              style={{ color: '#ffffff' }}
-            >
-              {match.home_team?.name || 'Home Team'}
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              {match.home_team?.club_name || ''}
-            </p>
-          </div>
-        </div>
-      </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2">
+                <StatusPill status={match.status} />
+                <PeriodPill
+                  status={match.status}
+                  clockRunning={match.clock_running}
+                  secondsElapsed={secondsElapsed}
+                />
+              </div>
 
-      <div className="text-center">
-        <div className="flex items-center justify-center gap-2">
-          <StatusPill status={match.status} />
-          <PeriodPill
-            status={match.status}
-            clockRunning={match.clock_running}
-            secondsElapsed={secondsElapsed}
-          />
-        </div>
+              <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
+                <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
+                  {match.home_score} - {match.away_score}
+                </div>
 
-        <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
-          <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
-            {match.home_score} - {match.away_score}
-          </div>
+                <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
+                  {formattedClock}
+                </div>
+              </div>
 
-          <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
-            {formattedClock}
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-1">
-          <div className="text-sm font-medium text-white/90">
-            {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
-          </div>
-          <div className="text-sm text-white/75">{getVenueName(match)}</div>
-        </div>
-      </div>
-
-      <div className="text-right">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-          Away
-        </p>
-
-        <div className="mt-2 flex items-center justify-end gap-3">
-          <div>
-            <h2
-              className="text-xl font-black leading-tight md:text-2xl"
-              style={{ color: '#ffffff' }}
-            >
-              {match.away_team?.name || 'Away Team'}
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              {match.away_team?.club_name || ''}
-            </p>
-          </div>
-
-          {match.away_team?.logo_url ? (
-            <img
-              src={match.away_team.logo_url}
-              alt={`${match.away_team.name} logo`}
-              className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
-            />
-          ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
-              LOGO
+              <div className="mt-4 space-y-1">
+                <div className="text-sm font-medium text-white/90">
+                  {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+                </div>
+                <div className="text-sm text-white/75">{getVenueName(match)}</div>
+              </div>
             </div>
-          )}
+
+            <div>
+              <p className="text-right text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+                Away
+              </p>
+
+              <PublicScoreboardTeamLink
+                team={match.away_team}
+                href={match.away_team ? `/public/team/${match.away_team.id}` : '#'}
+                align="right"
+              />
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-6">
@@ -766,6 +726,80 @@ export default function PublicMatchPage() {
   );
 }
 
+function PublicScoreboardTeamLink({
+  team,
+  href,
+  align,
+}: {
+  team: Team | null;
+  href: string;
+  align: 'left' | 'right';
+}) {
+  if (!team) {
+    return (
+      <div className={`mt-2 ${align === 'right' ? 'text-right' : ''}`}>
+        <h2 className="text-xl font-black leading-tight md:text-2xl text-white">
+          {align === 'right' ? 'Away Team' : 'Home Team'}
+        </h2>
+      </div>
+    );
+  }
+
+  if (align === 'right') {
+    return (
+      <Link
+        href={href}
+        className="mt-2 flex items-center justify-end gap-3 rounded-2xl transition hover:opacity-90"
+      >
+        <div className="text-right">
+          <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+            {team.name}
+          </h2>
+          <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
+        </div>
+
+        {team.logo_url ? (
+          <img
+            src={team.logo_url}
+            alt={`${team.name} logo`}
+            className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+          />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+            LOGO
+          </div>
+        )}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="mt-2 flex items-center gap-3 rounded-2xl transition hover:opacity-90"
+    >
+      {team.logo_url ? (
+        <img
+          src={team.logo_url}
+          alt={`${team.name} logo`}
+          className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+        />
+      ) : (
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+          LOGO
+        </div>
+      )}
+
+      <div>
+        <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+          {team.name}
+        </h2>
+        <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
+      </div>
+    </Link>
+  );
+}
+
 function TimelineEventCard({
   event,
   match,
@@ -778,7 +812,7 @@ function TimelineEventCard({
   awayPlayers: Player[];
 }) {
   return (
-    <div className="relative pl-14 overflow-hidden">
+    <div className="relative overflow-hidden pl-14">
       <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
 
       <div className="absolute left-0 top-4 flex w-8 justify-center">
