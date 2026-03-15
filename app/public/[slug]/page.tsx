@@ -76,6 +76,14 @@ export default function PublicMatchPage() {
             .order('first_name', { ascending: true })
         : { data: [], error: null };
 
+    if (homePlayersResult.error || awayPlayersResult.error) {
+      throw new Error(
+        homePlayersResult.error?.message ||
+          awayPlayersResult.error?.message ||
+          'Failed to load players.',
+      );
+    }
+
     return {
       match: loadedMatch,
       events: (eventsData as MatchEvent[]) ?? [],
@@ -85,14 +93,22 @@ export default function PublicMatchPage() {
   }
 
   useEffect(() => {
-    if (!slug) return;
-
     let mounted = true;
 
     async function initialLoad() {
+      if (!slug) {
+        if (mounted) {
+          setError('No public match slug was found in the URL.');
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        setError('');
-        setLoading(true);
+        if (mounted) {
+          setError('');
+          setLoading(true);
+        }
 
         const data = await loadPageData(slug);
 
@@ -738,7 +754,7 @@ function PublicScoreboardTeamLink({
   if (!team) {
     return (
       <div className={`mt-2 ${align === 'right' ? 'text-right' : ''}`}>
-        <h2 className="text-xl font-black leading-tight md:text-2xl text-white">
+        <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
           {align === 'right' ? 'Away Team' : 'Home Team'}
         </h2>
       </div>

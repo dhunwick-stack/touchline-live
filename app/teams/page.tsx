@@ -141,7 +141,6 @@ export default function TeamsPage() {
       <div className="mt-6">
         <div className="rounded-3xl bg-slate-100 p-4">
           <div className="flex items-center rounded-3xl border border-slate-200 bg-white px-4 py-3">
-            {/* Search icon */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="mr-3 h-5 w-5 shrink-0 text-slate-400"
@@ -158,7 +157,6 @@ export default function TeamsPage() {
               />
             </svg>
 
-            {/* Search input */}
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -167,7 +165,6 @@ export default function TeamsPage() {
             />
           </div>
 
-          {/* Search result count */}
           <p className="mt-2 text-sm text-slate-500">
             {filteredTeams.length} team{filteredTeams.length === 1 ? '' : 's'}
           </p>
@@ -175,7 +172,7 @@ export default function TeamsPage() {
       </div>
 
       {/* --------------------------------------------------- */}
-      {/* CREATE TEAM FORM - ANIMATED CONTAINER */}
+      {/* CREATE TEAM FORM */}
       {/* --------------------------------------------------- */}
 
       <div
@@ -188,20 +185,12 @@ export default function TeamsPage() {
             onSubmit={createTeam}
             className="animate-subtle-slide-down space-y-4 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
           >
-            {/* --------------------------------------------------- */}
-            {/* FORM HEADER */}
-            {/* --------------------------------------------------- */}
-
             <div>
               <h2 className="text-xl font-bold text-slate-900">Create Team</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Add a reusable team with optional club, age group, and logo.
               </p>
             </div>
-
-            {/* --------------------------------------------------- */}
-            {/* FORM FIELDS */}
-            {/* --------------------------------------------------- */}
 
             <div className="grid gap-4 md:grid-cols-2">
               <input
@@ -233,10 +222,6 @@ export default function TeamsPage() {
               />
             </div>
 
-            {/* --------------------------------------------------- */}
-            {/* FORM ACTIONS */}
-            {/* --------------------------------------------------- */}
-
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="submit"
@@ -255,10 +240,6 @@ export default function TeamsPage() {
               </button>
             </div>
 
-            {/* --------------------------------------------------- */}
-            {/* FORM MESSAGE */}
-            {/* --------------------------------------------------- */}
-
             {message ? <p className="text-sm text-slate-600">{message}</p> : null}
           </form>
         </div>
@@ -272,13 +253,9 @@ export default function TeamsPage() {
         {filteredTeams.map((team) => (
           <Link
             key={team.id}
-            href={`/teams/${team.id}`}
+            href={`/team-login?teamId=${team.id}`}
             className="block rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50"
           >
-            {/* --------------------------------------------------- */}
-            {/* TEAM CARD CONTENT */}
-            {/* --------------------------------------------------- */}
-
             <div className="flex items-center gap-3">
               {team.logo_url ? (
                 <img

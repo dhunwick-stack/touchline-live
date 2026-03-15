@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
 
@@ -247,7 +248,7 @@ export default function PublicTeamLeadersPage() {
   );
 
   if (loading) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team leaders...</main>;
+    return <main className="mx-auto max-w-7xl px-6 pt-0 pb-8">Loading team leaders...</main>;
   }
 
   if (error || !team) {
@@ -269,61 +270,67 @@ export default function PublicTeamLeadersPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen bg-gradient-to-b from-red-950 via-red-900 to-red-800 text-white">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              {team.logo_url ? (
-                <img
-                  src={team.logo_url}
-                  alt={`${team.name} logo`}
-                  className="h-20 w-20 rounded-3xl object-cover ring-1 ring-white/20"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 text-xs font-bold text-white/70 ring-1 ring-white/15">
-                  LOGO
-                </div>
-              )}
+    <PublicTeamPageShell
+      team={team}
+      teamId={teamId}
+      eyebrow="Team Leaders"
+      description="Top performers across completed matches for this team."
+      actions={[
+        {
+          href: `/public/team/${team.id}`,
+          label: 'Team Page',
+          variant: 'glass',
+        },
+        {
+          href: `/public/team/${team.id}/schedule`,
+          label: 'Schedule',
+          variant: 'glass',
+        },
+        {
+          href: `/public/team/${team.id}/results`,
+          label: 'Results',
+          variant: 'glass',
+        },
+      ]}
+    >
+      <section className="mb-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+        <div className="grid gap-4 lg:grid-cols-[1fr_260px] lg:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Leaderboard Scope
+            </p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+              Completed Match Leaders
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Goals, assists, and discipline stats pulled from completed matches only.
+            </p>
+          </div>
 
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-                  Public Team Leaders
-                </p>
-                <h1
-                  className="text-3xl font-black leading-tight md:text-4xl"
-                  style={{ color: '#ffffff' }}
-                >
-                  {team.name}
-                </h1>
-                <p className="mt-2 text-sm text-white/75">
-                  Top performers across completed matches
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full max-w-[260px]">
-              <label className="mb-2 block text-sm font-semibold uppercase tracking-wide text-white/70">
-                Season
-              </label>
-              <select
-                value={selectedSeasonId}
-                onChange={(e) => setSelectedSeasonId(e.target.value)}
-                className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white backdrop-blur-sm"
-                style={{ color: '#ffffff' }}
-              >
-                <option value="all" style={{ color: '#0f172a' }}>
-                  All Seasons
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Season
+            </label>
+            <select
+              value={selectedSeasonId}
+              onChange={(e) => setSelectedSeasonId(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+            >
+              <option value="all">All Seasons</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
                 </option>
-                {seasons.map((season) => (
-                  <option key={season.id} value={season.id} style={{ color: '#0f172a' }}>
-                    {season.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+              ))}
+            </select>
           </div>
         </div>
+
+        {error ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+            {error}
+          </div>
+        ) : null}
       </section>
 
       <section className="mb-6 grid gap-4 md:grid-cols-3">
@@ -366,15 +373,22 @@ export default function PublicTeamLeadersPage() {
         />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 flex flex-wrap gap-3">
         <Link
-          href="/"
+          href={`/public/team/${team.id}`}
           className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm"
         >
-          Back to Home
+          Back to Team Page
+        </Link>
+
+        <Link
+          href={`/public/team/${team.id}/results`}
+          className="inline-flex rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+        >
+          View Team Results
         </Link>
       </div>
-    </main>
+    </PublicTeamPageShell>
   );
 }
 
@@ -404,11 +418,29 @@ function LeaderboardTable({
   valueKey: 'goals' | 'assists' | 'yellowCards' | 'redCards';
   emptyText: string;
 }) {
+  const gradientMap = {
+    goals: 'bg-gradient-to-b from-green-50 to-white',
+    assists: 'bg-gradient-to-b from-blue-50 to-white',
+    yellowCards: 'bg-gradient-to-b from-yellow-50 to-white',
+    redCards: 'bg-gradient-to-b from-red-50 to-white',
+  };
+
+  const statPillMap = {
+    goals: 'bg-emerald-500 text-white',
+    assists: 'bg-blue-500 text-white',
+    yellowCards: 'bg-amber-400 text-slate-950',
+    redCards: 'bg-red-500 text-white',
+  };
+
+  const gradient = gradientMap[valueKey] || 'bg-white';
+  const statPillClass = statPillMap[valueKey] || 'bg-slate-900 text-white';
+
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+    <section className={`rounded-3xl ${gradient} p-6 shadow-md ring-1 ring-slate-200`}>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+
+        <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
           {rows.length} players
         </span>
       </div>
@@ -416,8 +448,8 @@ function LeaderboardTable({
       {rows.length === 0 ? (
         <p className="text-sm text-slate-500">{emptyText}</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200">
-          <div className="grid grid-cols-[70px_1fr_110px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="grid grid-cols-[70px_1fr_90px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
             <div>Rank</div>
             <div>Player</div>
             <div className="text-right">{statLabel}</div>
@@ -427,7 +459,7 @@ function LeaderboardTable({
             {rows.map((row, index) => (
               <div
                 key={row.playerId}
-                className="grid grid-cols-[70px_1fr_110px] items-center px-4 py-4"
+                className="grid grid-cols-[70px_1fr_90px] items-center px-4 py-4"
               >
                 <div className="text-sm font-black text-slate-900">#{index + 1}</div>
 
@@ -436,12 +468,17 @@ function LeaderboardTable({
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
                       {row.jerseyNumber || '—'}
                     </span>
+
                     <p className="truncate font-semibold text-slate-900">{row.playerName}</p>
                   </div>
                 </div>
 
-                <div className="text-right text-2xl font-black tabular-nums text-slate-900">
-                  {row[valueKey]}
+                <div className="flex justify-end">
+                  <span
+                    className={`inline-flex min-w-[44px] items-center justify-center rounded-xl px-3 py-2 text-base font-black tabular-nums shadow-sm ${statPillClass}`}
+                  >
+                    {row[valueKey]}
+                  </span>
                 </div>
               </div>
             ))}

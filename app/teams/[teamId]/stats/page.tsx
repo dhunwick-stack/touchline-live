@@ -1,26 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import TeamPageIntro from '@/components/TeamPageIntro';
-import StatBadge from '@/components/StatBadge';
-import Link from 'next/link';
+import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
-import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
+import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
-};
-
-type PlayerStatRow = {
-  playerId: string;
-  name: string;
-  jersey: string;
-  goals: number;
-  assists: number;
-  yellowCards: number;
-  redCards: number;
 };
 
 type TeamSummary = {
@@ -34,11 +23,7 @@ type TeamSummary = {
   cleanSheets: number;
 };
 
-export default function TeamStatsPage() {
-  // ---------------------------------------------------
-  // ROUTE PARAMS
-  // ---------------------------------------------------
-
+export default function PublicTeamPage() {
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -47,179 +32,102 @@ export default function TeamStatsPage() {
         ? params.teamId[0]
         : '';
 
-  // ---------------------------------------------------
-  // AUTH / PAGE STATE
-  // ---------------------------------------------------
-
-  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
+  const [nextMatch, setNextMatch] = useState<MatchRow | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [events, setEvents] = useState<MatchEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // ---------------------------------------------------
-  // BANNER / UI STATE
-  // ---------------------------------------------------
-
-  {/* const [editing, setEditing] = useState(false); */}
-
-  // ---------------------------------------------------
-  // DATA STATE
-  // ---------------------------------------------------
-
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('all');
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [finalMatches, setFinalMatches] = useState<MatchRow[]>([]);
-  const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
-  const [events, setEvents] = useState<MatchEvent[]>([]);
-
-  // ---------------------------------------------------
-  // TEAM AUTH GUARD
-  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) return;
 
-    const savedTeamId = localStorage.getItem('teamId');
-
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = '/team-login';
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [teamId]);
-
-  // ---------------------------------------------------
-  // LOAD BASE TEAM / SEASON / PLAYER DATA
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    if (!teamId || !authChecked) return;
-
-    async function loadBaseData() {
+    async function loadPageData() {
       setLoading(true);
       setError('');
 
-      const [{ data: teamData, error: teamError }, { data: seasonData, error: seasonError }] =
-        await Promise.all([
-          supabase.from('teams').select('*').eq('id', teamId).single(),
-          supabase.from('seasons').select('*').order('start_date', { ascending: false }),
-        ]);
+      const [
+        { data: teamData, error: teamError },
+        { data: playerData, error: playerError },
+        { data: matchData, error: matchError },
+        { data: nextMatchData, error: nextMatchError },
+      ] = await Promise.all([
+        supabase.from('teams').select('*').eq('id', teamId).single(),
+        supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', teamId)
+          .eq('active', true)
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true }),
+        supabase
+          .from('matches')
+          .select(`
+            *,
+            home_team:home_team_id (*),
+            away_team:away_team_id (*)
+          `)
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .eq('status', 'final')
+          .order('match_date', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('matches')
+          .select(`
+            *,
+            home_team:home_team_id (*),
+            away_team:away_team_id (*)
+          `)
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .in('status', ['not_started', 'scheduled', 'live', 'halftime'])
+          .order('match_date', { ascending: true, nullsFirst: false })
+          .limit(1),
+      ]);
 
-      if (teamError || seasonError) {
-        setError(teamError?.message || seasonError?.message || 'Failed to load team data.');
+      if (teamError || playerError || matchError || nextMatchError) {
+        setError(
+          teamError?.message ||
+            playerError?.message ||
+            matchError?.message ||
+            nextMatchError?.message ||
+            'Failed to load public team page.',
+        );
         setLoading(false);
         return;
       }
 
-      const loadedTeam = teamData as Team;
-      const loadedSeasons = (seasonData as Season[]) ?? [];
+      const loadedMatches = (matchData as MatchRow[]) ?? [];
 
-      setTeam(loadedTeam);
-      setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeasons.find((season) => season.is_active)?.id || 'all');
-
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('team_id', teamId)
-        .order('jersey_number', { ascending: true, nullsFirst: false })
-        .order('first_name', { ascending: true });
-
-      if (playerError) {
-        setError(playerError.message);
-        setLoading(false);
-        return;
-      }
-
+      setTeam(teamData as Team);
       setPlayers((playerData as Player[]) ?? []);
-      setLoading(false);
-    }
+      setMatches(loadedMatches);
+      setNextMatch(((nextMatchData as MatchRow[]) ?? [])[0] || null);
 
-    loadBaseData();
-  }, [teamId, authChecked]);
-
-  // ---------------------------------------------------
-  // LOAD MATCH / EVENT STATS DATA
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    if (!teamId || !authChecked) return;
-
-    async function loadStatsData() {
-      setError('');
-
-      let finalMatchesQuery = supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:home_team_id (*),
-          away_team:away_team_id (*)
-        `)
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .eq('status', 'final')
-        .order('match_date', { ascending: false, nullsFirst: false });
-
-      if (selectedSeasonId !== 'all') {
-        finalMatchesQuery = finalMatchesQuery.eq('season_id', selectedSeasonId);
-      }
-
-      const { data: finalMatchData, error: finalMatchError } = await finalMatchesQuery;
-
-      if (finalMatchError) {
-        setError(finalMatchError.message);
-        return;
-      }
-
-      const loadedFinalMatches = (finalMatchData as MatchRow[]) ?? [];
-      setFinalMatches(loadedFinalMatches);
-
-      const { data: recentMatchData, error: recentMatchError } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:home_team_id (*),
-          away_team:away_team_id (*)
-        `)
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .order('match_date', { ascending: false, nullsFirst: false })
-        .limit(5);
-
-      if (recentMatchError) {
-        setError(recentMatchError.message);
-        return;
-      }
-
-      setRecentMatches((recentMatchData as MatchRow[]) ?? []);
-
-      if (loadedFinalMatches.length === 0) {
+      if (loadedMatches.length === 0) {
         setEvents([]);
+        setLoading(false);
         return;
       }
 
-      const matchIds = loadedFinalMatches.map((match) => match.id);
+      const matchIds = loadedMatches.map((match) => match.id);
 
       const { data: eventData, error: eventError } = await supabase
         .from('match_events')
         .select('*')
-        .in('match_id', matchIds)
-        .order('minute', { ascending: true });
+        .in('match_id', matchIds);
 
       if (eventError) {
         setError(eventError.message);
+        setLoading(false);
         return;
       }
 
       setEvents((eventData as MatchEvent[]) ?? []);
+      setLoading(false);
     }
 
-    loadStatsData();
-  }, [teamId, selectedSeasonId, authChecked]);
-
-  // ---------------------------------------------------
-  // TEAM SUMMARY
-  // ---------------------------------------------------
+    loadPageData();
+  }, [teamId]);
 
   const summary = useMemo<TeamSummary>(() => {
     let played = 0;
@@ -230,7 +138,7 @@ export default function TeamStatsPage() {
     let goalsAgainst = 0;
     let cleanSheets = 0;
 
-    for (const match of finalMatches) {
+    for (const match of matches) {
       const isHome = match.home_team_id === teamId;
       const teamGoals = isHome ? match.home_score : match.away_score;
       const oppGoals = isHome ? match.away_score : match.home_score;
@@ -256,311 +164,431 @@ export default function TeamStatsPage() {
       goalDifference: goalsFor - goalsAgainst,
       cleanSheets,
     };
-  }, [finalMatches, teamId]);
+  }, [matches, teamId]);
 
-  // ---------------------------------------------------
-  // PLAYER STATS
-  // ---------------------------------------------------
-
-  const playerStats = useMemo<PlayerStatRow[]>(() => {
-    const playerMap = new Map<string, PlayerStatRow>();
-
-    for (const player of players) {
-      const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
-
-      playerMap.set(player.id, {
-        playerId: player.id,
-        name: fullName || 'Unnamed Player',
-        jersey: player.jersey_number ? `#${player.jersey_number}` : '',
-        goals: 0,
-        assists: 0,
-        yellowCards: 0,
-        redCards: 0,
-      });
-    }
+  const topScorer = useMemo(() => {
+    const goalCounts = new Map<string, number>();
 
     for (const event of events) {
       if (event.team_id !== teamId) continue;
+      if (event.event_type !== 'goal') continue;
 
-      if (event.event_type === 'goal' && event.player_id && playerMap.has(event.player_id)) {
-        playerMap.get(event.player_id)!.goals += 1;
-      }
+      const key = event.player_id || `override:${event.player_name_override || 'Unknown'}`;
+      goalCounts.set(key, (goalCounts.get(key) || 0) + 1);
+    }
 
-      if (
-        event.event_type === 'goal' &&
-        event.secondary_player_id &&
-        playerMap.has(event.secondary_player_id)
-      ) {
-        playerMap.get(event.secondary_player_id)!.assists += 1;
-      }
+    let bestKey = '';
+    let bestCount = 0;
 
-      if (
-        event.event_type === 'yellow_card' &&
-        event.player_id &&
-        playerMap.has(event.player_id)
-      ) {
-        playerMap.get(event.player_id)!.yellowCards += 1;
-      }
-
-      if (event.event_type === 'red_card' && event.player_id && playerMap.has(event.player_id)) {
-        playerMap.get(event.player_id)!.redCards += 1;
+    for (const [key, count] of goalCounts.entries()) {
+      if (count > bestCount) {
+        bestKey = key;
+        bestCount = count;
       }
     }
 
-    return Array.from(playerMap.values());
+    if (!bestKey) {
+      return { name: 'No scorer yet', goals: 0 };
+    }
+
+    if (bestKey.startsWith('override:')) {
+      return {
+        name: bestKey.replace('override:', '') || 'Unknown',
+        goals: bestCount,
+      };
+    }
+
+    const player = players.find((p) => p.id === bestKey);
+
+    return {
+      name: playerDisplayName(player) || 'Unknown',
+      goals: bestCount,
+    };
   }, [events, players, teamId]);
 
-  // ---------------------------------------------------
-  // LEADERBOARDS
-  // ---------------------------------------------------
+  const topAssist = useMemo(() => {
+    const assistCounts = new Map<string, number>();
 
-  const topScorers = useMemo(
-    () =>
-      playerStats
-        .filter((player) => player.goals > 0)
-        .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name)),
-    [playerStats],
-  );
+    for (const event of events) {
+      if (event.team_id !== teamId) continue;
+      if (event.event_type !== 'goal') continue;
+      if (!event.secondary_player_id) continue;
 
-  const topAssists = useMemo(
-    () =>
-      playerStats
-        .filter((player) => player.assists > 0)
-        .sort((a, b) => b.assists - a.assists || a.name.localeCompare(b.name)),
-    [playerStats],
-  );
+      assistCounts.set(
+        event.secondary_player_id,
+        (assistCounts.get(event.secondary_player_id) || 0) + 1,
+      );
+    }
 
-  const discipline = useMemo(
-    () =>
-      playerStats
-        .filter((player) => player.yellowCards > 0 || player.redCards > 0)
-        .sort(
-          (a, b) =>
-            b.redCards - a.redCards ||
-            b.yellowCards - a.yellowCards ||
-            a.name.localeCompare(b.name),
-        ),
-    [playerStats],
-  );
+    let bestKey = '';
+    let bestCount = 0;
 
-  // ---------------------------------------------------
-  // MATCH HELPERS
-  // ---------------------------------------------------
+    for (const [key, count] of assistCounts.entries()) {
+      if (count > bestCount) {
+        bestKey = key;
+        bestCount = count;
+      }
+    }
 
-  function resultLabel(match: MatchRow) {
-    if (match.status !== 'final') return null;
+    if (!bestKey) {
+      return { name: 'No assists yet', assists: 0 };
+    }
 
-    const isHome = match.home_team_id === teamId;
-    const teamGoals = isHome ? match.home_score : match.away_score;
-    const oppGoals = isHome ? match.away_score : match.home_score;
+    const player = players.find((p) => p.id === bestKey);
 
-    if (teamGoals > oppGoals) return 'W';
-    if (teamGoals < oppGoals) return 'L';
-    return 'D';
+    return {
+      name: playerDisplayName(player) || 'Unknown',
+      assists: bestCount,
+    };
+  }, [events, players, teamId]);
+
+  const recentForm = useMemo(() => {
+    return matches.slice(0, 5).map((match) => {
+      const isHome = match.home_team_id === teamId;
+      const teamGoals = isHome ? match.home_score : match.away_score;
+      const oppGoals = isHome ? match.away_score : match.home_score;
+
+      if (teamGoals > oppGoals) return 'W';
+      if (teamGoals < oppGoals) return 'L';
+      return 'D';
+    });
+  }, [matches, teamId]);
+
+  const nextMatchHeroStyle = {
+    background: `linear-gradient(135deg, ${team?.primary_color || '#0f172a'}, ${team?.secondary_color || '#1e293b'})`,
+  };
+
+  if (loading) {
+    return <main className="mx-auto max-w-7xl px-6 pt-0 pb-8">Loading team page...</main>;
   }
 
-  function opponentName(match: MatchRow) {
-    const isHome = match.home_team_id === teamId;
-
-    return isHome
-      ? match.away_team?.name || 'Opponent'
-      : match.home_team?.name || 'Opponent';
-  }
-
-  function scoreLine(match: MatchRow) {
-    const isHome = match.home_team_id === teamId;
-    const teamGoals = isHome ? match.home_score : match.away_score;
-    const oppGoals = isHome ? match.away_score : match.home_score;
-
-    return `${teamGoals}-${oppGoals}`;
-  }
-
-  // ---------------------------------------------------
-  // LOADING / ERROR STATES
-  // ---------------------------------------------------
-
-  if (loading || !authChecked) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team stats...</main>;
-  }
-
-  if (error && !team) {
+  if (error || !team) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
-        {error}
+      <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6 py-12">
+        <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Touchline Live
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+            Team not found
+          </h1>
+          <p className="mt-3 text-slate-600">{error || 'This team could not be found.'}</p>
+        </div>
       </main>
     );
   }
-
-  if (!team) {
-    return (
-      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
-        Team not found.
-      </main>
-    );
-  }
-
-  // ---------------------------------------------------
-  // PAGE
-  // ---------------------------------------------------
 
   return (
-    <>
-      {/* --------------------------------------------------- */}
-      {/* TEAM BANNER */}
-      {/* --------------------------------------------------- */}
+    <PublicTeamPageShell
+      team={team}
+      teamId={teamId}
+      eyebrow="Public Team Page"
+      description={team.club_name || 'Team overview, leaders, roster, and recent results'}
+      actions={[
+        {
+          href: `/public/team/${team.id}/leaders`,
+          label: 'Team Leaders',
+          variant: 'glass',
+        },
+        {
+          href: `/public/team/${team.id}/schedule`,
+          label: 'Team Schedule',
+          variant: 'glass',
+        },
+        {
+          href: `/teams/${team.id}`,
+          label: 'Admin Page',
+          variant: 'admin',
+          icon: 'lock',
+        },
+      ]}
+    >
+      <section className="mb-6 grid gap-4 md:grid-cols-4">
+        <StatGlowCard glowClass="bg-emerald-200/25">
+          <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
+        </StatGlowCard>
 
-    
-      {/* --------------------------------------------------- */}
-      {/* TEAM PAGE INTRO */}
-      {/* --------------------------------------------------- */}
+        <StatGlowCard glowClass="bg-sky-200/25">
+          <SummaryCard
+            label="Goals For / Against"
+            value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
+          />
+        </StatGlowCard>
 
-      <TeamPageIntro
-        eyebrow="Team Statistics"
-        title="Stats"
-        description="Season summary, player leaders, recent results, and match performance."
-        rightSlot={
-          <div className="min-w-[220px]">
-            {/* --------------------------------------------- */}
-            {/* SEASON FILTER */}
-            {/* --------------------------------------------- */}
+        <StatGlowCard glowClass="bg-indigo-200/20">
+          <SummaryCard
+            label="Goal Difference"
+            value={summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference}
+          />
+        </StatGlowCard>
 
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Season
-            </label>
+        <StatGlowCard glowClass="bg-teal-200/20">
+          <SummaryCard label="Clean Sheets" value={summary.cleanSheets} />
+        </StatGlowCard>
+      </section>
 
-            <select
-              value={selectedSeasonId}
-              onChange={(e) => setSelectedSeasonId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="space-y-6">
+          {nextMatch ? (
+            <div
+              className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
+              style={nextMatchHeroStyle}
             >
-              <option value="all">All Seasons</option>
-              {seasons.map((season) => (
-                <option key={season.id} value={season.id}>
-                  {season.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        }
-      />
-
-      {/* --------------------------------------------------- */}
-      {/* SUMMARY CARDS */}
-      {/* --------------------------------------------------- */}
-
-      <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <StatCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
-        <StatCard label="Matches Played" value={summary.played} />
-        <StatCard
-          label="Goals For / Against"
-          value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
-        />
-        <StatCard
-          label="Goal Difference"
-          value={summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference}
-        />
-      </section>
-
-      <section className="mt-4 grid gap-4 md:grid-cols-2">
-        <StatCard label="Clean Sheets" value={summary.cleanSheets} />
-        <StatCard label="Points" value={summary.wins * 3 + summary.draws} />
-      </section>
-
-      {/* --------------------------------------------------- */}
-      {/* LEADERBOARD CARDS */}
-      {/* --------------------------------------------------- */}
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <LeaderboardCard
-          title="Top Scorers"
-          emptyText="No goals recorded yet."
-          color="green"
-          rows={topScorers.map((player) => ({
-            label: `${player.jersey} ${player.name}`.trim(),
-            value: player.goals,
-          }))}
-        />
-
-        <LeaderboardCard
-          title="Top Assists"
-          emptyText="No assists recorded yet."
-          color="blue"
-          rows={topAssists.map((player) => ({
-            label: `${player.jersey} ${player.name}`.trim(),
-            value: player.assists,
-          }))}
-        />
-
-        {/* ------------------------------------------------- */}
-        {/* DISCIPLINE CARD */}
-        {/* ------------------------------------------------- */}
-
-        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 className="text-xl font-bold">Discipline</h2>
-
-          {discipline.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">No cards recorded yet.</p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {discipline.map((player) => (
-                <div
-                  key={player.playerId}
-                  className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-slate-900">
-                      {`${player.jersey} ${player.name}`.trim()}
+              <div className="bg-black/25 p-6 backdrop-blur-[2px]">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/75">
+                      Next Match
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black tracking-tight text-white">
+                      {nextMatch.home_team?.name || 'Home Team'} vs{' '}
+                      {nextMatch.away_team?.name || 'Away Team'}
+                    </h2>
+                    <p className="mt-2 text-white/80">
+                      {nextMatch.match_date
+                        ? new Intl.DateTimeFormat('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          }).format(new Date(nextMatch.match_date))
+                        : 'Date TBD'}
+                      {nextMatch.venue ? ` • ${nextMatch.venue}` : ''}
                     </p>
                   </div>
 
-                  <div className="ml-4 flex items-center gap-2">
-                    {player.yellowCards > 0 ? (
-                      <StatBadge value={player.yellowCards} color="yellow" />
-                    ) : null}
+                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
+                    {nextMatch.status === 'live'
+                      ? 'Live'
+                      : nextMatch.status === 'halftime'
+                        ? 'Halftime'
+                        : 'Scheduled'}
+                  </span>
+                </div>
 
-                    {player.redCards > 0 ? (
-                      <StatBadge value={player.redCards} color="red" />
-                    ) : null}
+                <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                      Home
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      {nextMatch.home_team?.logo_url ? (
+                        <img
+                          src={nextMatch.home_team.logo_url}
+                          alt={`${nextMatch.home_team.name} logo`}
+                          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/25"
+                        />
+                      ) : null}
+                      <h3 className="truncate text-2xl font-black text-white">
+                        {nextMatch.home_team?.name || 'Home Team'}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/15">
+                    <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? 'Live'
+                        : 'Upcoming'}
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-white">
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? `${nextMatch.home_score} - ${nextMatch.away_score}`
+                        : 'vs'}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 md:text-right">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-white/70">
+                      Away
+                    </p>
+                    <div className="mt-2 flex items-center justify-end gap-3">
+                      <h3 className="truncate text-2xl font-black text-white">
+                        {nextMatch.away_team?.name || 'Away Team'}
+                      </h3>
+                      {nextMatch.away_team?.logo_url ? (
+                        <img
+                          src={nextMatch.away_team.logo_url}
+                          alt={`${nextMatch.away_team.name} logo`}
+                          className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/25"
+                        />
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              ))}
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link
+                    href={`/public/team/${team.id}/schedule`}
+                    className="inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white"
+                  >
+                    Full Schedule
+                  </Link>
+
+                  {nextMatch.public_slug ? (
+                    <Link
+                      href={`/public/${nextMatch.public_slug}`}
+                      className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
+                    >
+                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
+                        ? 'Watch Live'
+                        : 'View Match'}
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          ) : null}
 
-      {/* --------------------------------------------------- */}
-      {/* RECENT MATCHES */}
-      {/* --------------------------------------------------- */}
+          <GlowCard glowClass="bg-emerald-200/20">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Recent Matches</h2>
+              <span className="rounded-full bg-slate-100/90 px-3 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200/70">
+                {matches.length} finals
+              </span>
+            </div>
 
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Recent Matches</h2>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-            {recentMatches.length} matches
-          </span>
-        </div>
+            {matches.length === 0 ? (
+              <p className="text-sm text-slate-500">No completed matches found yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {matches.slice(0, 8).map((match) => {
+                  const result = resultLabel(match, teamId);
 
-        {recentMatches.length === 0 ? (
-          <p className="text-sm text-slate-500">No matches found yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {recentMatches.map((match) => {
-              const result = resultLabel(match);
+                  return (
+                    <div
+                      key={match.id}
+                      className="grid items-center gap-3 rounded-2xl bg-slate-50/90 px-4 py-4 ring-1 ring-slate-200/70 md:grid-cols-[90px_1fr_auto_auto]"
+                    >
+                      <div>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                            result === 'W'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : result === 'L'
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {result}
+                        </span>
+                      </div>
 
-              return (
-                <div
-                  key={match.id}
-                  className="grid items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 md:grid-cols-[90px_1fr_auto_auto]"
-                >
-                  {/* ------------------------------------------- */}
-                  {/* RESULT / STATUS */}
-                  {/* ------------------------------------------- */}
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          vs {opponentName(match, teamId)}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {match.match_date
+                            ? new Intl.DateTimeFormat('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              }).format(new Date(match.match_date))
+                            : 'Date TBD'}
+                        </p>
+                      </div>
 
-                  <div>
-                    {match.status === 'final' ? (
+                      <div className="text-lg font-black tabular-nums text-slate-900">
+                        {scoreLine(match, teamId)}
+                      </div>
+
+                      <div>
+                        {match.public_slug ? (
+                          <Link
+                            href={`/public/${match.public_slug}`}
+                            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                          >
+                            Match Recap
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-slate-400">—</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </GlowCard>
+
+          <GlowCard glowClass="bg-indigo-200/15">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
+              <span className="rounded-full bg-slate-100/90 px-3 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200/70">
+                {players.length} players
+              </span>
+            </div>
+
+            {players.length === 0 ? (
+              <p className="text-sm text-slate-500">No active players found.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {players.slice(0, 10).map((player) => (
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-4 py-3 ring-1 ring-slate-200/70"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">
+                        {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
+                          'Unnamed Player'}
+                      </p>
+                      <p className="text-sm text-slate-500">{player.position || 'No position'}</p>
+                    </div>
+
+                    <div className="ml-4 shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                      {player.jersey_number !== null && player.jersey_number !== undefined
+                        ? `#${player.jersey_number}`
+                        : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlowCard>
+        </section>
+
+        <section className="space-y-6">
+          <GlowCard glowClass="bg-blue-200/20" glowPosition="right">
+            <h2 className="text-xl font-bold text-slate-900">Team Snapshot</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Quick view of recent performance and team leaders.
+            </p>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <SnapshotMiniCard label="Matches Played" value={summary.played} />
+
+              <SnapshotMiniCard
+                label="Top Scorer"
+                value={
+                  topScorer.goals > 0 ? `${topScorer.name} (${topScorer.goals})` : topScorer.name
+                }
+              />
+
+              <SnapshotMiniCard
+                label="Top Assist"
+                value={
+                  topAssist.assists > 0
+                    ? `${topAssist.name} (${topAssist.assists})`
+                    : topAssist.name
+                }
+              />
+
+              <div className="rounded-2xl bg-slate-50/90 p-4 ring-1 ring-slate-200/70">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Recent Form
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {recentForm.length === 0 ? (
+                    <span className="text-sm font-medium text-slate-400">No results yet</span>
+                  ) : (
+                    recentForm.map((result, index) => (
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                        key={`${result}-${index}`}
+                        className={`inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-bold ${
                           result === 'W'
                             ? 'bg-emerald-100 text-emerald-700'
                             : result === 'L'
@@ -570,219 +598,133 @@ export default function TeamStatsPage() {
                       >
                         {result}
                       </span>
-                    ) : match.status === 'live' ? (
-                      <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                        Live
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
-                        Scheduled
-                      </span>
-                    )}
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* MATCH INFO */}
-                  {/* ------------------------------------------- */}
-
-                  <div>
-                    <p className="font-semibold text-slate-900">vs {opponentName(match)}</p>
-                    <p className="text-sm text-slate-500">
-                      {match.match_date
-                        ? new Intl.DateTimeFormat('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          }).format(new Date(match.match_date))
-                        : 'Date TBD'}
-                    </p>
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* SCORE */}
-                  {/* ------------------------------------------- */}
-
-                  <div className="text-lg font-black tabular-nums text-slate-900">
-                    {scoreLine(match)}
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* ACTION */}
-                  {/* ------------------------------------------- */}
-
-                  <div>
-                    {match.status === 'final' && match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        View Recap
-                      </Link>
-                    ) : match.status === 'live' && match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-                      >
-                        Follow Live
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-slate-400">—</span>
-                    )}
-                  </div>
+                    ))
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* --------------------------------------------------- */}
-      {/* FINAL MATCH RESULTS */}
-      {/* --------------------------------------------------- */}
-
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Final Match Results</h2>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-            {finalMatches.length} finals
-          </span>
-        </div>
-
-        {finalMatches.length === 0 ? (
-          <p className="text-sm text-slate-500">No completed matches found for this season.</p>
-        ) : (
-          <div className="space-y-3">
-            {finalMatches.map((match) => {
-              const result = resultLabel(match);
-
-              return (
-                <div
-                  key={match.id}
-                  className="grid items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 md:grid-cols-[90px_1fr_auto_auto]"
-                >
-                  {/* ------------------------------------------- */}
-                  {/* RESULT */}
-                  {/* ------------------------------------------- */}
-
-                  <div>
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                        result === 'W'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : result === 'L'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {result}
-                    </span>
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* MATCH INFO */}
-                  {/* ------------------------------------------- */}
-
-                  <div>
-                    <p className="font-semibold text-slate-900">vs {opponentName(match)}</p>
-                    <p className="text-sm text-slate-500">
-                      {match.match_date
-                        ? new Intl.DateTimeFormat('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          }).format(new Date(match.match_date))
-                        : 'Date TBD'}
-                    </p>
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* SCORE */}
-                  {/* ------------------------------------------- */}
-
-                  <div className="text-lg font-black tabular-nums text-slate-900">
-                    {scoreLine(match)}
-                  </div>
-
-                  {/* ------------------------------------------- */}
-                  {/* ACTION */}
-                  {/* ------------------------------------------- */}
-
-                  <div>
-                    {match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        View Recap
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-slate-400">No recap</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </>
-  );
-}
-
-// ---------------------------------------------------
-// STAT CARD
-// ---------------------------------------------------
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------
-// LEADERBOARD CARD
-// ---------------------------------------------------
-
-function LeaderboardCard({
-  title,
-  rows,
-  emptyText,
-  color = 'slate',
-}: {
-  title: string;
-  rows: { label: string; value: number }[];
-  emptyText: string;
-  color?: 'green' | 'blue' | 'yellow' | 'red' | 'slate';
-}) {
-  return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h2 className="text-xl font-bold">{title}</h2>
-
-      {rows.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">{emptyText}</p>
-      ) : (
-        <div className="mt-4 space-y-3">
-          {rows.map((row) => (
-            <div
-              key={row.label}
-              className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
-            >
-              <p className="min-w-0 truncate font-medium text-slate-900">{row.label}</p>
-
-              <div className="ml-4 shrink-0">
-                <StatBadge value={row.value} color={color} />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </GlowCard>
+
+          <GlowCard glowClass="bg-slate-200/25" glowPosition="right">
+            <h2 className="text-xl font-bold text-slate-900">Explore More</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Dive deeper into player stats, schedules, and match recaps.
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href={`/public/team/${team.id}/leaders`}
+                className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+              >
+                View Leaders
+              </Link>
+
+              <Link
+                href={`/public/team/${team.id}/schedule`}
+                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+              >
+                View Schedule
+              </Link>
+            </div>
+          </GlowCard>
+        </section>
+      </div>
+    </PublicTeamPageShell>
+  );
+}
+
+function GlowCard({
+  children,
+  glowClass = 'bg-slate-200/20',
+  glowPosition = 'left',
+}: {
+  children: React.ReactNode;
+  glowClass?: string;
+  glowPosition?: 'left' | 'right';
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-50/70 to-white" />
+      <div
+        className={`pointer-events-none absolute h-40 w-40 rounded-full blur-3xl ${glowClass} ${
+          glowPosition === 'right' ? '-right-8 -top-8' : '-left-10 -top-10'
+        }`}
+      />
+      <div className="relative">{children}</div>
     </div>
   );
+}
+
+function StatGlowCard({
+  children,
+  glowClass = 'bg-slate-200/20',
+}: {
+  children: React.ReactNode;
+  glowClass?: string;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-white shadow-md ring-1 ring-slate-200">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-50/80 to-white" />
+      <div className={`pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full blur-3xl ${glowClass}`} />
+      <div className="relative">{children}</div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="p-6">
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function SnapshotMiniCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50/90 p-4 ring-1 ring-slate-200/70">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold leading-6 text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function playerDisplayName(player: Player | undefined) {
+  if (!player) return '';
+  const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
+  return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
+}
+
+function resultLabel(match: MatchRow, teamId: string) {
+  const isHome = match.home_team_id === teamId;
+  const teamGoals = isHome ? match.home_score : match.away_score;
+  const oppGoals = isHome ? match.away_score : match.home_score;
+
+  if (teamGoals > oppGoals) return 'W';
+  if (teamGoals < oppGoals) return 'L';
+  return 'D';
+}
+
+function opponentName(match: MatchRow, teamId: string) {
+  const isHome = match.home_team_id === teamId;
+  return isHome ? match.away_team?.name || 'Opponent' : match.home_team?.name || 'Opponent';
+}
+
+function scoreLine(match: MatchRow, teamId: string) {
+  const isHome = match.home_team_id === teamId;
+  const teamGoals = isHome ? match.home_score : match.away_score;
+  const oppGoals = isHome ? match.away_score : match.home_score;
+  return `${teamGoals}-${oppGoals}`;
 }

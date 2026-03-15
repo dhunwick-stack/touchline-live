@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Player, Team } from '@/lib/types';
 
+
+
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;

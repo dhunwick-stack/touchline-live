@@ -1,4 +1,5 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
+
 export type MatchStatus =
   | 'not_started'
   | 'scheduled'
@@ -7,13 +8,17 @@ export type MatchStatus =
   | 'final'
   | 'cancelled'
   | 'postponed';
+
 export type TeamSide = 'home' | 'away';
+
 export type EventType =
   | 'goal'
   | 'yellow_card'
   | 'red_card'
   | 'substitution'
   | 'half_start'
+  | 'match_resumed'
+  | 'match_paused'
   | 'half_end'
   | 'full_time';
 
