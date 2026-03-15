@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import PublicTeamPageShell from '@/components/PublicTeamPageShell';
+import TeamPageIntro from '@/components/TeamPageIntro';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -23,7 +23,11 @@ type TeamSummary = {
   cleanSheets: number;
 };
 
-export default function PublicTeamPage() {
+export default function TeamStatsPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -32,6 +36,11 @@ export default function PublicTeamPage() {
         ? params.teamId[0]
         : '';
 
+  // ---------------------------------------------------
+  // AUTH / PAGE STATE
+  // ---------------------------------------------------
+
+  const [authChecked, setAuthChecked] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [nextMatch, setNextMatch] = useState<MatchRow | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -40,8 +49,29 @@ export default function PublicTeamPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // ---------------------------------------------------
+  // TEAM AUTH GUARD
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!teamId) return;
+
+    const savedTeamId = localStorage.getItem('teamId');
+
+    if (!savedTeamId || savedTeamId !== String(teamId)) {
+      window.location.href = '/team-login';
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [teamId]);
+
+  // ---------------------------------------------------
+  // INITIAL DATA LOAD
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
 
     async function loadPageData() {
       setLoading(true);
@@ -79,7 +109,7 @@ export default function PublicTeamPage() {
             away_team:away_team_id (*)
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-          .in('status', ['not_started', 'scheduled', 'live', 'halftime'])
+          .in('status', ['not_started', 'live', 'halftime'])
           .order('match_date', { ascending: true, nullsFirst: false })
           .limit(1),
       ]);
@@ -90,7 +120,7 @@ export default function PublicTeamPage() {
             playerError?.message ||
             matchError?.message ||
             nextMatchError?.message ||
-            'Failed to load public team page.',
+            'Failed to load team stats.',
         );
         setLoading(false);
         return;
@@ -127,7 +157,11 @@ export default function PublicTeamPage() {
     }
 
     loadPageData();
-  }, [teamId]);
+  }, [teamId, authChecked]);
+
+  // ---------------------------------------------------
+  // DERIVED SUMMARY
+  // ---------------------------------------------------
 
   const summary = useMemo<TeamSummary>(() => {
     let played = 0;
@@ -254,12 +288,20 @@ export default function PublicTeamPage() {
     });
   }, [matches, teamId]);
 
+  // ---------------------------------------------------
+  // HERO STYLE
+  // ---------------------------------------------------
+
   const nextMatchHeroStyle = {
     background: `linear-gradient(135deg, ${team?.primary_color || '#0f172a'}, ${team?.secondary_color || '#1e293b'})`,
   };
 
-  if (loading) {
-    return <main className="mx-auto max-w-7xl px-6 pt-0 pb-8">Loading team page...</main>;
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
+  if (loading || !authChecked) {
+    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team stats...</main>;
   }
 
   if (error || !team) {
@@ -267,7 +309,7 @@ export default function PublicTeamPage() {
       <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6 py-12">
         <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Touchline Live
+            Team Admin
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
             Team not found
@@ -278,10 +320,44 @@ export default function PublicTeamPage() {
     );
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
-   <PublicTeamPageShell team={team} teamId={teamId}
-    >
-      <section className="mb-6 grid gap-4 md:grid-cols-4">
+    <>
+      {/* --------------------------------------------------- */}
+      {/* TEAM PAGE INTRO */}
+      {/* --------------------------------------------------- */}
+
+      <TeamPageIntro
+        eyebrow="Team Stats"
+        title="Stats"
+        description="Performance overview, leaders, recent form, and team trends."
+        rightSlot={
+          <>
+            <Link
+              href={`/teams/${team.id}`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              Team Overview
+            </Link>
+
+            <Link
+              href={`/teams/${team.id}/roster`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              Roster
+            </Link>
+          </>
+        }
+      />
+
+      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------------- */}
+
+      <section className="mt-6 grid gap-4 md:grid-cols-4">
         <StatGlowCard glowClass="bg-emerald-200/25">
           <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
         </StatGlowCard>
@@ -296,7 +372,9 @@ export default function PublicTeamPage() {
         <StatGlowCard glowClass="bg-indigo-200/20">
           <SummaryCard
             label="Goal Difference"
-            value={summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference}
+            value={
+              summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference
+            }
           />
         </StatGlowCard>
 
@@ -305,8 +383,16 @@ export default function PublicTeamPage() {
         </StatGlowCard>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      {/* --------------------------------------------------- */}
+      {/* MAIN CONTENT GRID */}
+      {/* --------------------------------------------------- */}
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6">
+          {/* ------------------------------------------------- */}
+          {/* NEXT MATCH HERO */}
+          {/* ------------------------------------------------- */}
+
           {nextMatch ? (
             <div
               className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
@@ -398,26 +484,28 @@ export default function PublicTeamPage() {
 
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
-                    href={`/public/team/${team.id}/schedule`}
+                    href={`/teams/${team.id}/schedule`}
                     className="inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white"
                   >
                     Full Schedule
                   </Link>
 
-                  {nextMatch.public_slug ? (
+                  {nextMatch.status === 'live' || nextMatch.status === 'halftime' ? (
                     <Link
-                      href={`/public/${nextMatch.public_slug}`}
+                      href={`/live/${nextMatch.id}`}
                       className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
                     >
-                      {nextMatch.status === 'live' || nextMatch.status === 'halftime'
-                        ? 'Watch Live'
-                        : 'View Match'}
+                      Administer Match
                     </Link>
                   ) : null}
                 </div>
               </div>
             </div>
           ) : null}
+
+          {/* ------------------------------------------------- */}
+          {/* RECENT MATCHES */}
+          {/* ------------------------------------------------- */}
 
           <GlowCard glowClass="bg-emerald-200/20">
             <div className="mb-4 flex items-center justify-between">
@@ -491,6 +579,10 @@ export default function PublicTeamPage() {
             )}
           </GlowCard>
 
+          {/* ------------------------------------------------- */}
+          {/* ROSTER PREVIEW */}
+          {/* ------------------------------------------------- */}
+
           <GlowCard glowClass="bg-indigo-200/15">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
@@ -529,6 +621,10 @@ export default function PublicTeamPage() {
         </section>
 
         <section className="space-y-6">
+          {/* ------------------------------------------------- */}
+          {/* TEAM SNAPSHOT */}
+          {/* ------------------------------------------------- */}
+
           <GlowCard glowClass="bg-blue-200/20" glowPosition="right">
             <h2 className="text-xl font-bold text-slate-900">Team Snapshot</h2>
             <p className="mt-2 text-sm text-slate-600">
@@ -583,22 +679,26 @@ export default function PublicTeamPage() {
             </div>
           </GlowCard>
 
+          {/* ------------------------------------------------- */}
+          {/* EXPLORE MORE */}
+          {/* ------------------------------------------------- */}
+
           <GlowCard glowClass="bg-slate-200/25" glowPosition="right">
             <h2 className="text-xl font-bold text-slate-900">Explore More</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Dive deeper into player stats, schedules, and match recaps.
+              Dive deeper into stats, roster management, and schedules.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
-                href={`/public/team/${team.id}/leaders`}
+                href={`/teams/${team.id}/leaders`}
                 className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
               >
                 View Leaders
               </Link>
 
               <Link
-                href={`/public/team/${team.id}/schedule`}
+                href={`/teams/${team.id}/schedule`}
                 className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
               >
                 View Schedule
@@ -607,9 +707,13 @@ export default function PublicTeamPage() {
           </GlowCard>
         </section>
       </div>
-    </PublicTeamPageShell>
+    </>
   );
 }
+
+// ---------------------------------------------------
+// GLOW CARD
+// ---------------------------------------------------
 
 function GlowCard({
   children,
@@ -633,6 +737,10 @@ function GlowCard({
   );
 }
 
+// ---------------------------------------------------
+// STAT GLOW CARD
+// ---------------------------------------------------
+
 function StatGlowCard({
   children,
   glowClass = 'bg-slate-200/20',
@@ -643,11 +751,17 @@ function StatGlowCard({
   return (
     <div className="relative overflow-hidden rounded-3xl bg-white shadow-md ring-1 ring-slate-200">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-50/80 to-white" />
-      <div className={`pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full blur-3xl ${glowClass}`} />
+      <div
+        className={`pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full blur-3xl ${glowClass}`}
+      />
       <div className="relative">{children}</div>
     </div>
   );
 }
+
+// ---------------------------------------------------
+// SUMMARY CARD
+// ---------------------------------------------------
 
 function SummaryCard({
   label,
@@ -664,6 +778,10 @@ function SummaryCard({
   );
 }
 
+// ---------------------------------------------------
+// SNAPSHOT MINI CARD
+// ---------------------------------------------------
+
 function SnapshotMiniCard({
   label,
   value,
@@ -679,11 +797,19 @@ function SnapshotMiniCard({
   );
 }
 
+// ---------------------------------------------------
+// PLAYER DISPLAY HELPER
+// ---------------------------------------------------
+
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';
   const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
   return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
 }
+
+// ---------------------------------------------------
+// MATCH HELPERS
+// ---------------------------------------------------
 
 function resultLabel(match: MatchRow, teamId: string) {
   const isHome = match.home_team_id === teamId;
