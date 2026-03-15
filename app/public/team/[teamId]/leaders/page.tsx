@@ -271,28 +271,22 @@ export default function PublicTeamLeadersPage() {
 
   return (
     <PublicTeamPageShell
-      team={team}
-      teamId={teamId}
-      eyebrow="Team Leaders"
-      description="Top performers across completed matches for this team."
-      actions={[
-        {
-          href: `/public/team/${team.id}`,
-          label: 'Team Page',
-          variant: 'glass',
-        },
-        {
-          href: `/public/team/${team.id}/schedule`,
-          label: 'Schedule',
-          variant: 'glass',
-        },
-        {
-          href: `/public/team/${team.id}/results`,
-          label: 'Results',
-          variant: 'glass',
-        },
-      ]}
-    >
+  team={team}
+  teamId={teamId}
+  description="Top performers across completed matches for this team."
+  actions={[
+    {
+      href: `/public/team/${team.id}`,
+      label: 'Team Page',
+      variant: 'glass',
+    },
+    {
+      href: `/public/team/${team.id}/schedule`,
+      label: 'Schedule',
+      variant: 'glass',
+    },
+  ]}
+>
       <section className="mb-6 rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
         <div className="grid gap-4 lg:grid-cols-[1fr_260px] lg:items-end">
           <div>
