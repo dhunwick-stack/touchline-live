@@ -65,7 +65,7 @@ export default function TeamRosterPage() {
     const savedTeamId = localStorage.getItem('teamId');
 
     if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = '/team-login';
+      window.location.href = `/team-login?teamId=${teamId}`;
       return;
     }
 

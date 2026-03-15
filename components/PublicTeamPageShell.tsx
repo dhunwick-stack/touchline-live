@@ -129,6 +129,7 @@ export default function PublicTeamPageShell({
     // SAVE ADMIN SESSION
     // ---------------------------------------------------
 
+    localStorage.setItem('teamId', team.id);
     localStorage.removeItem('teamAdminSession');
     setAdminSession(team.id);
     setHasAdminAccess(true);

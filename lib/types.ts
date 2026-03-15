@@ -1,5 +1,12 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
-export type MatchStatus = 'not_started' | 'live' | 'halftime' | 'final';
+export type MatchStatus =
+  | 'not_started'
+  | 'scheduled'
+  | 'live'
+  | 'halftime'
+  | 'final'
+  | 'cancelled'
+  | 'postponed';
 export type TeamSide = 'home' | 'away';
 export type EventType =
   | 'goal'
