@@ -279,29 +279,7 @@ export default function PublicTeamPage() {
   }
 
   return (
-    <PublicTeamPageShell
-      team={team}
-      teamId={teamId}
-      eyebrow="Public Team Page"
-      description={team.club_name || 'Team overview, leaders, roster, and recent results'}
-      actions={[
-        {
-          href: `/public/team/${team.id}/leaders`,
-          label: 'Team Leaders',
-          variant: 'glass',
-        },
-        {
-          href: `/public/team/${team.id}/schedule`,
-          label: 'Team Schedule',
-          variant: 'glass',
-        },
-        {
-          href: `/teams/${team.id}`,
-          label: 'Admin Page',
-          variant: 'admin',
-          icon: 'lock',
-        },
-      ]}
+   <PublicTeamPageShell team={team} teamId={teamId}
     >
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         <StatGlowCard glowClass="bg-emerald-200/25">
