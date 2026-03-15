@@ -1,7 +1,7 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
 export type MatchStatus = 'not_started' | 'live' | 'halftime' | 'final';
 export type TeamSide = 'home' | 'away';
-eexport type EventType =
+export type EventType =
   | 'goal'
   | 'yellow_card'
   | 'red_card'
