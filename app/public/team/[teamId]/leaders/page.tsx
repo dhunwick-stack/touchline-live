@@ -273,7 +273,6 @@ export default function PublicTeamLeadersPage() {
     <PublicTeamPageShell
   team={team}
   teamId={teamId}
-  description="Top performers across completed matches for this team."
   actions={[
     {
       href: `/public/team/${team.id}`,
