@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicTeamHero from '@/components/PublicTeamHero';
 import PublicTeamNav from '@/components/PublicTeamNav';
@@ -28,38 +28,65 @@ export default function PublicTeamPageShell({
   const [adminCode, setAdminCode] = useState('');
   const [adminError, setAdminError] = useState('');
   const [checkingAdminCode, setCheckingAdminCode] = useState(false);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
   // ---------------------------------------------------
-  // STANDARD PUBLIC TEAM BANNER ACTIONS
+  // ADMIN SESSION HELPERS
   // ---------------------------------------------------
 
-  const bannerActions = [
-    {
-      type: 'link' as const,
-      href: `/public/team/${team.id}`,
-      label: 'Team Page',
-      variant: 'glass' as const,
-    },
-    {
-      type: 'link' as const,
-      href: `/public/team/${team.id}/schedule`,
-      label: 'Schedule',
-      variant: 'glass' as const,
-    },
-    {
-      type: 'button' as const,
-      onClick: openAdminLogin,
-      label: 'Admin Page',
-      variant: 'admin' as const,
-      icon: 'lock' as const,
-    },
-  ];
+  function getAdminSession() {
+    try {
+      const raw = localStorage.getItem('teamAdminSession');
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function hasValidAdminSession(currentTeamId: string) {
+    try {
+      const raw = localStorage.getItem('teamAdminSession');
+      if (!raw) return false;
+
+      const session = JSON.parse(raw);
+
+      return session.teamId === currentTeamId && session.expires > Date.now();
+    } catch {
+      return false;
+    }
+  }
+
+  function setAdminSession(currentTeamId: string) {
+    const session = {
+      teamId: currentTeamId,
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    };
+
+    localStorage.setItem('teamAdminSession', JSON.stringify(session));
+  }
+
+  // ---------------------------------------------------
+  // ADMIN SESSION CHECK
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    setHasAdminAccess(hasValidAdminSession(team.id));
+  }, [team.id]);
 
   // ---------------------------------------------------
   // ADMIN LOGIN HELPERS
   // ---------------------------------------------------
 
   function openAdminLogin() {
+    const session = getAdminSession();
+
+    if (session && session.teamId === team.id && session.expires > Date.now()) {
+      setHasAdminAccess(true);
+      router.push(`/teams/${team.id}`);
+      return;
+    }
+
     setAdminCode('');
     setAdminError('');
     setCheckingAdminCode(false);
@@ -98,13 +125,45 @@ export default function PublicTeamPageShell({
       return;
     }
 
-    localStorage.setItem('teamId', team.id);
+    // ---------------------------------------------------
+    // SAVE ADMIN SESSION
+    // ---------------------------------------------------
+
+    localStorage.removeItem('teamAdminSession');
+    setAdminSession(team.id);
+    setHasAdminAccess(true);
 
     setCheckingAdminCode(false);
     setShowAdminLogin(false);
     setAdminCode('');
     router.push(`/teams/${team.id}`);
   }
+
+  // ---------------------------------------------------
+  // STANDARD PUBLIC TEAM BANNER ACTIONS
+  // ---------------------------------------------------
+
+  const bannerActions = [
+    {
+      type: 'link' as const,
+      href: `/public/team/${team.id}`,
+      label: 'Team Page',
+      variant: 'glass' as const,
+    },
+    {
+      type: 'link' as const,
+      href: `/public/team/${team.id}/schedule`,
+      label: 'Schedule',
+      variant: 'glass' as const,
+    },
+    {
+      type: 'button' as const,
+      onClick: openAdminLogin,
+      label: hasAdminAccess ? 'Admin Dashboard' : 'Admin Page',
+      variant: 'admin' as const,
+      icon: 'lock' as const,
+    },
+  ];
 
   // ---------------------------------------------------
   // PAGE

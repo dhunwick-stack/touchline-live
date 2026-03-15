@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { Lock } from 'lucide-react';
+import { getOrganizationName } from '@/lib/team-display';
 import type { Team } from '@/lib/types';
 
 type PublicTeamHeroAction =
@@ -32,6 +34,13 @@ export default function PublicTeamHero({
   description,
   actions = [],
 }: PublicTeamHeroProps) {
+  // ---------------------------------------------------
+  // DERIVED DISPLAY VALUES
+  // ---------------------------------------------------
+
+  const organizationName = getOrganizationName(team);
+  const hasOrganizationLink = !!team.organization?.slug;
+
   // ---------------------------------------------------
   // HERO STYLE
   // ---------------------------------------------------
@@ -87,16 +96,33 @@ export default function PublicTeamHero({
                 </div>
               )}
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                   {eyebrow}
                 </p>
+
                 <h1 className="mt-1 text-3xl font-black tracking-tight text-white md:text-5xl">
                   {team.name}
                 </h1>
+
                 <p className="mt-2 text-lg text-white/80">
-                  {description || team.club_name || ''}
+                  {description || organizationName || ''}
                 </p>
+
+                {/* --------------------------------------------------- */}
+                {/* ORGANIZATION LINK */}
+                {/* --------------------------------------------------- */}
+
+                {hasOrganizationLink ? (
+                  <div className="mt-3">
+                    <Link
+                      href={`/public/org/${team.organization?.slug}`}
+                      className="inline-flex items-center rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 ring-1 ring-white/15 transition hover:bg-white/15"
+                    >
+                      View all {organizationName} teams
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -110,9 +136,7 @@ export default function PublicTeamHero({
                   const content = (
                     <>
                       {action.icon === 'lock' ? (
-                        <span aria-hidden="true" className="text-base leading-none">
-                          🔒
-                        </span>
+                        <Lock className="h-4 w-4 opacity-90" />
                       ) : null}
                       {action.label}
                     </>

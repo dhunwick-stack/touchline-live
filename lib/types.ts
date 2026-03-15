@@ -1,26 +1,39 @@
 export type TrackingMode = 'full' | 'basic' | 'score_only';
-
-export type MatchStatus =
-  | 'not_started'
-  | 'scheduled'
-  | 'live'
-  | 'halftime'
-  | 'final'
-  | 'cancelled'
-  | 'postponed';
-
+export type MatchStatus = 'not_started' | 'live' | 'halftime' | 'final';
 export type TeamSide = 'home' | 'away';
-
 export type EventType =
   | 'goal'
   | 'yellow_card'
   | 'red_card'
   | 'substitution'
   | 'half_start'
-  | 'match_resumed'
-  | 'match_paused'
   | 'half_end'
   | 'full_time';
+
+export type OrganizationType =
+  | 'club'
+  | 'school'
+  | 'academy'
+  | 'rec_program'
+  | 'league_program'
+  | 'other';
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  organization_type: OrganizationType;
+  short_name?: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  website_url?: string | null;
+  city?: string | null;
+  state?: string | null;
+  description?: string | null;
+  created_at: string;
+};
 
 export type Season = {
   id: string;
@@ -46,6 +59,16 @@ export type Team = {
   created_at?: string | null;
   home_field_lat?: number | null;
   home_field_lng?: number | null;
+
+  // ---------------------------------------------------
+  // ORGANIZATION MIGRATION FIELDS
+  // ---------------------------------------------------
+
+  organization_id?: string | null;
+  team_level?: string | null;
+  gender?: string | null;
+  team_slug?: string | null;
+  organization?: Organization | null;
 };
 
 export type Player = {

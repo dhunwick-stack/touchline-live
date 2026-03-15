@@ -158,7 +158,7 @@ function TeamLoginPageInner() {
 
   return (
     <>
-      <main className="mx-auto max-w-6xl px-6 py-10">
+     <main className="mx-auto max-w-6xl px-6 pt-0 pb-10">
         <section
           className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen overflow-hidden text-white"
           style={teamGradient}
