@@ -1,9 +1,7 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, Team } from '@/lib/types';
@@ -14,6 +12,14 @@ type MatchRow = Match & {
 };
 
 export default function TeamLoginPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-6xl px-6 py-10">Loading team page...</main>}>
+      <TeamLoginPageInner />
+    </Suspense>
+  );
+}
+
+function TeamLoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = searchParams.get('teamId') || '';
@@ -287,48 +293,6 @@ export default function TeamLoginPage() {
                   </Link>
                 ) : null}
               </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Quick Team Links</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Jump directly into the most common destinations.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => beginAdminLogin('overview')}
-                className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-              >
-                Admin
-              </button>
-
-              <Link
-                href={`/public/team/${team.id}`}
-                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
-              >
-                Public
-              </Link>
-
-              <Link
-                href={`/public/team/${team.id}/leaders`}
-                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
-              >
-                Leaders
-              </Link>
-
-              <Link
-                href={`/public/team/${team.id}/schedule`}
-                className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
-              >
-                Schedule
-              </Link>
             </div>
           </div>
         </section>
