@@ -297,24 +297,26 @@ export default function TeamDetailPage() {
         eyebrow="Team Overview"
         title="Overview"
         description="Overview, roster preview, field details, recent matches, and team settings."
-        rightSlot={
-          <>
-            <button
-              type="button"
-              onClick={() => setEditing((prev) => !prev)}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              {editing ? 'Close Edit' : 'Edit Team'}
-            </button>
+       rightSlot={
+  <>
+    
 
-            <Link
-              href={`/teams/${team.id}/stats`}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-            >
-              View Stats
-            </Link>
-          </>
-        }
+    <button
+      type="button"
+      onClick={() => setEditing((prev) => !prev)}
+      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+    >
+      {editing ? 'Close Edit' : 'Edit Team'}
+    </button>
+
+    <Link
+      href={`/teams/${team.id}/stats`}
+      className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+    >
+      View Stats
+    </Link>
+  </>
+}
       />
 
       {/* --------------------------------------------------- */}

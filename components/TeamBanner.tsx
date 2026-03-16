@@ -147,11 +147,11 @@ export default function TeamBanner({
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/matches/new"
-                className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
-              >
-                New Match
-              </Link>
+      href={`/teams/${team.id}/new-match`}
+      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
+    >
+      Start Match
+    </Link>
 
               {setEditing && (
                 <button

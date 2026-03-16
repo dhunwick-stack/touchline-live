@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { hasValidAdminSession, clearAdminSession } from '@/lib/admin-session';
 
 const adminSections = [
   {
@@ -20,12 +23,31 @@ const adminSections = [
   },
   {
     title: 'Public Teams',
-    description: 'Jump to the public team directory and public-facing pages.',
-    href: '/public/teams',
+    description: 'Jump to the main team list and login entry point.',
+    href: '/teams',
   },
 ];
 
 export default function AdminHomePage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const isValid = hasValidAdminSession();
+
+    if (!isValid) {
+      clearAdminSession();
+      router.replace('/admin/admin-login?next=/admin');
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [router]);
+
+  if (!authChecked) {
+    return <main className="mx-auto max-w-6xl px-6 py-10">Loading admin...</main>;
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       {/* --------------------------------------------------- */}
