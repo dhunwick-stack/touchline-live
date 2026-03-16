@@ -1,11 +1,14 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -22,7 +25,17 @@ type PlayerLeaderRow = {
   redCards: number;
 };
 
+type LeaderStatKey = 'goals' | 'assists' | 'yellowCards' | 'redCards';
+
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
+
 export default function PublicTeamLeadersPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const teamId =
     typeof params?.teamId === 'string'
@@ -31,24 +44,37 @@ export default function PublicTeamLeadersPage() {
         ? params.teamId[0]
         : '';
 
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
+
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('all');
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBase, setLoadingBase] = useState(true);
+  const [loadingLeaders, setLoadingLeaders] = useState(true);
   const [error, setError] = useState('');
+
+  // ---------------------------------------------------
+  // LOAD BASE PAGE DATA
+  // TEAM / PLAYERS / SEASONS
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!teamId) {
       setError('No team id found.');
-      setLoading(false);
+      setLoadingBase(false);
+      setLoadingLeaders(false);
       return;
     }
 
+    let isMounted = true;
+
     async function loadBaseData() {
-      setLoading(true);
+      setLoadingBase(true);
       setError('');
 
       const [
@@ -57,13 +83,15 @@ export default function PublicTeamLeadersPage() {
         { data: seasonData, error: seasonError },
       ] = await Promise.all([
         supabase
-  .from('teams')
-  .select(`
-    *,
-    organization:organization_id (*)
-  `)
-  .eq('id', teamId)
-  .single(),
+          .from('teams')
+          .select(
+            `
+              *,
+              organization:organization_id (*)
+            `,
+          )
+          .eq('id', teamId)
+          .single(),
         supabase
           .from('players')
           .select('*')
@@ -73,6 +101,8 @@ export default function PublicTeamLeadersPage() {
         supabase.from('seasons').select('*').order('start_date', { ascending: false }),
       ]);
 
+      if (!isMounted) return;
+
       if (teamError || playerError || seasonError) {
         setError(
           teamError?.message ||
@@ -80,35 +110,50 @@ export default function PublicTeamLeadersPage() {
             seasonError?.message ||
             'Failed to load team leaders.',
         );
-        setLoading(false);
+        setLoadingBase(false);
+        setLoadingLeaders(false);
         return;
       }
 
       const loadedSeasons = (seasonData as Season[]) ?? [];
+      const activeSeasonId = loadedSeasons.find((season) => season.is_active)?.id ?? 'all';
 
       setTeam(teamData as Team);
       setPlayers((playerData as Player[]) ?? []);
       setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeasons.find((season) => season.is_active)?.id || 'all');
-      setLoading(false);
+      setSelectedSeasonId(activeSeasonId);
+      setLoadingBase(false);
     }
 
     loadBaseData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [teamId]);
 
+  // ---------------------------------------------------
+  // LOAD MATCHES + EVENTS FOR LEADERBOARDS
+  // ---------------------------------------------------
+
   useEffect(() => {
-    if (!teamId) return;
+    if (!teamId || loadingBase) return;
+
+    let isMounted = true;
 
     async function loadLeaderData() {
+      setLoadingLeaders(true);
       setError('');
 
       let matchesQuery = supabase
         .from('matches')
-        .select(`
-          *,
-          home_team:home_team_id (*),
-          away_team:away_team_id (*)
-        `)
+        .select(
+          `
+            *,
+            home_team:home_team_id (*),
+            away_team:away_team_id (*)
+          `,
+        )
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
         .eq('status', 'final')
         .order('match_date', { ascending: false, nullsFirst: false });
@@ -119,8 +164,13 @@ export default function PublicTeamLeadersPage() {
 
       const { data: matchData, error: matchError } = await matchesQuery;
 
+      if (!isMounted) return;
+
       if (matchError) {
         setError(matchError.message);
+        setMatches([]);
+        setEvents([]);
+        setLoadingLeaders(false);
         return;
       }
 
@@ -129,6 +179,7 @@ export default function PublicTeamLeadersPage() {
 
       if (loadedMatches.length === 0) {
         setEvents([]);
+        setLoadingLeaders(false);
         return;
       }
 
@@ -139,27 +190,44 @@ export default function PublicTeamLeadersPage() {
         .select('*')
         .in('match_id', matchIds);
 
+      if (!isMounted) return;
+
       if (eventError) {
         setError(eventError.message);
+        setEvents([]);
+        setLoadingLeaders(false);
         return;
       }
 
       setEvents((eventData as MatchEvent[]) ?? []);
+      setLoadingLeaders(false);
     }
 
     loadLeaderData();
-  }, [teamId, selectedSeasonId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [teamId, selectedSeasonId, loadingBase]);
+
+  // ---------------------------------------------------
+  // BUILD PER-PLAYER STAT ROWS
+  // ---------------------------------------------------
 
   const leaderRows = useMemo<PlayerLeaderRow[]>(() => {
     const statsMap = new Map<string, PlayerLeaderRow>();
 
+    // -----------------------------------------------
+    // Seed every player with zeroed stats
+    // -----------------------------------------------
+
     for (const player of players) {
-      const fullName =
+      const playerName =
         [player.first_name, player.last_name].filter(Boolean).join(' ') || 'Unnamed Player';
 
       statsMap.set(player.id, {
         playerId: player.id,
-        playerName: fullName,
+        playerName,
         jerseyNumber:
           player.jersey_number !== null && player.jersey_number !== undefined
             ? `#${player.jersey_number}`
@@ -170,6 +238,10 @@ export default function PublicTeamLeadersPage() {
         redCards: 0,
       });
     }
+
+    // -----------------------------------------------
+    // Apply match events to stat totals
+    // -----------------------------------------------
 
     for (const event of events) {
       if (event.team_id !== teamId) continue;
@@ -202,9 +274,13 @@ export default function PublicTeamLeadersPage() {
     return Array.from(statsMap.values());
   }, [events, players, teamId]);
 
+  // ---------------------------------------------------
+  // SORTED LEADERBOARD VIEWS
+  // ---------------------------------------------------
+
   const goalsLeaders = useMemo(
     () =>
-      leaderRows
+      [...leaderRows]
         .filter((row) => row.goals > 0)
         .sort(
           (a, b) =>
@@ -217,7 +293,7 @@ export default function PublicTeamLeadersPage() {
 
   const assistsLeaders = useMemo(
     () =>
-      leaderRows
+      [...leaderRows]
         .filter((row) => row.assists > 0)
         .sort(
           (a, b) =>
@@ -230,7 +306,7 @@ export default function PublicTeamLeadersPage() {
 
   const yellowCardLeaders = useMemo(
     () =>
-      leaderRows
+      [...leaderRows]
         .filter((row) => row.yellowCards > 0)
         .sort(
           (a, b) =>
@@ -243,7 +319,7 @@ export default function PublicTeamLeadersPage() {
 
   const redCardLeaders = useMemo(
     () =>
-      leaderRows
+      [...leaderRows]
         .filter((row) => row.redCards > 0)
         .sort(
           (a, b) =>
@@ -254,12 +330,28 @@ export default function PublicTeamLeadersPage() {
     [leaderRows],
   );
 
+  // ---------------------------------------------------
+  // SUMMARY VALUES
+  // ---------------------------------------------------
+
   const totalGoals = useMemo(
     () => leaderRows.reduce((sum, row) => sum + row.goals, 0),
     [leaderRows],
   );
 
-  if (loading) {
+  const playersWithStats = useMemo(
+    () =>
+      leaderRows.filter(
+        (row) => row.goals > 0 || row.assists > 0 || row.yellowCards > 0 || row.redCards > 0,
+      ).length,
+    [leaderRows],
+  );
+
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
+  if (loadingBase) {
     return <main className="mx-auto max-w-7xl px-6 py-8">Loading team leaders...</main>;
   }
 
@@ -273,106 +365,108 @@ export default function PublicTeamLeadersPage() {
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
             Team leaders unavailable
           </h1>
-          <p className="mt-3 text-slate-600">
-            {error || 'This team could not be found.'}
-          </p>
+          <p className="mt-3 text-slate-600">{error || 'This team could not be found.'}</p>
         </div>
       </main>
     );
   }
 
+  // ---------------------------------------------------
+  // PAGE RENDER
+  // ---------------------------------------------------
+
   return (
     <PublicTeamPageShell team={team} teamId={teamId}>
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      {/* --------------------------------------------- */}
+      {/* PAGE INTRO / FILTER */}
+      {/* --------------------------------------------- */}
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
             Team Leaders
           </p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
-            {team.name}
-          </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 max-w-2xl text-slate-600">
             Top performers across completed matches for this team.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/public/team/${team.id}`}
-            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm"
+        <div className="w-full max-w-[260px]">
+          <label className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Season
+          </label>
+          <select
+            value={selectedSeasonId}
+            onChange={(e) => setSelectedSeasonId(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
           >
-            Team Page
-          </Link>
-
-          <Link
-            href={`/public/team/${team.id}/schedule`}
-            className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-          >
-            Schedule
-          </Link>
+            <option value="all">All Seasons</option>
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
+      {/* --------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------- */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <SummaryCard label="Final Matches Counted" value={matches.length} />
-        <SummaryCard label="Players With Stats" value={leaderRows.length} />
+        <SummaryCard label="Players With Stats" value={playersWithStats} />
         <SummaryCard label="Goals Logged" value={totalGoals} />
       </section>
 
-      <div className="mb-8 max-w-[260px]">
-        <label className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Season
-        </label>
-        <select
-          value={selectedSeasonId}
-          onChange={(e) => setSelectedSeasonId(e.target.value)}
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm"
-        >
-          <option value="all">All Seasons</option>
-          {seasons.map((season) => (
-            <option key={season.id} value={season.id}>
-              {season.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* --------------------------------------------- */}
+      {/* LEADERBOARDS */}
+      {/* --------------------------------------------- */}
+      {loadingLeaders ? (
+        <div className="rounded-3xl bg-white p-8 text-slate-600 shadow-md ring-1 ring-slate-200">
+          Loading leaderboard data...
+        </div>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <LeaderboardTable
+            title="Goals Leaders"
+            statLabel="Goals"
+            rows={goalsLeaders}
+            valueKey="goals"
+            emptyText="No goals recorded yet."
+          />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <LeaderboardTable
-          title="Goals Leaders"
-          statLabel="Goals"
-          rows={goalsLeaders}
-          valueKey="goals"
-          emptyText="No goals recorded yet."
-        />
+          <LeaderboardTable
+            title="Assist Leaders"
+            statLabel="Assists"
+            rows={assistsLeaders}
+            valueKey="assists"
+            emptyText="No assists recorded yet."
+          />
 
-        <LeaderboardTable
-          title="Assist Leaders"
-          statLabel="Assists"
-          rows={assistsLeaders}
-          valueKey="assists"
-          emptyText="No assists recorded yet."
-        />
+          <LeaderboardTable
+            title="Yellow Card Leaders"
+            statLabel="Yellow Cards"
+            rows={yellowCardLeaders}
+            valueKey="yellowCards"
+            emptyText="No yellow cards recorded yet."
+          />
 
-        <LeaderboardTable
-          title="Yellow Card Leaders"
-          statLabel="Yellow Cards"
-          rows={yellowCardLeaders}
-          valueKey="yellowCards"
-          emptyText="No yellow cards recorded yet."
-        />
-
-        <LeaderboardTable
-          title="Red Card Leaders"
-          statLabel="Red Cards"
-          rows={redCardLeaders}
-          valueKey="redCards"
-          emptyText="No red cards recorded yet."
-        />
-      </div>
+          <LeaderboardTable
+            title="Red Card Leaders"
+            statLabel="Red Cards"
+            rows={redCardLeaders}
+            valueKey="redCards"
+            emptyText="No red cards recorded yet."
+          />
+        </div>
+      )}
     </PublicTeamPageShell>
   );
 }
+
+// ---------------------------------------------------
+// SUMMARY CARD
+// ---------------------------------------------------
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -382,6 +476,10 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
     </div>
   );
 }
+
+// ---------------------------------------------------
+// LEADERBOARD TABLE
+// ---------------------------------------------------
 
 function LeaderboardTable({
   title,
@@ -393,17 +491,21 @@ function LeaderboardTable({
   title: string;
   statLabel: string;
   rows: PlayerLeaderRow[];
-  valueKey: 'goals' | 'assists' | 'yellowCards' | 'redCards';
+  valueKey: LeaderStatKey;
   emptyText: string;
 }) {
-  const gradientMap = {
+  // ---------------------------------------------------
+  // STYLE MAPS
+  // ---------------------------------------------------
+
+  const gradientMap: Record<LeaderStatKey, string> = {
     goals: 'from-green-50 via-white to-white',
     assists: 'from-blue-50 via-white to-white',
     yellowCards: 'from-yellow-50 via-white to-white',
     redCards: 'from-red-50 via-white to-white',
   };
 
-  const pillMap = {
+  const pillMap: Record<LeaderStatKey, string> = {
     goals: 'bg-emerald-500 text-white',
     assists: 'bg-blue-500 text-white',
     yellowCards: 'bg-amber-400 text-slate-950',
@@ -417,6 +519,9 @@ function LeaderboardTable({
     <section
       className={`rounded-3xl bg-gradient-to-b ${gradientClass} p-6 shadow-md ring-1 ring-slate-200`}
     >
+      {/* ------------------------------------------- */}
+      {/* TABLE HEADER */}
+      {/* ------------------------------------------- */}
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-3xl font-black tracking-tight text-slate-900">{title}</h2>
 
@@ -425,6 +530,9 @@ function LeaderboardTable({
         </span>
       </div>
 
+      {/* ------------------------------------------- */}
+      {/* TABLE BODY */}
+      {/* ------------------------------------------- */}
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90">
         <div className="grid grid-cols-[90px_1fr_120px] bg-slate-50 px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
           <div>Rank</div>
@@ -448,6 +556,7 @@ function LeaderboardTable({
                     <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-600">
                       {row.jerseyNumber || '—'}
                     </span>
+
                     <p className="truncate text-xl font-bold text-slate-900">{row.playerName}</p>
                   </div>
                 </div>
