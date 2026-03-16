@@ -116,7 +116,7 @@ export default function PublicTeamHero({
                 {hasOrganizationLink ? (
                   <div className="mt-3">
                     <Link
-                      href={`/public/org/${team.organization?.slug}`}
+                      href={`/public/org/${team.organization!.slug}`}
                       className="inline-flex items-center rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 ring-1 ring-white/15 transition hover:bg-white/15"
                     >
                       View all {organizationName} teams
@@ -135,9 +135,7 @@ export default function PublicTeamHero({
                 {actions.map((action) => {
                   const content = (
                     <>
-                      {action.icon === 'lock' ? (
-                        <Lock className="h-4 w-4 opacity-90" />
-                      ) : null}
+                      {action.icon === 'lock' ? <Lock className="h-4 w-4 opacity-90" /> : null}
                       {action.label}
                     </>
                   );

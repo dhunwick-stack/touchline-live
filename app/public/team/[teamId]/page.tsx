@@ -65,7 +65,14 @@ export default function PublicTeamPage() {
         { data: matchData, error: matchError },
         { data: nextMatchData, error: nextMatchError },
       ] = await Promise.all([
-        supabase.from('teams').select('*').eq('id', teamId).single(),
+        supabase
+  .from('teams')
+  .select(`
+    *,
+    organization:organization_id (*)
+  `)
+  .eq('id', teamId)
+  .single(),
         supabase
           .from('players')
           .select('*')

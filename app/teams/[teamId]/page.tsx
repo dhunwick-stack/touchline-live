@@ -6,9 +6,7 @@ import FieldCard from '@/components/FieldCard';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Match, Player, Team } from '@/lib/types';
-
-
+import type { Match, Organization, Player, Team } from '@/lib/types';
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -36,6 +34,7 @@ export default function TeamDetailPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
@@ -47,6 +46,9 @@ export default function TeamDetailPage() {
 
   const [teamName, setTeamName] = useState('');
   const [clubName, setClubName] = useState('');
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [teamLevel, setTeamLevel] = useState('');
+  const [gender, setGender] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [homeFieldName, setHomeFieldName] = useState('');
   const [homeFieldAddress, setHomeFieldAddress] = useState('');
@@ -92,8 +94,16 @@ export default function TeamDetailPage() {
       { data: teamData, error: teamError },
       { data: playerData, error: playerError },
       { data: recentMatchData, error: recentMatchError },
+      { data: organizationData, error: organizationError },
     ] = await Promise.all([
-      supabase.from('teams').select('*').eq('id', teamId).single(),
+      supabase
+        .from('teams')
+        .select(`
+          *,
+          organization:organization_id (*)
+        `)
+        .eq('id', teamId)
+        .single(),
       supabase
         .from('players')
         .select('*')
@@ -110,13 +120,15 @@ export default function TeamDetailPage() {
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
         .order('match_date', { ascending: false, nullsFirst: false })
         .limit(5),
+      supabase.from('organizations').select('*').order('name', { ascending: true }),
     ]);
 
-    if (teamError || playerError || recentMatchError) {
+    if (teamError || playerError || recentMatchError || organizationError) {
       setError(
         teamError?.message ||
           playerError?.message ||
           recentMatchError?.message ||
+          organizationError?.message ||
           'Failed to load team.',
       );
       setLoading(false);
@@ -126,10 +138,12 @@ export default function TeamDetailPage() {
     const loadedTeam = teamData as Team;
     const loadedPlayers = (playerData as Player[]) ?? [];
     const loadedRecentMatches = (recentMatchData as MatchRow[]) ?? [];
+    const loadedOrganizations = (organizationData as Organization[]) ?? [];
 
     setTeam(loadedTeam);
     setPlayers(loadedPlayers);
     setRecentMatches(loadedRecentMatches);
+    setOrganizations(loadedOrganizations);
 
     // -----------------------------------------------
     // PREFILL EDIT FORM
@@ -137,6 +151,9 @@ export default function TeamDetailPage() {
 
     setTeamName(loadedTeam.name || '');
     setClubName(loadedTeam.club_name || '');
+    setOrganizationId(loadedTeam.organization_id || null);
+    setTeamLevel(loadedTeam.team_level || '');
+    setGender(loadedTeam.gender || '');
     setLogoUrl(loadedTeam.logo_url || '');
     setHomeFieldName(loadedTeam.home_field_name || '');
     setHomeFieldAddress(loadedTeam.home_field_address || '');
@@ -157,11 +174,22 @@ export default function TeamDetailPage() {
     setSaving(true);
     setError('');
 
+    const selectedOrganization =
+      organizations.find((org) => org.id === organizationId) || null;
+
+    const resolvedClubName =
+      clubName.trim() ||
+      selectedOrganization?.name ||
+      null;
+
     const { data, error } = await supabase
       .from('teams')
       .update({
         name: teamName.trim() || null,
-        club_name: clubName.trim() || null,
+        club_name: resolvedClubName,
+        organization_id: organizationId,
+        team_level: teamLevel.trim() || null,
+        gender: gender.trim() || null,
         logo_url: logoUrl.trim() || null,
         home_field_name: homeFieldName.trim() || null,
         home_field_address: homeFieldAddress.trim() || null,
@@ -170,7 +198,10 @@ export default function TeamDetailPage() {
         banner_url: bannerUrl.trim() || null,
       })
       .eq('id', team.id)
-      .select()
+      .select(`
+        *,
+        organization:organization_id (*)
+      `)
       .single();
 
     if (error) {
@@ -258,33 +289,33 @@ export default function TeamDetailPage() {
 
   return (
     <>
-     {/* --------------------------------------------------- */}
-{/* TEAM PAGE INTRO */}
-{/* --------------------------------------------------- */}
+      {/* --------------------------------------------------- */}
+      {/* TEAM PAGE INTRO */}
+      {/* --------------------------------------------------- */}
 
-<TeamPageIntro
-  eyebrow="Team Overview"
-  title="Overview"
-  description="Overview, roster preview, field details, recent matches, and team settings."
-  rightSlot={
-    <>
-      <button
-        type="button"
-        onClick={() => setEditing((prev) => !prev)}
-        className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-      >
-        {editing ? 'Close Edit' : 'Edit Team'}
-      </button>
+      <TeamPageIntro
+        eyebrow="Team Overview"
+        title="Overview"
+        description="Overview, roster preview, field details, recent matches, and team settings."
+        rightSlot={
+          <>
+            <button
+              type="button"
+              onClick={() => setEditing((prev) => !prev)}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            >
+              {editing ? 'Close Edit' : 'Edit Team'}
+            </button>
 
-      <Link
-        href={`/teams/${team.id}/stats`}
-        className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-      >
-        View Stats
-      </Link>
-    </>
-  }
-/>
+            <Link
+              href={`/teams/${team.id}/stats`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              View Stats
+            </Link>
+          </>
+        }
+      />
 
       {/* --------------------------------------------------- */}
       {/* SUMMARY CARDS */}
@@ -301,16 +332,14 @@ export default function TeamDetailPage() {
       {/* --------------------------------------------------- */}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-       {/* ------------------------------------------------- */}
-{/* HOME FIELD CARD */}
-{/* ------------------------------------------------- */}
+        {/* ------------------------------------------------- */}
+        {/* HOME FIELD CARD */}
+        {/* ------------------------------------------------- */}
 
-<FieldCard
-  fieldName={team.home_field_name}
-  fieldAddress={team.home_field_address}
-/> 
-
-
+        <FieldCard
+          fieldName={team.home_field_name}
+          fieldAddress={team.home_field_address}
+        />
 
         {/* ------------------------------------------------- */}
         {/* ROSTER PREVIEW */}
@@ -492,12 +521,52 @@ export default function TeamDetailPage() {
               />
             </Field>
 
-            <Field label="Club Name">
+            <Field label="Organization">
+              <select
+                value={organizationId ?? ''}
+                onChange={(e) => setOrganizationId(e.target.value || null)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              >
+                <option value="">No organization</option>
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Club / Display Name (legacy compatibility)">
               <input
                 value={clubName}
                 onChange={(e) => setClubName(e.target.value)}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                placeholder="Optional fallback display name"
               />
+            </Field>
+
+            <Field label="Team Level">
+              <input
+                value={teamLevel}
+                onChange={(e) => setTeamLevel(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                placeholder="Varsity, JV, Premier, Elite..."
+              />
+            </Field>
+
+            <Field label="Gender">
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              >
+                <option value="">Not set</option>
+                <option value="boys">Boys</option>
+                <option value="girls">Girls</option>
+                <option value="men">Men</option>
+                <option value="women">Women</option>
+                <option value="coed">Coed</option>
+              </select>
             </Field>
 
             <Field label="Logo URL">
@@ -585,6 +654,9 @@ export default function TeamDetailPage() {
                 setEditing(false);
                 setTeamName(team.name || '');
                 setClubName(team.club_name || '');
+                setOrganizationId(team.organization_id || null);
+                setTeamLevel(team.team_level || '');
+                setGender(team.gender || '');
                 setLogoUrl(team.logo_url || '');
                 setHomeFieldName(team.home_field_name || '');
                 setHomeFieldAddress(team.home_field_address || '');

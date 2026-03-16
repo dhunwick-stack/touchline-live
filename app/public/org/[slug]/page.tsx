@@ -236,30 +236,21 @@ const heroStyle = useMemo(
       </div>
 
       {/* RIGHT SIDE */}
-      <div className="flex flex-wrap gap-3">
+<div className="flex flex-wrap gap-3">
+ <Link
+  href={`/public/org/${organization.slug}`}
+  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+>
+  Overview
+</Link>
 
-        <a
-          href={`/organizations/${organization.id}`}
-          className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white/20"
-        >
-          Teams
-        </a>
-
-        <a
-          href={`/organizations/${organization.id}/schedule`}
-          className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white/20"
-        >
-          Schedule
-        </a>
-
-        <a
-          href="/teams"
-          className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white/20"
-        >
-          All Teams
-        </a>
-
-      </div>
+  <Link
+    href={`/public/org/${organization.slug}/schedule`}
+    className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur hover:bg-white/20"
+  >
+    Schedule
+  </Link>
+</div>
     </div>
 
   </div>

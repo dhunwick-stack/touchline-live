@@ -67,31 +67,41 @@ export default function PublicTeamPageShell({
   }
 
   // ---------------------------------------------------
-  // ADMIN SESSION CHECK
-  // ---------------------------------------------------
+// ADMIN SESSION CHECK
+// ---------------------------------------------------
 
-  useEffect(() => {
-    setHasAdminAccess(hasValidAdminSession(team.id));
-  }, [team.id]);
+useEffect(() => {
+  const isValid = hasValidAdminSession(team.id);
+
+  if (isValid) {
+    localStorage.setItem('teamId', team.id);
+  } else {
+    localStorage.removeItem('teamAdminSession');
+    localStorage.removeItem('teamId');
+  }
+
+  setHasAdminAccess(isValid);
+}, [team.id]);
 
   // ---------------------------------------------------
   // ADMIN LOGIN HELPERS
   // ---------------------------------------------------
 
-  function openAdminLogin() {
-    const session = getAdminSession();
+ function openAdminLogin() {
+  const session = getAdminSession();
 
-    if (session && session.teamId === team.id && session.expires > Date.now()) {
-      setHasAdminAccess(true);
-      router.push(`/teams/${team.id}`);
-      return;
-    }
-
-    setAdminCode('');
-    setAdminError('');
-    setCheckingAdminCode(false);
-    setShowAdminLogin(true);
+  if (session && session.teamId === team.id && session.expires > Date.now()) {
+    localStorage.setItem('teamId', team.id);
+    setHasAdminAccess(true);
+    router.push(`/teams/${team.id}`);
+    return;
   }
+
+  setAdminCode('');
+  setAdminError('');
+  setCheckingAdminCode(false);
+  setShowAdminLogin(true);
+}
 
   function closeAdminLogin() {
     setShowAdminLogin(false);

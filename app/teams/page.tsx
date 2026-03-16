@@ -3,14 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Team } from '@/lib/types';
+import type { Organization, Team } from '@/lib/types';
+
+type TeamRow = Team & {
+  organization: Organization | null;
+};
 
 export default function TeamsPage() {
   // ---------------------------------------------------
   // DATA STATE
   // ---------------------------------------------------
 
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teams, setTeams] = useState<TeamRow[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [search, setSearch] = useState('');
 
   // ---------------------------------------------------
@@ -19,6 +24,9 @@ export default function TeamsPage() {
 
   const [name, setName] = useState('');
   const [clubName, setClubName] = useState('');
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [teamLevel, setTeamLevel] = useState('');
+  const [gender, setGender] = useState('');
   const [ageGroup, setAgeGroup] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
 
@@ -35,17 +43,27 @@ export default function TeamsPage() {
   // ---------------------------------------------------
 
   async function loadTeams() {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [
+      { data: teamData, error: teamError },
+      { data: organizationData, error: organizationError },
+    ] = await Promise.all([
+      supabase
+        .from('teams')
+        .select(`
+          *,
+          organization:organization_id (*)
+        `)
+        .order('created_at', { ascending: false }),
+      supabase.from('organizations').select('*').order('name', { ascending: true }),
+    ]);
 
-    if (error) {
-      setMessage(`Load error: ${error.message}`);
+    if (teamError || organizationError) {
+      setMessage(`Load error: ${teamError?.message || organizationError?.message}`);
       return;
     }
 
-    setTeams(data ?? []);
+    setTeams((teamData as TeamRow[]) ?? []);
+    setOrganizations((organizationData as Organization[]) ?? []);
   }
 
   useEffect(() => {
@@ -64,9 +82,20 @@ export default function TeamsPage() {
     setLoading(true);
     setMessage('');
 
+    const selectedOrganization =
+      organizations.find((org) => org.id === organizationId) || null;
+
+    const resolvedClubName =
+      clubName.trim() ||
+      selectedOrganization?.name ||
+      null;
+
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),
-      club_name: clubName.trim() || null,
+      club_name: resolvedClubName,
+      organization_id: organizationId,
+      team_level: teamLevel.trim() || null,
+      gender: gender.trim() || null,
       age_group: ageGroup.trim() || null,
       logo_url: logoUrl.trim() || null,
       is_reusable: true,
@@ -80,6 +109,9 @@ export default function TeamsPage() {
 
     setName('');
     setClubName('');
+    setOrganizationId(null);
+    setTeamLevel('');
+    setGender('');
     setAgeGroup('');
     setLogoUrl('');
     setMessage('Team added.');
@@ -101,11 +133,34 @@ export default function TeamsPage() {
     return teams.filter((team) => {
       const teamName = (team.name || '').toLowerCase();
       const club = (team.club_name || '').toLowerCase();
+      const orgName = (team.organization?.name || '').toLowerCase();
       const age = (team.age_group || '').toLowerCase();
+      const level = (team.team_level || '').toLowerCase();
+      const teamGender = (team.gender || '').toLowerCase();
 
-      return teamName.includes(q) || club.includes(q) || age.includes(q);
+      return (
+        teamName.includes(q) ||
+        club.includes(q) ||
+        orgName.includes(q) ||
+        age.includes(q) ||
+        level.includes(q) ||
+        teamGender.includes(q)
+      );
     });
   }, [teams, search]);
+
+  // ---------------------------------------------------
+  // RENDER HELPERS
+  // ---------------------------------------------------
+
+  function getTeamSubtext(team: TeamRow) {
+    const parentName = team.organization?.name || team.club_name || 'No organization';
+    const details = [team.age_group, team.team_level, team.gender]
+      .filter(Boolean)
+      .join(' • ');
+
+    return details ? `${parentName} • ${details}` : parentName;
+  }
 
   // ---------------------------------------------------
   // RENDER
@@ -160,7 +215,7 @@ export default function TeamsPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search teams, clubs, or age groups..."
+              placeholder="Search teams, organizations, age groups, levels, or gender..."
               className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
           </div>
@@ -188,7 +243,7 @@ export default function TeamsPage() {
             <div>
               <h2 className="text-xl font-bold text-slate-900">Create Team</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Add a reusable team with optional club, age group, and logo.
+                Add a reusable team with organization support, age group, level, gender, and logo.
               </p>
             </div>
 
@@ -200,12 +255,45 @@ export default function TeamsPage() {
                 className="rounded-xl border border-slate-300 px-4 py-3"
               />
 
+              <select
+                value={organizationId ?? ''}
+                onChange={(e) => setOrganizationId(e.target.value || null)}
+                className="rounded-xl border border-slate-300 px-4 py-3"
+              >
+                <option value="">No organization</option>
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+
               <input
                 value={clubName}
                 onChange={(e) => setClubName(e.target.value)}
-                placeholder="Club name"
+                placeholder="Club / display name (legacy compatibility)"
                 className="rounded-xl border border-slate-300 px-4 py-3"
               />
+
+              <input
+                value={teamLevel}
+                onChange={(e) => setTeamLevel(e.target.value)}
+                placeholder="Team level (Varsity, JV, Premier...)"
+                className="rounded-xl border border-slate-300 px-4 py-3"
+              />
+
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="rounded-xl border border-slate-300 px-4 py-3"
+              >
+                <option value="">Gender</option>
+                <option value="boys">Boys</option>
+                <option value="girls">Girls</option>
+                <option value="men">Men</option>
+                <option value="women">Women</option>
+                <option value="coed">Coed</option>
+              </select>
 
               <input
                 value={ageGroup}
@@ -218,7 +306,7 @@ export default function TeamsPage() {
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 placeholder="Logo URL"
-                className="rounded-xl border border-slate-300 px-4 py-3"
+                className="rounded-xl border border-slate-300 px-4 py-3 md:col-span-2"
               />
             </div>
 
@@ -272,8 +360,7 @@ export default function TeamsPage() {
               <div className="min-w-0">
                 <div className="truncate font-semibold">{team.name}</div>
                 <div className="truncate text-sm text-slate-500">
-                  {team.club_name || 'No club'}
-                  {team.age_group ? ` • ${team.age_group}` : ''}
+                  {getTeamSubtext(team)}
                 </div>
               </div>
             </div>
