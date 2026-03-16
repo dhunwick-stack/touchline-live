@@ -41,6 +41,17 @@ export default function PublicTeamHero({
   const organizationName = getOrganizationName(team);
   const hasOrganizationLink = !!team.organization?.slug;
 
+  const teamMeta = [
+  team.age_group,
+  team.team_level,
+  team.gender ? team.gender.charAt(0).toUpperCase() + team.gender.slice(1) : null
+]
+  .filter(Boolean)
+  .join(' • ');
+
+  const secondaryLine =
+    teamMeta || description || organizationName || '';
+
   // ---------------------------------------------------
   // HERO STYLE
   // ---------------------------------------------------
@@ -78,12 +89,12 @@ export default function PublicTeamHero({
 
       <div className="relative mx-auto max-w-7xl px-6 py-8">
         <div className="rounded-[32px] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             {/* --------------------------------------------------- */}
-            {/* TEAM INFO */}
+            {/* LEFT SIDE */}
             {/* --------------------------------------------------- */}
 
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               {team.logo_url ? (
                 <img
                   src={team.logo_url}
@@ -97,21 +108,41 @@ export default function PublicTeamHero({
               )}
 
               <div className="min-w-0">
+                {/* --------------------------------------------------- */}
+                {/* BREADCRUMBS */}
+                {/* --------------------------------------------------- */}
+
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-white/80">
+                  <Link href="/public/org" className="transition hover:text-white">
+                    Organizations
+                  </Link>
+
+                  {team.organization?.slug ? (
+                    <>
+                      <span className="text-white/50">›</span>
+                      <Link
+                        href={`/public/org/${team.organization.slug}`}
+                        className="transition hover:text-white"
+                      >
+                        {team.organization.name}
+                      </Link>
+                    </>
+                  ) : null}
+                </div>
+
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                   {eyebrow}
                 </p>
 
-                <h1 className="mt-1 text-3xl font-black tracking-tight text-white md:text-5xl">
+                <h1 className="mt-1 truncate text-3xl font-black tracking-tight text-white md:text-5xl">
                   {team.name}
                 </h1>
 
-                <p className="mt-2 text-lg text-white/80">
-                  {description || organizationName || ''}
-                </p>
-
-                {/* --------------------------------------------------- */}
-                {/* ORGANIZATION LINK */}
-                {/* --------------------------------------------------- */}
+                {secondaryLine ? (
+                  <p className="mt-2 text-lg text-white/80">
+                    {secondaryLine}
+                  </p>
+                ) : null}
 
                 {hasOrganizationLink ? (
                   <div className="mt-3">
@@ -127,11 +158,11 @@ export default function PublicTeamHero({
             </div>
 
             {/* --------------------------------------------------- */}
-            {/* HERO ACTIONS */}
+            {/* RIGHT SIDE ACTIONS */}
             {/* --------------------------------------------------- */}
 
             {actions.length > 0 ? (
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 xl:justify-end">
                 {actions.map((action) => {
                   const content = (
                     <>
