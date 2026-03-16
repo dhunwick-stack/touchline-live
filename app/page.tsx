@@ -246,12 +246,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <Link
-              href="/matches/new"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Start Match
-            </Link>
+           
           </div>
 
           {loading ? (

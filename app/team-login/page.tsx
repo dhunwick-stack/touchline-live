@@ -13,27 +13,50 @@ type MatchRow = Match & {
 
 export default function TeamLoginPage() {
   return (
-    <Suspense fallback={<main className="mx-auto max-w-6xl px-6 py-10">Loading team page...</main>}>
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-6xl px-6 py-10">
+          Loading team page...
+        </main>
+      }
+    >
       <TeamLoginPageInner />
     </Suspense>
   );
 }
 
 function TeamLoginPageInner() {
+  // ---------------------------------------------------
+  // ROUTER / SEARCH PARAMS
+  // ---------------------------------------------------
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = searchParams.get('teamId') || '';
+  const mode = searchParams.get('mode') || '';
+
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
 
   const [team, setTeam] = useState<Team | null>(null);
   const [liveMatch, setLiveMatch] = useState<MatchRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // ---------------------------------------------------
+  // ADMIN LOGIN STATE
+  // ---------------------------------------------------
+
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminCode, setAdminCode] = useState('');
   const [adminError, setAdminError] = useState('');
   const [checkingAdminCode, setCheckingAdminCode] = useState(false);
   const [adminTarget, setAdminTarget] = useState<'overview' | 'live'>('overview');
+
+  // ---------------------------------------------------
+  // LOAD TEAM / LIVE MATCH
+  // ---------------------------------------------------
 
   useEffect(() => {
     async function loadPage() {
@@ -81,6 +104,23 @@ function TeamLoginPageInner() {
 
     loadPage();
   }, [teamId]);
+
+  // ---------------------------------------------------
+  // AUTO OPEN ADMIN LOGIN FROM TEAMS PAGE
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    if (!loading && team && teamId && mode === 'admin') {
+      setAdminTarget('overview');
+      setAdminCode('');
+      setAdminError('');
+      setShowAdminLogin(true);
+    }
+  }, [loading, team, teamId, mode]);
+
+  // ---------------------------------------------------
+  // ADMIN LOGIN ACTIONS
+  // ---------------------------------------------------
 
   function beginAdminLogin(target: 'overview' | 'live') {
     setAdminTarget(target);
@@ -130,8 +170,16 @@ function TeamLoginPageInner() {
     router.push(`/teams/${team.id}`);
   }
 
+  // ---------------------------------------------------
+  // LOADING / ERROR
+  // ---------------------------------------------------
+
   if (loading) {
-    return <main className="mx-auto max-w-6xl px-6 py-10">Loading team page...</main>;
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        Loading team page...
+      </main>
+    );
   }
 
   if (error || !team) {
@@ -152,13 +200,21 @@ function TeamLoginPageInner() {
     );
   }
 
+  // ---------------------------------------------------
+  // TEAM HEADER STYLING
+  // ---------------------------------------------------
+
   const teamGradient = {
     background: `linear-gradient(135deg, ${team.primary_color || '#0f172a'}, ${team.secondary_color || '#1e293b'})`,
   };
 
+  // ---------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------
+
   return (
     <>
-     <main className="mx-auto max-w-6xl px-6 pt-0 pb-10">
+      <main className="mx-auto max-w-6xl px-6 pt-0 pb-10">
         <section
           className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen overflow-hidden text-white"
           style={teamGradient}

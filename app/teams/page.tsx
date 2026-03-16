@@ -85,10 +85,7 @@ export default function TeamsPage() {
     const selectedOrganization =
       organizations.find((org) => org.id === organizationId) || null;
 
-    const resolvedClubName =
-      clubName.trim() ||
-      selectedOrganization?.name ||
-      null;
+    const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
 
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),
@@ -190,32 +187,147 @@ export default function TeamsPage() {
       </div>
 
       {/* --------------------------------------------------- */}
+      {/* STATUS MESSAGE */}
+      {/* --------------------------------------------------- */}
+
+      {message ? (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {message}
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------- */}
+      {/* CREATE TEAM FORM */}
+      {/* --------------------------------------------------- */}
+
+      {showCreateForm ? (
+        <form
+          onSubmit={createTeam}
+          className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Team Name
+              </label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Chicago Fire U17"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Club Name
+              </label>
+              <input
+                value={clubName}
+                onChange={(e) => setClubName(e.target.value)}
+                placeholder="Optional if organization is selected"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Organization
+              </label>
+              <select
+                value={organizationId ?? ''}
+                onChange={(e) => setOrganizationId(e.target.value || null)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              >
+                <option value="">No organization</option>
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Team Level
+              </label>
+              <input
+                value={teamLevel}
+                onChange={(e) => setTeamLevel(e.target.value)}
+                placeholder="Premier, Elite, Varsity..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Gender
+              </label>
+              <input
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                placeholder="Boys, Girls, Coed..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Age Group
+              </label>
+              <input
+                value={ageGroup}
+                onChange={(e) => setAgeGroup(e.target.value)}
+                placeholder="U17, U14..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Logo URL
+              </label>
+              <input
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-slate-900 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? 'Saving...' : 'Save Team'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(false)}
+              className="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {/* --------------------------------------------------- */}
       {/* SEARCH BAR */}
       {/* --------------------------------------------------- */}
 
       <div className="mt-6">
         <div className="rounded-3xl bg-slate-100 p-4">
           <div className="flex items-center rounded-3xl border border-slate-200 bg-white px-4 py-3">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="mr-3 h-5 w-5 shrink-0 text-slate-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-4.35-4.35m1.85-5.4a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z"
-              />
-            </svg>
-
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search teams, organizations, age groups, levels, or gender..."
+              placeholder="Search teams..."
               className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
           </div>
@@ -227,123 +339,25 @@ export default function TeamsPage() {
       </div>
 
       {/* --------------------------------------------------- */}
-      {/* CREATE TEAM FORM */}
-      {/* --------------------------------------------------- */}
-
-      <div
-        className={`grid transition-all duration-300 ease-out ${
-          showCreateForm ? 'mt-6 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
-        }`}
-      >
-        <div className="overflow-hidden">
-          <form
-            onSubmit={createTeam}
-            className="animate-subtle-slide-down space-y-4 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Create Team</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Add a reusable team with organization support, age group, level, gender, and logo.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Team name"
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              />
-
-              <select
-                value={organizationId ?? ''}
-                onChange={(e) => setOrganizationId(e.target.value || null)}
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              >
-                <option value="">No organization</option>
-                {organizations.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                value={clubName}
-                onChange={(e) => setClubName(e.target.value)}
-                placeholder="Club / display name (legacy compatibility)"
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              />
-
-              <input
-                value={teamLevel}
-                onChange={(e) => setTeamLevel(e.target.value)}
-                placeholder="Team level (Varsity, JV, Premier...)"
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              />
-
-              <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              >
-                <option value="">Gender</option>
-                <option value="boys">Boys</option>
-                <option value="girls">Girls</option>
-                <option value="men">Men</option>
-                <option value="women">Women</option>
-                <option value="coed">Coed</option>
-              </select>
-
-              <input
-                value={ageGroup}
-                onChange={(e) => setAgeGroup(e.target.value)}
-                placeholder="Age group"
-                className="rounded-xl border border-slate-300 px-4 py-3"
-              />
-
-              <input
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="Logo URL"
-                className="rounded-xl border border-slate-300 px-4 py-3 md:col-span-2"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-              >
-                {loading ? 'Adding…' : 'Add Team'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            {message ? <p className="text-sm text-slate-600">{message}</p> : null}
-          </form>
-        </div>
-      </div>
-
-      {/* --------------------------------------------------- */}
       {/* TEAM GRID */}
       {/* --------------------------------------------------- */}
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredTeams.map((team) => (
-          <Link
-            key={team.id}
-            href={`/team-login?teamId=${team.id}`}
-            className="block rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50"
-          >
+          <div
+  key={team.id}
+  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+>
+  <div
+  className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
+  style={{
+    backgroundColor: team.primary_color || '#0e172b',
+  }}
+/>
+            {/* --------------------------------------------------- */}
+            {/* TEAM CARD HEADER */}
+            {/* --------------------------------------------------- */}
+
             <div className="flex items-center gap-3">
               {team.logo_url ? (
                 <img
@@ -357,14 +371,42 @@ export default function TeamsPage() {
                 </div>
               )}
 
-              <div className="min-w-0">
-                <div className="truncate font-semibold">{team.name}</div>
+              <div className="min-w-0 flex-1">
+               <Link
+  href={`/public/team/${team.id}`}
+  className="block truncate font-semibold hover:underline"
+  style={{ color: team.primary_color || '#0f172a' }}
+>
+  {team.name}
+</Link>
+
                 <div className="truncate text-sm text-slate-500">
                   {getTeamSubtext(team)}
                 </div>
               </div>
             </div>
-          </Link>
+
+            {/* --------------------------------------------------- */}
+            {/* TEAM ACTIONS */}
+            {/* --------------------------------------------------- */}
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+             <Link
+  href={`/public/team/${team.id}`}
+  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+>
+  Public View
+</Link>
+
+             <Link
+  href={`/team-login?teamId=${team.id}&mode=admin`}
+  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold text-white hover:opacity-90"
+  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
+>
+  Admin Login
+</Link>
+            </div>
+          </div>
         ))}
       </div>
     </main>
