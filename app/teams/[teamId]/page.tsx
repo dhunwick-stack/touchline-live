@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import FieldCard from '@/components/FieldCard';
-import { useParams } from 'next/navigation';
 import LiveMatchHero from '@/components/LiveMatchHero';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Player, Team } from '@/lib/types';
@@ -262,8 +262,6 @@ export default function TeamDetailPage() {
     [activePlayers],
   );
 
-  
-
   // ---------------------------------------------------
   // MATCH HELPERS
   // ---------------------------------------------------
@@ -361,6 +359,55 @@ export default function TeamDetailPage() {
       ) : null}
 
       {/* --------------------------------------------------- */}
+      {/* ADMIN MATCH CONTROL CARD */}
+      {/* --------------------------------------------------- */}
+
+      {liveMatch ? (
+        <section className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Match Control
+              </p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+                Live match tools
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Jump straight into live scoring, open the public scoreboard, or
+                review the live match record.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={`/live/${liveMatch.id}`}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+              >
+                Update Match
+              </Link>
+
+              {liveMatch.public_slug ? (
+                <Link
+                  href={`/public/${liveMatch.public_slug}`}
+                  target="_blank"
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+                >
+                  Public Page
+                </Link>
+              ) : null}
+
+              <Link
+                href="/matches"
+                className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700"
+              >
+                All Matches
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* --------------------------------------------------- */}
       {/* SUMMARY CARDS */}
       {/* --------------------------------------------------- */}
 
@@ -369,65 +416,6 @@ export default function TeamDetailPage() {
         <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
         <SummaryCard label="Home Field" value={team.home_field_name || 'Not set'} />
       </section>
-
-      {/* --------------------------------------------------- */}
-      {/* FIELD + ROSTER PREVIEW */}
-      {/* --------------------------------------------------- */}
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-        {/* ------------------------------------------------- */}
-        {/* HOME FIELD CARD */}
-        {/* ------------------------------------------------- */}
-
-        <FieldCard
-          fieldName={team.home_field_name}
-          fieldAddress={team.home_field_address}
-        />
-
-        {/* ------------------------------------------------- */}
-        {/* ROSTER PREVIEW */}
-        {/* ------------------------------------------------- */}
-
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
-
-            <Link
-              href={`/teams/${team.id}/roster`}
-              className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600"
-            >
-              View Full Roster
-            </Link>
-          </div>
-
-          {activePlayers.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">No players added yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {activePlayers.slice(0, 8).map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
-                        'Unnamed Player'}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {player.position || 'No position'}
-                    </p>
-                  </div>
-
-                  <div className="text-sm font-bold text-slate-700">
-                    {player.jersey_number ? `#${player.jersey_number}` : '—'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
 
       {/* --------------------------------------------------- */}
       {/* RECENT MATCHES */}
@@ -525,19 +513,19 @@ export default function TeamDetailPage() {
                         View Recap
                       </Link>
                     ) : match.status === 'live' || match.status === 'halftime' ? (
-  <Link
-    href={`/live/${match.id}`}
-    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-  >
-    Update Match
-  </Link>
-) : match.public_slug ? (
-  <Link
-    href={`/public/${match.public_slug}`}
-    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-  >
-    View Match
-  </Link>
+                      <Link
+                        href={`/live/${match.id}`}
+                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Update Match
+                      </Link>
+                    ) : match.public_slug ? (
+                      <Link
+                        href={`/public/${match.public_slug}`}
+                        className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+                      >
+                        View Match
+                      </Link>
                     ) : (
                       <span className="text-sm text-slate-400">—</span>
                     )}
@@ -548,6 +536,65 @@ export default function TeamDetailPage() {
           </div>
         )}
       </section>
+
+      {/* --------------------------------------------------- */}
+      {/* ROSTER + FIELD */}
+      {/* --------------------------------------------------- */}
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+        {/* ------------------------------------------------- */}
+        {/* ROSTER PREVIEW */}
+        {/* ------------------------------------------------- */}
+
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
+
+            <Link
+              href={`/teams/${team.id}/roster`}
+              className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600"
+            >
+              View Full Roster
+            </Link>
+          </div>
+
+          {activePlayers.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No players added yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {activePlayers.slice(0, 8).map((player) => (
+                <div
+                  key={player.id}
+                  className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {[player.first_name, player.last_name].filter(Boolean).join(' ') ||
+                        'Unnamed Player'}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {player.position || 'No position'}
+                    </p>
+                  </div>
+
+                  <div className="text-sm font-bold text-slate-700">
+                    {player.jersey_number ? `#${player.jersey_number}` : '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ------------------------------------------------- */}
+        {/* HOME FIELD CARD */}
+        {/* ------------------------------------------------- */}
+
+        <FieldCard
+          fieldName={team.home_field_name}
+          fieldAddress={team.home_field_address}
+        />
+      </div>
 
       {/* --------------------------------------------------- */}
       {/* EDIT TEAM FORM */}
@@ -756,8 +803,3 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
-
-// ---------------------------------------------------
-// HERO DATE FORMATTER
-// ---------------------------------------------------
-

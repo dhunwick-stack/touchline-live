@@ -3,6 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import {
+  ArrowLeftRight,
+  CircleDot,
+  Pause,
+  Play,
+  RotateCcw,
+  Square,
+} from 'lucide-react';
 import MatchActionsCard from '@/components/MatchActionsCard';
 import MatchHeader from '@/components/match/MatchHeader';
 import { supabase } from '@/lib/supabase';
@@ -31,13 +39,13 @@ type EventFormState = {
   notes: string;
 };
 
-const eventTypeOptions: { value: EventType; label: string; icon: string }[] = [
-  { value: 'goal', label: 'Goal', icon: '⚽' },
-  { value: 'yellow_card', label: 'Yellow Card', icon: '🟨' },
-  { value: 'red_card', label: 'Red Card', icon: '🟥' },
-  { value: 'substitution', label: 'Substitution', icon: '🔁' },
-  { value: 'half_end', label: 'Halftime', icon: '⏸' },
-  { value: 'full_time', label: 'Full Time', icon: '■' },
+const eventTypeOptions: { value: EventType; label: string }[] = [
+  { value: 'goal', label: 'Goal' },
+  { value: 'yellow_card', label: 'Yellow Card' },
+  { value: 'red_card', label: 'Red Card' },
+  { value: 'substitution', label: 'Substitution' },
+  { value: 'half_end', label: 'Halftime' },
+  { value: 'full_time', label: 'Full Time' },
 ];
 
 const eventLabels: Record<EventType, string> = {
@@ -53,6 +61,10 @@ const eventLabels: Record<EventType, string> = {
 };
 
 export default function LiveMatchPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
   const matchId =
     typeof params?.matchId === 'string'
@@ -60,6 +72,10 @@ export default function LiveMatchPage() {
       : Array.isArray(params?.matchId)
         ? params.matchId[0]
         : '';
+
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
@@ -71,6 +87,10 @@ export default function LiveMatchPage() {
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ---------------------------------------------------
+  // EVENT FORM STATE
+  // ---------------------------------------------------
+
   const [form, setForm] = useState<EventFormState>({
     type: 'goal',
     side: 'home',
@@ -80,6 +100,10 @@ export default function LiveMatchPage() {
     secondaryPlayerNameOverride: '',
     notes: '',
   });
+
+  // ---------------------------------------------------
+  // INITIAL DATA LOAD
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!matchId) return;
@@ -152,6 +176,10 @@ export default function LiveMatchPage() {
     loadMatch();
   }, [matchId]);
 
+  // ---------------------------------------------------
+  // LIVE CLOCK TICKER
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!match?.clock_running) return;
 
@@ -161,6 +189,10 @@ export default function LiveMatchPage() {
 
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
+
+  // ---------------------------------------------------
+  // DERIVED MATCH CLOCK
+  // ---------------------------------------------------
 
   const secondsElapsed = useMemo(() => {
     if (!match) return 0;
@@ -207,6 +239,10 @@ export default function LiveMatchPage() {
       match.status === 'cancelled' ||
       match.status === 'postponed');
 
+  // ---------------------------------------------------
+  // FORM HELPERS
+  // ---------------------------------------------------
+
   function resetForm(nextSide?: TeamSide) {
     setForm((prev) => ({
       ...prev,
@@ -251,6 +287,10 @@ export default function LiveMatchPage() {
 
     return null;
   }
+
+  // ---------------------------------------------------
+  // ADD EVENT
+  // ---------------------------------------------------
 
   async function addEvent() {
     if (!match) return;
@@ -362,6 +402,10 @@ export default function LiveMatchPage() {
     resetForm(form.side);
   }
 
+  // ---------------------------------------------------
+  // START / RESUME PERIOD
+  // ---------------------------------------------------
+
   async function startLivePeriod() {
     if (!match || editingDisabled) return;
 
@@ -425,6 +469,10 @@ export default function LiveMatchPage() {
     setEvents((refreshedEvents as MatchEvent[]) ?? []);
   }
 
+  // ---------------------------------------------------
+  // PAUSE CLOCK
+  // ---------------------------------------------------
+
   async function pauseClock() {
     if (!match || !match.clock_running || editingDisabled) return;
 
@@ -482,6 +530,10 @@ export default function LiveMatchPage() {
 
     setEvents((refreshedEvents as MatchEvent[]) ?? []);
   }
+
+  // ---------------------------------------------------
+  // UNDO LAST EVENT
+  // ---------------------------------------------------
 
   async function undoLastEvent() {
     if (!match || events.length === 0 || editingDisabled) return;
@@ -553,6 +605,10 @@ export default function LiveMatchPage() {
     setUndoing(false);
   }
 
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading) {
     return <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">Loading match...</main>;
   }
@@ -562,8 +618,16 @@ export default function LiveMatchPage() {
   }
 
   if (!match) {
-    return <main className="mx-auto max-w-7xl px-6 pt-0 pb-32 text-red-600">Match not found.</main>;
+    return (
+      <main className="mx-auto max-w-7xl px-6 pt-0 pb-32 text-red-600">
+        Match not found.
+      </main>
+    );
   }
+
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
 
   return (
     <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">
@@ -700,7 +764,7 @@ export default function LiveMatchPage() {
                           editingDisabled,
                         )}
                       >
-                        <span className="text-base">{option.icon}</span>
+                        <EventGlyph eventType={option.value} size="button" />
                         <span>{option.label}</span>
                       </button>
                     ))}
@@ -892,6 +956,10 @@ export default function LiveMatchPage() {
         </section>
       </div>
 
+      {/* --------------------------------------------------- */}
+      {/* QUICK ACTION BAR */}
+      {/* --------------------------------------------------- */}
+
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
         <div className="mx-auto grid max-w-6xl grid-cols-4 gap-3">
           <button
@@ -904,9 +972,10 @@ export default function LiveMatchPage() {
               }))
             }
             disabled={editingDisabled}
-            className="rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
           >
-            ⚽ Home Goal
+            <CircleDot className="h-5 w-5" />
+            <span>Home Goal</span>
           </button>
 
           <button
@@ -919,33 +988,49 @@ export default function LiveMatchPage() {
               }))
             }
             disabled={editingDisabled}
-            className="rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
           >
-            ⚽ Away Goal
+            <CircleDot className="h-5 w-5" />
+            <span>Away Goal</span>
           </button>
 
           <button
             type="button"
             onClick={undoLastEvent}
             disabled={undoing || events.length === 0 || editingDisabled}
-            className="rounded-2xl bg-slate-800 py-4 text-base font-bold text-white disabled:opacity-40"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-slate-800 py-4 text-base font-bold text-white disabled:opacity-40"
           >
-            ↺ Undo
+            <RotateCcw className="h-5 w-5" />
+            <span>{undoing ? 'Undoing…' : 'Undo'}</span>
           </button>
 
           <button
             type="button"
             onClick={match.clock_running ? pauseClock : startLivePeriod}
             disabled={editingDisabled}
-            className="rounded-2xl bg-amber-100 py-4 text-base font-bold text-amber-900 ring-1 ring-amber-300 disabled:opacity-40"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-100 py-4 text-base font-bold text-amber-900 ring-1 ring-amber-300 disabled:opacity-40"
           >
-            {match.clock_running ? '⏸ Pause' : '▶ Resume'}
+            {match.clock_running ? (
+              <>
+                <Pause className="h-5 w-5" />
+                <span>Pause</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-5 w-5" />
+                <span>Resume</span>
+              </>
+            )}
           </button>
         </div>
       </div>
     </main>
   );
 }
+
+// ---------------------------------------------------
+// EVENT TYPE BUTTON STYLES
+// ---------------------------------------------------
 
 function getEventTypeButtonClasses(
   eventType: EventType,
@@ -1009,6 +1094,10 @@ function getEventTypeButtonClasses(
   }`;
 }
 
+// ---------------------------------------------------
+// EVENT CLASSIFICATION
+// ---------------------------------------------------
+
 function isSystemEvent(eventType: MatchEvent['event_type']) {
   return (
     eventType === 'half_start' ||
@@ -1019,17 +1108,9 @@ function isSystemEvent(eventType: MatchEvent['event_type']) {
   );
 }
 
-function getEventIcon(eventType: MatchEvent['event_type']) {
-  if (eventType === 'goal') return '⚽';
-  if (eventType === 'yellow_card') return '🟨';
-  if (eventType === 'red_card') return '🟥';
-  if (eventType === 'substitution') return '🔁';
-  if (eventType === 'match_resumed') return '▶';
-  if (eventType === 'match_paused') return '⏸';
-  if (eventType === 'half_end') return '⏸';
-  if (eventType === 'full_time') return '■';
-  return '•';
-}
+// ---------------------------------------------------
+// EVENT CARD STYLES
+// ---------------------------------------------------
 
 function getEventCardClasses(event: MatchEvent) {
   if (event.event_type === 'goal') {
@@ -1042,14 +1123,14 @@ function getEventCardClasses(event: MatchEvent) {
   if (event.event_type === 'yellow_card') {
     return {
       shell: 'border-yellow-300 bg-yellow-50',
-      icon: 'bg-yellow-200 text-yellow-900 ring-yellow-400',
+      icon: 'bg-yellow-100 text-yellow-900 ring-yellow-300',
     };
   }
 
   if (event.event_type === 'red_card') {
     return {
       shell: 'border-red-300 bg-red-50',
-      icon: 'bg-red-200 text-red-900 ring-red-400',
+      icon: 'bg-red-100 text-red-900 ring-red-300',
     };
   }
 
@@ -1065,6 +1146,10 @@ function getEventCardClasses(event: MatchEvent) {
     icon: 'bg-slate-100 text-slate-700 ring-slate-200',
   };
 }
+
+// ---------------------------------------------------
+// TIMELINE LABEL BUILDER
+// ---------------------------------------------------
 
 function buildPrettyTimelineText(
   event: MatchEvent,
@@ -1113,6 +1198,10 @@ function buildPrettyTimelineText(
   return eventLabels[event.event_type] || event.event_type;
 }
 
+// ---------------------------------------------------
+// TIMELINE EVENT CARD
+// ---------------------------------------------------
+
 function TimelineEventCard({
   event,
   match,
@@ -1135,9 +1224,9 @@ function TimelineEventCard({
 
         <div className="absolute left-0 top-4 flex w-8 justify-center">
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm shadow-sm ring-1 ${styles.icon}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
           >
-            {getEventIcon(event.event_type)}
+            <EventGlyph eventType={event.event_type} size="timeline" />
           </div>
         </div>
 
@@ -1162,9 +1251,9 @@ function TimelineEventCard({
 
       <div className="absolute left-0 top-4 flex w-8 justify-center">
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-full text-sm shadow-sm ring-1 ${styles.icon}`}
+          className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
         >
-          {getEventIcon(event.event_type)}
+          <EventGlyph eventType={event.event_type} size="timeline" />
         </div>
       </div>
 
@@ -1191,11 +1280,61 @@ function TimelineEventCard({
           </span>
         </div>
 
-        {event.notes ? <p className="mt-2 break-words text-xs text-slate-500">{event.notes}</p> : null}
+        {event.notes ? (
+          <p className="mt-2 break-words text-xs text-slate-500">{event.notes}</p>
+        ) : null}
       </div>
     </div>
   );
 }
+
+// ---------------------------------------------------
+// EVENT GLYPH
+// ---------------------------------------------------
+
+function EventGlyph({
+  eventType,
+  size = 'timeline',
+}: {
+  eventType: EventType;
+  size?: 'button' | 'timeline';
+}) {
+  const iconSize = size === 'button' ? 'h-4 w-4' : 'h-4 w-4';
+
+  if (eventType === 'goal') {
+    return <CircleDot className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'substitution') {
+    return <ArrowLeftRight className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'match_resumed' || eventType === 'half_start') {
+    return <Play className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'match_paused' || eventType === 'half_end') {
+    return <Pause className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'full_time') {
+    return <Square className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'yellow_card') {
+    return <span className="h-4 w-3 rounded-[2px] bg-yellow-400 ring-1 ring-yellow-500/60" />;
+  }
+
+  if (eventType === 'red_card') {
+    return <span className="h-4 w-3 rounded-[2px] bg-red-500 ring-1 ring-red-600/60" />;
+  }
+
+  return <CircleDot className={iconSize} strokeWidth={2.5} />;
+}
+
+// ---------------------------------------------------
+// FIELD WRAPPER
+// ---------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1205,6 +1344,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+
+// ---------------------------------------------------
+// PLAYER DISPLAY NAME
+// ---------------------------------------------------
 
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';

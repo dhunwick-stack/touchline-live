@@ -3,6 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import {
+  ArrowLeftRight,
+  CircleDot,
+  Pause,
+  Play,
+  Square,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -12,6 +19,10 @@ type PublicMatchRow = Match & {
 };
 
 export default function PublicMatchPage() {
+  // ---------------------------------------------------
+  // ROUTE PARAMS
+  // ---------------------------------------------------
+
   const params = useParams();
 
   const slug =
@@ -21,6 +32,10 @@ export default function PublicMatchPage() {
         ? params.slug[0]
         : '';
 
+  // ---------------------------------------------------
+  // PAGE STATE
+  // ---------------------------------------------------
+
   const [match, setMatch] = useState<PublicMatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
@@ -28,6 +43,10 @@ export default function PublicMatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
+
+  // ---------------------------------------------------
+  // LOAD PAGE DATA
+  // ---------------------------------------------------
 
   async function loadPageData(currentSlug: string) {
     const { data: matchData, error: matchError } = await supabase
@@ -92,6 +111,10 @@ export default function PublicMatchPage() {
     };
   }
 
+  // ---------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
     let mounted = true;
 
@@ -132,6 +155,10 @@ export default function PublicMatchPage() {
       mounted = false;
     };
   }, [slug]);
+
+  // ---------------------------------------------------
+  // REALTIME SUBSCRIPTIONS
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!match?.id || !slug) return;
@@ -185,6 +212,10 @@ export default function PublicMatchPage() {
     };
   }, [match?.id, slug]);
 
+  // ---------------------------------------------------
+  // LIVE CLOCK TICKER
+  // ---------------------------------------------------
+
   useEffect(() => {
     if (!match?.clock_running) return;
 
@@ -194,6 +225,10 @@ export default function PublicMatchPage() {
 
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
+
+  // ---------------------------------------------------
+  // DERIVED CLOCK
+  // ---------------------------------------------------
 
   const secondsElapsed = useMemo(() => {
     if (!match) return 0;
@@ -218,6 +253,10 @@ export default function PublicMatchPage() {
 
     return `${mins}:${secs}`;
   }, [secondsElapsed]);
+
+  // ---------------------------------------------------
+  // DERIVED EVENT GROUPS
+  // ---------------------------------------------------
 
   const goalEvents = useMemo(
     () => events.filter((event) => event.event_type === 'goal').slice().reverse(),
@@ -286,6 +325,10 @@ export default function PublicMatchPage() {
     };
   }, [match, events, homePlayers, awayPlayers]);
 
+  // ---------------------------------------------------
+  // LOADING / ERROR STATES
+  // ---------------------------------------------------
+
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-8">
@@ -316,8 +359,16 @@ export default function PublicMatchPage() {
 
   const isFinal = match.status === 'final';
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
+      {/* --------------------------------------------------- */}
+      {/* PAGE HEADER */}
+      {/* --------------------------------------------------- */}
+
       <div className="mb-6">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Touchline Live
@@ -326,6 +377,10 @@ export default function PublicMatchPage() {
           {isFinal ? 'Match Recap' : 'Public Match Center'}
         </h1>
       </div>
+
+      {/* --------------------------------------------------- */}
+      {/* HERO SCOREBOARD */}
+      {/* --------------------------------------------------- */}
 
       <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
         <div className="mx-auto max-w-7xl px-6 py-8">
@@ -385,8 +440,16 @@ export default function PublicMatchPage() {
         </div>
       </section>
 
+      {/* --------------------------------------------------- */}
+      {/* MAIN GRID */}
+      {/* --------------------------------------------------- */}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-6">
+          {/* ----------------------------------------------- */}
+          {/* GOALS / CARDS FOR FINAL */}
+          {/* ----------------------------------------------- */}
+
           {isFinal && (
             <>
               <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -431,6 +494,10 @@ export default function PublicMatchPage() {
             </>
           )}
 
+          {/* ----------------------------------------------- */}
+          {/* FULL TIMELINE */}
+          {/* ----------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-900">
@@ -462,6 +529,10 @@ export default function PublicMatchPage() {
         </section>
 
         <section className="space-y-6">
+          {/* ----------------------------------------------- */}
+          {/* MATCH DETAILS */}
+          {/* ----------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">
               {isFinal ? 'Recap Details' : 'Match Details'}
@@ -517,6 +588,10 @@ export default function PublicMatchPage() {
               </div>
             </dl>
           </div>
+
+          {/* ----------------------------------------------- */}
+          {/* EXPLORE MORE */}
+          {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
@@ -612,6 +687,10 @@ export default function PublicMatchPage() {
               ) : null}
             </div>
           </div>
+
+          {/* ----------------------------------------------- */}
+          {/* TEAM SNAPSHOT */}
+          {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">Team Snapshot</h3>
@@ -726,6 +805,10 @@ export default function PublicMatchPage() {
             </div>
           </div>
 
+          {/* ----------------------------------------------- */}
+          {/* SUMMARY TEXT */}
+          {/* ----------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">
               {isFinal ? 'Final Summary' : 'Live Updates'}
@@ -741,6 +824,10 @@ export default function PublicMatchPage() {
     </main>
   );
 }
+
+// ---------------------------------------------------
+// PUBLIC TEAM LINK
+// ---------------------------------------------------
 
 function PublicScoreboardTeamLink({
   team,
@@ -816,6 +903,10 @@ function PublicScoreboardTeamLink({
   );
 }
 
+// ---------------------------------------------------
+// TIMELINE EVENT CARD
+// ---------------------------------------------------
+
 function TimelineEventCard({
   event,
   match,
@@ -827,49 +918,54 @@ function TimelineEventCard({
   homePlayers: Player[];
   awayPlayers: Player[];
 }) {
+  const systemEvent = isSystemEvent(event.event_type);
+  const styles = getEventCardClasses(event);
+
+  if (systemEvent) {
+    return (
+      <div className="relative overflow-hidden pl-14">
+        <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
+
+        <div className="absolute left-0 top-4 flex w-8 justify-center">
+          <div
+            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
+          >
+            <EventGlyph eventType={event.event_type} size="timeline" />
+          </div>
+        </div>
+
+        <div className={`rounded-2xl border px-4 py-3 ${styles.shell}`}>
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
+              {event.minute}'
+            </span>
+
+            <p className="text-sm font-semibold text-slate-900">
+              {prettyEventText(event, match, homePlayers, awayPlayers)}
+            </p>
+          </div>
+
+          {event.notes ? (
+            <p className="mt-2 break-words text-xs text-slate-600">{event.notes}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative overflow-hidden pl-14">
       <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
 
       <div className="absolute left-0 top-4 flex w-8 justify-center">
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-full text-sm shadow-sm ring-1 ${
-            event.event_type === 'goal'
-              ? 'bg-[#cfefff] text-sky-900 ring-[#8ecae6]'
-              : event.event_type === 'yellow_card'
-                ? 'bg-yellow-200 text-yellow-900 ring-yellow-400'
-                : event.event_type === 'red_card'
-                  ? 'bg-red-200 text-red-900 ring-red-400'
-                  : 'bg-slate-100 text-slate-700 ring-slate-200'
-          }`}
+          className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
         >
-          {event.event_type === 'goal'
-            ? '⚽'
-            : event.event_type === 'yellow_card'
-              ? '🟨'
-              : event.event_type === 'red_card'
-                ? '🟥'
-                : event.event_type === 'substitution'
-                  ? '🔁'
-                  : event.event_type === 'half_end'
-                    ? '⏸'
-                    : event.event_type === 'full_time'
-                      ? '■'
-                      : '•'}
+          <EventGlyph eventType={event.event_type} size="timeline" />
         </div>
       </div>
 
-      <div
-        className={`rounded-2xl border p-4 transition-shadow hover:shadow-md ${
-          event.event_type === 'goal'
-            ? 'border-[#8ecae6] bg-[#cfefff]'
-            : event.event_type === 'yellow_card'
-              ? 'border-yellow-400 bg-yellow-200/90'
-              : event.event_type === 'red_card'
-                ? 'border-red-400 bg-red-200/90'
-                : 'border-slate-200 bg-slate-50'
-        }`}
-      >
+      <div className={`rounded-2xl border p-4 transition-shadow hover:shadow-md ${styles.shell}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex items-start gap-3">
             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
@@ -899,6 +995,10 @@ function TimelineEventCard({
     </div>
   );
 }
+
+// ---------------------------------------------------
+// STATUS PILL
+// ---------------------------------------------------
 
 function StatusPill({ status }: { status: Match['status'] }) {
   if (status === 'live') {
@@ -932,6 +1032,10 @@ function StatusPill({ status }: { status: Match['status'] }) {
     </span>
   );
 }
+
+// ---------------------------------------------------
+// PERIOD PILL
+// ---------------------------------------------------
 
 function PeriodPill({
   status,
@@ -976,6 +1080,99 @@ function PeriodPill({
   );
 }
 
+// ---------------------------------------------------
+// EVENT HELPERS
+// ---------------------------------------------------
+
+function isSystemEvent(eventType: MatchEvent['event_type']) {
+  return (
+    eventType === 'half_start' ||
+    eventType === 'match_resumed' ||
+    eventType === 'match_paused' ||
+    eventType === 'half_end' ||
+    eventType === 'full_time'
+  );
+}
+
+function getEventCardClasses(event: MatchEvent) {
+  if (event.event_type === 'goal') {
+    return {
+      shell: 'border-sky-300 bg-sky-50',
+      icon: 'bg-sky-100 text-sky-800 ring-sky-300',
+    };
+  }
+
+  if (event.event_type === 'yellow_card') {
+    return {
+      shell: 'border-yellow-300 bg-yellow-50',
+      icon: 'bg-yellow-100 text-yellow-900 ring-yellow-300',
+    };
+  }
+
+  if (event.event_type === 'red_card') {
+    return {
+      shell: 'border-red-300 bg-red-50',
+      icon: 'bg-red-100 text-red-900 ring-red-300',
+    };
+  }
+
+  if (event.event_type === 'substitution') {
+    return {
+      shell: 'border-violet-200 bg-violet-50',
+      icon: 'bg-violet-100 text-violet-800 ring-violet-300',
+    };
+  }
+
+  return {
+    shell: 'border-slate-200 bg-slate-50',
+    icon: 'bg-slate-100 text-slate-700 ring-slate-200',
+  };
+}
+
+function EventGlyph({
+  eventType,
+  size = 'timeline',
+}: {
+  eventType: MatchEvent['event_type'];
+  size?: 'timeline' | 'button';
+}) {
+  const iconSize = size === 'button' ? 'h-4 w-4' : 'h-4 w-4';
+
+  if (eventType === 'goal') {
+    return <CircleDot className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'substitution') {
+    return <ArrowLeftRight className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'half_start' || eventType === 'match_resumed') {
+    return <Play className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'match_paused' || eventType === 'half_end') {
+    return <Pause className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'full_time') {
+    return <Square className={iconSize} strokeWidth={2.5} />;
+  }
+
+  if (eventType === 'yellow_card') {
+    return <span className="h-4 w-3 rounded-[2px] bg-yellow-400 ring-1 ring-yellow-500/60" />;
+  }
+
+  if (eventType === 'red_card') {
+    return <span className="h-4 w-3 rounded-[2px] bg-red-500 ring-1 ring-red-600/60" />;
+  }
+
+  return <CircleDot className={iconSize} strokeWidth={2.5} />;
+}
+
+// ---------------------------------------------------
+// MATCH / VENUE HELPERS
+// ---------------------------------------------------
+
 function getVenueName(match: PublicMatchRow) {
   return match.venue || match.home_team?.home_field_name || 'Venue TBD';
 }
@@ -995,6 +1192,10 @@ function prettyStatus(status: Match['status']) {
   if (status === 'final') return 'Final';
   return status;
 }
+
+// ---------------------------------------------------
+// PLAYER / EVENT TEXT HELPERS
+// ---------------------------------------------------
 
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';
@@ -1041,11 +1242,17 @@ function prettyEventText(
   }
 
   if (event.event_type === 'half_start') return 'Half Started';
+  if (event.event_type === 'match_resumed') return 'Match Resumed';
+  if (event.event_type === 'match_paused') return 'Match Paused';
   if (event.event_type === 'half_end') return 'Halftime';
   if (event.event_type === 'full_time') return 'Full Time';
 
   return event.event_type;
 }
+
+// ---------------------------------------------------
+// DATE FORMATTER
+// ---------------------------------------------------
 
 function formatMatchDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {
