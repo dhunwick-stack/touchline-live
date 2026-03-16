@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import FieldCard from '@/components/FieldCard';
 import { useParams } from 'next/navigation';
+import LiveMatchHero from '@/components/LiveMatchHero';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Player, Team } from '@/lib/types';
@@ -35,6 +36,7 @@ export default function TeamDetailPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [liveMatch, setLiveMatch] = useState<MatchRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
@@ -95,6 +97,7 @@ export default function TeamDetailPage() {
       { data: playerData, error: playerError },
       { data: recentMatchData, error: recentMatchError },
       { data: organizationData, error: organizationError },
+      { data: liveMatchData, error: liveMatchError },
     ] = await Promise.all([
       supabase
         .from('teams')
@@ -104,12 +107,14 @@ export default function TeamDetailPage() {
         `)
         .eq('id', teamId)
         .single(),
+
       supabase
         .from('players')
         .select('*')
         .eq('team_id', teamId)
         .order('jersey_number', { ascending: true, nullsFirst: false })
         .order('first_name', { ascending: true }),
+
       supabase
         .from('matches')
         .select(`
@@ -120,15 +125,38 @@ export default function TeamDetailPage() {
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
         .order('match_date', { ascending: false, nullsFirst: false })
         .limit(5),
-      supabase.from('organizations').select('*').order('name', { ascending: true }),
+
+      supabase
+        .from('organizations')
+        .select('*')
+        .order('name', { ascending: true }),
+
+      supabase
+        .from('matches')
+        .select(`
+          *,
+          home_team:home_team_id (*),
+          away_team:away_team_id (*)
+        `)
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .in('status', ['live', 'halftime'])
+        .order('match_date', { ascending: true, nullsFirst: false })
+        .limit(1),
     ]);
 
-    if (teamError || playerError || recentMatchError || organizationError) {
+    if (
+      teamError ||
+      playerError ||
+      recentMatchError ||
+      organizationError ||
+      liveMatchError
+    ) {
       setError(
         teamError?.message ||
           playerError?.message ||
           recentMatchError?.message ||
           organizationError?.message ||
+          liveMatchError?.message ||
           'Failed to load team.',
       );
       setLoading(false);
@@ -139,15 +167,17 @@ export default function TeamDetailPage() {
     const loadedPlayers = (playerData as Player[]) ?? [];
     const loadedRecentMatches = (recentMatchData as MatchRow[]) ?? [];
     const loadedOrganizations = (organizationData as Organization[]) ?? [];
+    const loadedLiveMatch = ((liveMatchData as MatchRow[]) ?? [])[0] || null;
 
     setTeam(loadedTeam);
     setPlayers(loadedPlayers);
     setRecentMatches(loadedRecentMatches);
     setOrganizations(loadedOrganizations);
+    setLiveMatch(loadedLiveMatch);
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // PREFILL EDIT FORM
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     setTeamName(loadedTeam.name || '');
     setClubName(loadedTeam.club_name || '');
@@ -177,12 +207,9 @@ export default function TeamDetailPage() {
     const selectedOrganization =
       organizations.find((org) => org.id === organizationId) || null;
 
-    const resolvedClubName =
-      clubName.trim() ||
-      selectedOrganization?.name ||
-      null;
+    const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
 
-    const { data, error } = await supabase
+    const { data, error: saveError } = await supabase
       .from('teams')
       .update({
         name: teamName.trim() || null,
@@ -204,8 +231,8 @@ export default function TeamDetailPage() {
       `)
       .single();
 
-    if (error) {
-      setError(error.message);
+    if (saveError) {
+      setError(saveError.message);
       setSaving(false);
       return;
     }
@@ -234,6 +261,8 @@ export default function TeamDetailPage() {
       ),
     [activePlayers],
   );
+
+  
 
   // ---------------------------------------------------
   // MATCH HELPERS
@@ -297,27 +326,39 @@ export default function TeamDetailPage() {
         eyebrow="Team Overview"
         title="Overview"
         description="Overview, roster preview, field details, recent matches, and team settings."
-       rightSlot={
-  <>
-    
+        rightSlot={
+          <>
+            <button
+              type="button"
+              onClick={() => setEditing((prev) => !prev)}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            >
+              {editing ? 'Close Edit' : 'Edit Team'}
+            </button>
 
-    <button
-      type="button"
-      onClick={() => setEditing((prev) => !prev)}
-      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-    >
-      {editing ? 'Close Edit' : 'Edit Team'}
-    </button>
-
-    <Link
-      href={`/teams/${team.id}/stats`}
-      className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-    >
-      View Stats
-    </Link>
-  </>
-}
+            <Link
+              href={`/teams/${team.id}/stats`}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+            >
+              View Stats
+            </Link>
+          </>
+        }
       />
+
+      {/* --------------------------------------------------- */}
+      {/* LIVE MATCH ADMIN HERO */}
+      {/* --------------------------------------------------- */}
+
+      {liveMatch ? (
+        <LiveMatchHero
+          match={liveMatch}
+          primaryColor={team.primary_color}
+          secondaryColor={team.secondary_color}
+          mode="admin"
+          className="mb-6"
+        />
+      ) : null}
 
       {/* --------------------------------------------------- */}
       {/* SUMMARY CARDS */}
@@ -433,6 +474,10 @@ export default function TeamDetailPage() {
                       <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
                         Live
                       </span>
+                    ) : match.status === 'halftime' ? (
+                      <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+                        Halftime
+                      </span>
                     ) : (
                       <span className="inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
                         Scheduled
@@ -479,13 +524,20 @@ export default function TeamDetailPage() {
                       >
                         View Recap
                       </Link>
-                    ) : match.status === 'live' && match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-                      >
-                        Follow Live
-                      </Link>
+                    ) : match.status === 'live' || match.status === 'halftime' ? (
+  <Link
+    href={`/live/${match.id}`}
+    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+  >
+    Update Match
+  </Link>
+) : match.public_slug ? (
+  <Link
+    href={`/public/${match.public_slug}`}
+    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+  >
+    View Match
+  </Link>
                     ) : (
                       <span className="text-sm text-slate-400">—</span>
                     )}
@@ -696,7 +748,7 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
 // FIELD WRAPPER
 // ---------------------------------------------------
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block space-y-2">
       <span className="text-sm font-semibold text-slate-700">{label}</span>
@@ -704,3 +756,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+
+// ---------------------------------------------------
+// HERO DATE FORMATTER
+// ---------------------------------------------------
+
