@@ -150,7 +150,7 @@ export default function TeamBanner({
       href={`/teams/${team.id}/new-match`}
       className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
     >
-      Start Match
+      New Match
     </Link>
 
               {setEditing && (
