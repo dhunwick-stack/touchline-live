@@ -1910,7 +1910,6 @@ function buildFallbackLineupRows(
     team_id: teamId,
     player_id: player.id,
     is_starter: false,
-    is_bench: true,
     lineup_order: index + 1,
   }));
 }
