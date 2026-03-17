@@ -4,15 +4,35 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 // ---------------------------------------------------
-// PAGE
+// PAGE SHELL
 // ---------------------------------------------------
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
+          <div className="w-full rounded-3xl bg-white p-8 shadow-md ring-1 ring-slate-200">
+            Loading login...
+          </div>
+        </main>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+// ---------------------------------------------------
+// INNER PAGE
+// ---------------------------------------------------
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -43,6 +63,7 @@ export default function LoginPage() {
     }
 
     router.push(next);
+    router.refresh();
   }
 
   // ---------------------------------------------------
@@ -65,6 +86,7 @@ export default function LoginPage() {
     }
 
     router.push(next);
+    router.refresh();
   }
 
   // ---------------------------------------------------
@@ -94,25 +116,25 @@ export default function LoginPage() {
           />
         </div>
 
-        {error && (
-          <p className="mt-4 text-sm text-red-600">{error}</p>
-        )}
+        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
         <div className="mt-6 flex gap-3">
           <button
+            type="button"
             onClick={handleLogin}
             disabled={loading}
-            className="flex-1 rounded-xl bg-slate-900 py-3 text-white"
+            className="flex-1 rounded-xl bg-slate-900 py-3 text-white disabled:opacity-60"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
 
           <button
+            type="button"
             onClick={handleSignup}
             disabled={loading}
-            className="flex-1 rounded-xl border py-3"
+            className="flex-1 rounded-xl border py-3 disabled:opacity-60"
           >
-            Sign Up
+            {loading ? 'Working...' : 'Sign Up'}
           </button>
         </div>
       </div>
