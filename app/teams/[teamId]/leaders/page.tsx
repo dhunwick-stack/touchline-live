@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import StatBadge from '@/components/StatBadge';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -31,8 +32,16 @@ export default function TeamLeadersPage() {
       : Array.isArray(params?.teamId)
         ? params.teamId[0]
         : '';
+const {
+  authChecked,
+  error: accessError,
+  loading: accessLoading,
+} = useTeamAccessGuard({
+  teamId,
+  nextPath: `/teams/${teamId}/leaders`,
+}); 
 
-  const [authChecked, setAuthChecked] = useState(false);
+  
   const [editing, setEditing] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -43,18 +52,7 @@ export default function TeamLeadersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!teamId) return;
 
-    const savedTeamId = localStorage.getItem('teamId');
-
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = `/team-login?teamId=${teamId}`;
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [teamId]);
 
   useEffect(() => {
     if (!teamId || !authChecked) return;
@@ -268,17 +266,17 @@ export default function TeamLeadersPage() {
     [leaderRows],
   );
 
-  if (loading || !authChecked) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team leaders...</main>;
-  }
+ if (loading || accessLoading || !authChecked) {
+  return <main className="mx-auto max-w-7xl px-6 py-8">Loading team leaders...</main>;
+}
 
-  if (error && !team) {
-    return (
-      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
-        {error}
-      </main>
-    );
-  }
+if ((accessError || error) && !team) {
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
+      {accessError || error}
+    </main>
+  );
+}
 
   if (!team) {
     return (

@@ -83,21 +83,35 @@ function TeamLoginPageInner() {
   // ---------------------------------------------------
 
   useEffect(() => {
-    async function loadAuthUser() {
-      const { data, error } = await supabase.auth.getUser();
+  async function loadAuthUser() {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
-      if (error) {
-        setCurrentUser(null);
-        setAuthChecked(true);
-        return;
-      }
-
-      setCurrentUser(data.user ?? null);
+    if (error) {
+      setCurrentUser(null);
       setAuthChecked(true);
+      return;
     }
 
-    loadAuthUser();
-  }, []);
+    setCurrentUser(session?.user ?? null);
+    setAuthChecked(true);
+  }
+
+  loadAuthUser();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setCurrentUser(session?.user ?? null);
+    setAuthChecked(true);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 
   // ---------------------------------------------------
   // LOAD TEAM / LIVE MATCH
@@ -216,14 +230,26 @@ function TeamLoginPageInner() {
     // -------------------------------------------------
 
     if (!authChecked) {
-      setAdminError('Still checking sign-in status. Please try again.');
-      return;
-    }
+  setAdminError('Still checking sign-in status. Please try again.');
+  return;
+}
 
-    if (!currentUser) {
-      redirectToLogin(adminTarget);
-      return;
-    }
+// -------------------------------------------------
+// RE-CHECK LIVE AUTH SESSION
+// -------------------------------------------------
+
+const {
+  data: { session },
+  error: sessionError,
+} = await supabase.auth.getSession();
+
+if (sessionError || !session?.user) {
+  redirectToLogin(adminTarget);
+  return;
+}
+
+const signedInUser = session.user;
+setCurrentUser(signedInUser);
 
     setCheckingAdminCode(true);
     setAdminError('');
@@ -262,7 +288,7 @@ function TeamLoginPageInner() {
       .upsert(
         {
           team_id: team.id,
-          user_id: currentUser.id,
+          user_id: signedInUser.id,
           role: 'team_admin',
         },
         {

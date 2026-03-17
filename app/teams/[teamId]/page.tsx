@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
 import LiveMatchHero from '@/components/LiveMatchHero';
 import { useParams, useRouter } from 'next/navigation';
@@ -46,19 +47,26 @@ export default function TeamDetailPage() {
   // AUTH / PAGE STATE
   // ---------------------------------------------------
 
-  const [authChecked, setAuthChecked] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [hasTeamAccess, setHasTeamAccess] = useState(false);
+ const {
+  authChecked,
+  currentUser,
+  hasTeamAccess,
+  error: accessError,
+  loading: accessLoading,
+} = useTeamAccessGuard({
+  teamId,
+  nextPath: `/teams/${teamId}`,
+});
 
-  const [team, setTeam] = useState<Team | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [liveMatch, setLiveMatch] = useState<MatchRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+const [team, setTeam] = useState<Team | null>(null);
+const [players, setPlayers] = useState<Player[]>([]);
+const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
+const [organizations, setOrganizations] = useState<Organization[]>([]);
+const [liveMatch, setLiveMatch] = useState<MatchRow | null>(null);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState('');
+const [editing, setEditing] = useState(false);
+const [saving, setSaving] = useState(false);
 
   // ---------------------------------------------------
   // EDIT FORM STATE
@@ -80,73 +88,7 @@ export default function TeamDetailPage() {
   // TEAM AUTH GUARD
   // ---------------------------------------------------
 
-  useEffect(() => {
-    async function checkAccess() {
-      if (!teamId) {
-        setError('No team id was found in the URL.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      // -----------------------------------------------
-      // LOAD CURRENT AUTH USER
-      // -----------------------------------------------
-
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-
-      if (userError) {
-        setError(userError.message || 'Failed to check sign-in status.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      const user = userData.user ?? null;
-      setCurrentUser(user);
-
-      // -----------------------------------------------
-      // REQUIRE SIGN-IN
-      // -----------------------------------------------
-
-      if (!user) {
-        router.replace(`/login?next=${encodeURIComponent(`/teams/${teamId}`)}`);
-        return;
-      }
-
-      // -----------------------------------------------
-      // VERIFY TEAM MEMBERSHIP
-      // -----------------------------------------------
-
-      const { data: membership, error: membershipError } = await supabase
-        .from('team_users')
-        .select('id, role')
-        .eq('team_id', teamId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (membershipError) {
-        setError(membershipError.message || 'Failed to verify team access.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      // -----------------------------------------------
-      // REDIRECT TO TEAM CODE FLOW IF NOT LINKED
-      // -----------------------------------------------
-
-      if (!membership) {
-        router.replace(`/team-login?teamId=${teamId}&mode=admin`);
-        return;
-      }
-
-      setHasTeamAccess(true);
-      setAuthChecked(true);
-    }
-
-    checkAccess();
-  }, [teamId, router]);
+  
 
   // ---------------------------------------------------
   // INITIAL DATA LOAD
@@ -371,13 +313,13 @@ export default function TeamDetailPage() {
   // LOADING / ERROR STATES
   // ---------------------------------------------------
 
-  if (loading || !authChecked) {
-    return <div>Loading team...</div>;
-  }
+  if (loading || accessLoading || !authChecked) {
+  return <div>Loading team...</div>;
+}
 
-  if (error && !team) {
-    return <div className="text-red-600">{error}</div>;
-  }
+if ((accessError || error) && !team) {
+  return <div className="text-red-600">{accessError || error}</div>;
+}
 
   if (!team) {
     return <div className="text-red-600">Team not found.</div>;

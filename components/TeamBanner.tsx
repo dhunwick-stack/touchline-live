@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import type { Team } from '@/lib/types';
 
 type Props = {
@@ -163,15 +164,16 @@ export default function TeamBanner({
               )}
 
               <button
-                onClick={() => {
-                  localStorage.removeItem('teamId');
-                  localStorage.removeItem('teamName');
-                  window.location.href = '/team-login';
-                }}
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm font-semibold text-white/85 hover:bg-black/30"
-              >
-                Logout
-              </button>
+  onClick={async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('teamId');
+    localStorage.removeItem('teamName');
+    window.location.href = '/';
+  }}
+  className="rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm font-semibold text-white/85 hover:bg-black/30"
+>
+  Logout
+</button>
             </div>
           </div>
         </div>

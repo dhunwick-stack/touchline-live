@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { supabase } from '@/lib/supabase';
 import type { Player, Team } from '@/lib/types';
@@ -36,7 +37,14 @@ export default function TeamRosterPage() {
   // PAGE STATE
   // ---------------------------------------------------
 
-  const [authChecked, setAuthChecked] = useState(false);
+ const {
+  authChecked,
+  error: accessError,
+  loading: accessLoading,
+} = useTeamAccessGuard({
+  teamId,
+  nextPath: `/teams/${teamId}/roster`,
+});
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,18 +67,6 @@ export default function TeamRosterPage() {
   // TEAM AUTH GUARD
   // ---------------------------------------------------
 
-  useEffect(() => {
-    if (!teamId) return;
-
-    const savedTeamId = localStorage.getItem('teamId');
-
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = `/team-login?teamId=${teamId}`;
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [teamId]);
 
   // ---------------------------------------------------
   // INITIAL LOAD
@@ -278,17 +274,17 @@ export default function TeamRosterPage() {
   // LOADING / ERROR STATES
   // ---------------------------------------------------
 
-  if (loading || !authChecked) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading roster...</main>;
-  }
+ if (loading || accessLoading || !authChecked) {
+  return <main className="mx-auto max-w-7xl px-6 py-8">Loading roster...</main>;
+}
 
-  if (error && !team) {
-    return (
-      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
-        {error}
-      </main>
-    );
-  }
+if ((accessError || error) && !team) {
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
+      {accessError || error}
+    </main>
+  );
+}
 
   if (!team) {
     return (

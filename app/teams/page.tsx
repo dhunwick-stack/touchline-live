@@ -443,13 +443,13 @@ export default function TeamsPage() {
                   Public View
                 </Link>
 
-                <Link
-                  href={`/team-login?teamId=${team.id}&mode=admin`}
-                  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
-                  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
-                >
-                  Admin Login
-                </Link>
+               <Link
+  href={`/teams/${team.id}`}
+  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
+  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
+>
+  Admin View
+</Link>
               </div>
             </div>
           ))}
