@@ -18,6 +18,17 @@ type PublicMatchRow = Match & {
   away_team: Team | null;
 };
 
+type MatchLineupRow = {
+  id: string;
+  match_id: string;
+  team_id: string;
+  player_id: string;
+  is_starter: boolean;
+  is_available?: boolean;
+  lineup_order?: number | null;
+  player: Player | null;
+};
+
 export default function PublicMatchPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -40,6 +51,7 @@ export default function PublicMatchPage() {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [lineups, setLineups] = useState<MatchLineupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
@@ -103,11 +115,25 @@ export default function PublicMatchPage() {
       );
     }
 
+    // -------------------------------------------------
+    // LOAD MATCH LINEUP SNAPSHOT
+    // Optional so older matches still render.
+    // -------------------------------------------------
+
+    const { data: lineupsData } = await supabase
+      .from('match_lineups')
+      .select(`
+        *,
+        player:player_id (*)
+      `)
+      .eq('match_id', loadedMatch.id);
+
     return {
       match: loadedMatch,
       events: (eventsData as MatchEvent[]) ?? [],
       homePlayers: (homePlayersResult.data as Player[]) ?? [],
       awayPlayers: (awayPlayersResult.data as Player[]) ?? [],
+      lineups: (lineupsData as MatchLineupRow[]) ?? [],
     };
   }
 
@@ -141,6 +167,7 @@ export default function PublicMatchPage() {
         setEvents(data.events);
         setHomePlayers(data.homePlayers);
         setAwayPlayers(data.awayPlayers);
+        setLineups(data.lineups);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load scoreboard.');
@@ -180,6 +207,7 @@ export default function PublicMatchPage() {
             setEvents(data.events);
             setHomePlayers(data.homePlayers);
             setAwayPlayers(data.awayPlayers);
+            setLineups(data.lineups);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
@@ -200,6 +228,7 @@ export default function PublicMatchPage() {
             setEvents(data.events);
             setHomePlayers(data.homePlayers);
             setAwayPlayers(data.awayPlayers);
+            setLineups(data.lineups);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
@@ -273,6 +302,58 @@ export default function PublicMatchPage() {
         .reverse(),
     [events],
   );
+
+  // ---------------------------------------------------
+  // STARTING LINEUP DATA
+  // Uses real schema: team_id instead of team_side.
+  // ---------------------------------------------------
+
+  const homeStarters = useMemo(
+    () => (match ? getStartersForSide({ lineups, side: 'home', match }) : []),
+    [lineups, match],
+  );
+
+  const awayStarters = useMemo(
+    () => (match ? getStartersForSide({ lineups, side: 'away', match }) : []),
+    [lineups, match],
+  );
+
+  const hasStartingLineups = homeStarters.length > 0 || awayStarters.length > 0;
+
+  // ---------------------------------------------------
+  // OPTIONAL ON-FIELD VIEW
+  // Derived from starters plus substitutions.
+  // ---------------------------------------------------
+
+  const currentOnField = useMemo(() => {
+    if (!match) {
+      return { home: [] as Player[], away: [] as Player[] };
+    }
+
+    return {
+      home: deriveCurrentOnField({
+        side: 'home',
+        lineups,
+        events,
+        roster: homePlayers,
+        match,
+      }),
+      away: deriveCurrentOnField({
+        side: 'away',
+        lineups,
+        events,
+        roster: awayPlayers,
+        match,
+      }),
+    };
+  }, [lineups, events, homePlayers, awayPlayers, match]);
+
+  const hasOnFieldView =
+    currentOnField.home.length > 0 || currentOnField.away.length > 0;
+
+  // ---------------------------------------------------
+  // TEAM SNAPSHOT
+  // ---------------------------------------------------
 
   const teamSnapshots = useMemo(() => {
     function buildSnapshot(side: 'home' | 'away') {
@@ -590,6 +671,76 @@ export default function PublicMatchPage() {
           </div>
 
           {/* ----------------------------------------------- */}
+          {/* STARTING LINEUPS */}
+          {/* ----------------------------------------------- */}
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Starting groups captured before kickoff when lineup snapshots are available.
+            </p>
+
+            {!hasStartingLineups ? (
+              <p className="mt-4 text-sm text-slate-500">
+                No starting lineup snapshot has been published for this match.
+              </p>
+            ) : (
+              <div className="mt-5 space-y-4">
+                <LineupListCard
+                  title={match.home_team?.name || 'Home Team'}
+                  subtitle="Home starters"
+                  players={homeStarters}
+                  accent="blue"
+                  emptyText="No home starters published."
+                />
+
+                <LineupListCard
+                  title={match.away_team?.name || 'Away Team'}
+                  subtitle="Away starters"
+                  players={awayStarters}
+                  accent="rose"
+                  emptyText="No away starters published."
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ----------------------------------------------- */}
+          {/* OPTIONAL ON-FIELD SECTION */}
+          {/* ----------------------------------------------- */}
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Current on-field view based on starters and recorded substitutions.
+            </p>
+
+            {!hasOnFieldView ? (
+              <p className="mt-4 text-sm text-slate-500">
+                On-field view is not available yet for this match.
+              </p>
+            ) : (
+              <div className="mt-5 space-y-4">
+                <LineupListCard
+                  title={match.home_team?.name || 'Home Team'}
+                  subtitle="Current home players"
+                  players={currentOnField.home}
+                  accent="blue"
+                  emptyText="No current home on-field data."
+                />
+
+                <LineupListCard
+                  title={match.away_team?.name || 'Away Team'}
+                  subtitle="Current away players"
+                  players={currentOnField.away}
+                  accent="rose"
+                  emptyText="No current away on-field data."
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ----------------------------------------------- */}
           {/* EXPLORE MORE */}
           {/* ----------------------------------------------- */}
 
@@ -900,6 +1051,70 @@ function PublicScoreboardTeamLink({
         <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
       </div>
     </Link>
+  );
+}
+
+// ---------------------------------------------------
+// LINEUP LIST CARD
+// ---------------------------------------------------
+
+function LineupListCard({
+  title,
+  subtitle,
+  players,
+  accent,
+  emptyText,
+}: {
+  title: string;
+  subtitle: string;
+  players: Player[];
+  accent: 'blue' | 'rose';
+  emptyText: string;
+}) {
+  const accentPill =
+    accent === 'blue'
+      ? 'bg-blue-50 text-blue-700'
+      : 'bg-rose-50 text-rose-700';
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="truncate font-semibold text-slate-900">{title}</h4>
+          <p className="text-sm text-slate-500">{subtitle}</p>
+        </div>
+
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${accentPill}`}>
+          {players.length}
+        </span>
+      </div>
+
+      {players.length === 0 ? (
+        <p className="text-sm text-slate-500">{emptyText}</p>
+      ) : (
+        <div className="space-y-2">
+          {players.map((player) => (
+            <div
+              key={player.id}
+              className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium text-slate-900">
+                  {playerDisplayName(player) || 'Unnamed Player'}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {player.position || 'No position'}
+                </p>
+              </div>
+
+              <span className="text-sm font-bold text-slate-700">
+                {player.jersey_number ? `#${player.jersey_number}` : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1248,6 +1463,99 @@ function prettyEventText(
   if (event.event_type === 'full_time') return 'Full Time';
 
   return event.event_type;
+}
+
+// ---------------------------------------------------
+// LINEUP HELPERS
+// ---------------------------------------------------
+
+function getStartersForSide({
+  lineups,
+  side,
+  match,
+}: {
+  lineups: MatchLineupRow[];
+  side: 'home' | 'away';
+  match: PublicMatchRow;
+}) {
+  const sideTeamId = side === 'home' ? match.home_team_id : match.away_team_id;
+
+  return lineups
+    .filter((lineup) => lineup.team_id === sideTeamId && lineup.is_starter)
+    .sort(sortLineupRows)
+    .map((lineup) => lineup.player)
+    .filter(Boolean) as Player[];
+}
+
+function deriveCurrentOnField({
+  side,
+  lineups,
+  events,
+  roster,
+  match,
+}: {
+  side: 'home' | 'away';
+  lineups: MatchLineupRow[];
+  events: MatchEvent[];
+  roster: Player[];
+  match: PublicMatchRow;
+}) {
+  const sideTeamId = side === 'home' ? match.home_team_id : match.away_team_id;
+
+  const starters = lineups
+    .filter((lineup) => lineup.team_id === sideTeamId && lineup.is_starter)
+    .sort(sortLineupRows);
+
+  if (starters.length === 0) return [];
+
+  const onFieldIds = new Set<string>(
+    starters.map((lineup) => lineup.player_id).filter(Boolean),
+  );
+
+  const chronologicalEvents = events.slice().reverse();
+
+  for (const event of chronologicalEvents) {
+    if (event.team_id !== sideTeamId || event.event_type !== 'substitution') continue;
+
+    if (event.player_id) {
+      onFieldIds.delete(event.player_id);
+    }
+
+    if (event.secondary_player_id) {
+      onFieldIds.add(event.secondary_player_id);
+    }
+  }
+
+  return roster
+    .filter((player) => onFieldIds.has(player.id))
+    .sort((a, b) => {
+      const aNumber = a.jersey_number ?? 999;
+      const bNumber = b.jersey_number ?? 999;
+
+      if (aNumber !== bNumber) return aNumber - bNumber;
+
+      const aName = [a.first_name, a.last_name].filter(Boolean).join(' ');
+      const bName = [b.first_name, b.last_name].filter(Boolean).join(' ');
+
+      return aName.localeCompare(bName);
+    });
+}
+
+function sortLineupRows(a: MatchLineupRow, b: MatchLineupRow) {
+  const aOrder = a.lineup_order ?? 999;
+  const bOrder = b.lineup_order ?? 999;
+
+  if (aOrder !== bOrder) return aOrder - bOrder;
+
+  const aNumber = a.player?.jersey_number ?? 999;
+  const bNumber = b.player?.jersey_number ?? 999;
+
+  if (aNumber !== bNumber) return aNumber - bNumber;
+
+  const aName = [a.player?.first_name, a.player?.last_name].filter(Boolean).join(' ');
+  const bName = [b.player?.first_name, b.player?.last_name].filter(Boolean).join(' ');
+
+  return aName.localeCompare(bName);
 }
 
 // ---------------------------------------------------
