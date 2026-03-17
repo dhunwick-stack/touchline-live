@@ -1,6 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  Ban,
+  CalendarClock,
+  CheckCircle2,
+  Lock,
+  Unlock,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Match } from '@/lib/types';
 
@@ -25,22 +32,29 @@ export default function MatchActionsCard({
   );
 
   // ---------------------------------------------------
-  // HELPERS
+  // DERIVED STATE
+  // ---------------------------------------------------
+
+  const isLocked = match.is_locked === true;
+  const status = match.status || 'scheduled';
+
+  // ---------------------------------------------------
+  // MATCH UPDATE HELPER
   // ---------------------------------------------------
 
   async function updateMatch(updates: Partial<Match>) {
     setSaving(true);
     setError('');
 
-    const { data, error } = await supabase
+    const { data, error: updateError } = await supabase
       .from('matches')
       .update(updates)
       .eq('id', match.id)
       .select('*')
       .single();
 
-    if (error) {
-      setError(error.message);
+    if (updateError) {
+      setError(updateError.message);
       setSaving(false);
       return;
     }
@@ -48,6 +62,10 @@ export default function MatchActionsCard({
     setSaving(false);
     onUpdated?.(data as Match);
   }
+
+  // ---------------------------------------------------
+  // ACTION HANDLERS
+  // ---------------------------------------------------
 
   async function handleMarkFinal() {
     await updateMatch({
@@ -90,8 +108,9 @@ export default function MatchActionsCard({
     });
   }
 
-  const isLocked = match.is_locked === true;
-  const status = match.status || 'scheduled';
+  // ---------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------
 
   return (
     <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -125,7 +144,7 @@ export default function MatchActionsCard({
         <div className="mt-3 grid gap-4 md:grid-cols-[1fr_1fr]">
           <label className="block space-y-2">
             <span className="text-sm font-semibold text-slate-700">
-              New Match Date & Time
+              New Match Date &amp; Time
             </span>
             <input
               type="datetime-local"
@@ -152,8 +171,7 @@ export default function MatchActionsCard({
 
         {match.original_match_date ? (
           <p className="mt-3 text-sm text-slate-500">
-            Original date:{' '}
-            {new Date(match.original_match_date).toLocaleString()}
+            Original date: {new Date(match.original_match_date).toLocaleString()}
           </p>
         ) : null}
 
@@ -162,9 +180,10 @@ export default function MatchActionsCard({
             type="button"
             onClick={handleReschedule}
             disabled={saving}
-            className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 disabled:opacity-60"
+            className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-100 disabled:opacity-60"
           >
-            {saving ? 'Saving...' : 'Reschedule Match'}
+            <CalendarClock className="h-4 w-4" />
+            <span>{saving ? 'Saving...' : 'Reschedule Match'}</span>
           </button>
         </div>
       </div>
@@ -173,42 +192,55 @@ export default function MatchActionsCard({
       {/* STATUS ACTIONS */}
       {/* --------------------------------------------------- */}
 
-      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <button
-          type="button"
-          onClick={handlePostpone}
-          disabled={saving || isLocked}
-          className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200 disabled:opacity-60"
-        >
-          Postpone
-        </button>
+      <div className="mt-6">
+        <div className="mb-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Match Status Controls
+          </p>
+        </div>
 
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={saving || isLocked}
-          className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 ring-1 ring-rose-200 disabled:opacity-60"
-        >
-          Cancel Match
-        </button>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+  <button
+    type="button"
+    onClick={handlePostpone}
+    disabled={saving || isLocked}
+    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60"
+  >
+    <CalendarClock className="h-4 w-4" />
+    <span>Postpone</span>
+  </button>
 
-        <button
-          type="button"
-          onClick={handleMarkFinal}
-          disabled={saving || isLocked}
-          className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200 disabled:opacity-60"
-        >
-          Mark Final
-        </button>
+  <button
+    type="button"
+    onClick={handleCancel}
+    disabled={saving || isLocked}
+    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
+  >
+    <Ban className="h-4 w-4" />
+    <span>Cancel</span>
+  </button>
 
-        <button
-          type="button"
-          onClick={handleLockToggle}
-          disabled={saving}
-          className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {isLocked ? 'Unlock Match' : 'Lock Match'}
-        </button>
+  <button
+    type="button"
+    onClick={handleMarkFinal}
+    disabled={saving || isLocked}
+    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
+  >
+    <CheckCircle2 className="h-4 w-4" />
+    <span>Final</span>
+  </button>
+
+  <button
+    type="button"
+    onClick={handleLockToggle}
+    disabled={saving}
+    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-60"
+    style={{ backgroundColor: '#0e172b' }}
+  >
+    {isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+    <span>{isLocked ? 'Unlock' : 'Lock'}</span>
+  </button>
+</div>
       </div>
 
       {/* --------------------------------------------------- */}
@@ -239,9 +271,7 @@ function StatusPill({ label, dark = false }: { label: string; dark?: boolean }) 
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-        dark
-          ? 'bg-slate-900 text-white'
-          : 'bg-slate-100 text-slate-700'
+        dark ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
       }`}
     >
       {label}

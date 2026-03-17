@@ -1,28 +1,44 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeftRight,
+  Check,
   CircleDot,
   Pause,
   Play,
   RotateCcw,
   Square,
+  Users,
 } from 'lucide-react';
 import MatchActionsCard from '@/components/MatchActionsCard';
 import MatchHeader from '@/components/match/MatchHeader';
+import {
+  createMatchLineupSnapshot,
+  saveStartingLineup,
+  validateStartingLineupCount,
+} from '@/lib/matchLineups';
 import { supabase } from '@/lib/supabase';
 import type {
   EventType,
   Match,
   MatchEvent,
+  MatchLineup,
   Player,
   Team,
   TeamSide,
   TrackingMode,
 } from '@/lib/types';
+
+// ---------------------------------------------------
+// LOCAL TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -38,6 +54,10 @@ type EventFormState = {
   secondaryPlayerNameOverride: string;
   notes: string;
 };
+
+// ---------------------------------------------------
+// EVENT OPTIONS
+// ---------------------------------------------------
 
 const eventTypeOptions: { value: EventType; label: string }[] = [
   { value: 'goal', label: 'Goal' },
@@ -60,6 +80,10 @@ const eventLabels: Record<EventType, string> = {
   full_time: 'Full Time',
 };
 
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
+
 export default function LiveMatchPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -81,6 +105,13 @@ export default function LiveMatchPage() {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [homeLineups, setHomeLineups] = useState<MatchLineup[]>([]);
+  const [awayLineups, setAwayLineups] = useState<MatchLineup[]>([]);
+  const [selectedHomeStarterIds, setSelectedHomeStarterIds] = useState<string[]>([]);
+  const [selectedAwayStarterIds, setSelectedAwayStarterIds] = useState<string[]>([]);
+  const [loadingLineups, setLoadingLineups] = useState(false);
+  const [savingHomeLineup, setSavingHomeLineup] = useState(false);
+  const [savingAwayLineup, setSavingAwayLineup] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -170,6 +201,62 @@ export default function LiveMatchPage() {
 
       setHomePlayers((homePlayersResult.data as Player[]) ?? []);
       setAwayPlayers((awayPlayersResult.data as Player[]) ?? []);
+
+      // ---------------------------------------------------
+      // LOAD OR CREATE MATCH LINEUP SNAPSHOTS
+      // ---------------------------------------------------
+
+      setLoadingLineups(true);
+
+      try {
+        if (
+          loadedMatch.home_team_id &&
+          (loadedMatch.home_tracking_mode === 'lineups' ||
+            loadedMatch.home_tracking_mode === 'full')
+        ) {
+          const homeSnapshot = await createMatchLineupSnapshot(
+            loadedMatch.id,
+            loadedMatch.home_team_id,
+          );
+
+          setHomeLineups(homeSnapshot);
+          setSelectedHomeStarterIds(
+            homeSnapshot.filter((row) => row.is_starter).map((row) => row.player_id),
+          );
+        } else {
+          setHomeLineups([]);
+          setSelectedHomeStarterIds([]);
+        }
+
+        if (
+          loadedMatch.away_team_id &&
+          (loadedMatch.away_tracking_mode === 'lineups' ||
+            loadedMatch.away_tracking_mode === 'full')
+        ) {
+          const awaySnapshot = await createMatchLineupSnapshot(
+            loadedMatch.id,
+            loadedMatch.away_team_id,
+          );
+
+          setAwayLineups(awaySnapshot);
+          setSelectedAwayStarterIds(
+            awaySnapshot.filter((row) => row.is_starter).map((row) => row.player_id),
+          );
+        } else {
+          setAwayLineups([]);
+          setSelectedAwayStarterIds([]);
+        }
+      } catch (lineupError) {
+        console.error('Failed to load match lineups:', lineupError);
+        setError(
+          lineupError instanceof Error
+            ? lineupError.message
+            : 'Failed to load match lineups.',
+        );
+      } finally {
+        setLoadingLineups(false);
+      }
+
       setLoading(false);
     }
 
@@ -222,10 +309,6 @@ export default function LiveMatchPage() {
     return form.side === 'home' ? match.home_tracking_mode : match.away_tracking_mode;
   }, [form.side, match]);
 
-  const selectedPlayers = useMemo(() => {
-    return form.side === 'home' ? homePlayers : awayPlayers;
-  }, [form.side, homePlayers, awayPlayers]);
-
   const selectedTeamName = useMemo(() => {
     if (!match) return 'Team';
     return form.side === 'home'
@@ -233,11 +316,143 @@ export default function LiveMatchPage() {
       : match.away_team?.name || 'Away Team';
   }, [form.side, match]);
 
+  const homeSupportsLineups =
+    match?.home_tracking_mode === 'lineups' || match?.home_tracking_mode === 'full';
+
+  const awaySupportsLineups =
+    match?.away_tracking_mode === 'lineups' || match?.away_tracking_mode === 'full';
+
   const editingDisabled =
     !!match &&
     (match.is_locked === true ||
       match.status === 'cancelled' ||
       match.status === 'postponed');
+
+  const homeStarterCount = selectedHomeStarterIds.length;
+  const awayStarterCount = selectedAwayStarterIds.length;
+
+  // ---------------------------------------------------
+  // DERIVED ON-FIELD / BENCH STATES
+  // ---------------------------------------------------
+
+  const homeActivePlayerIds = useMemo(() => {
+    if (match?.home_tracking_mode !== 'full') {
+      return new Set(homePlayers.map((player) => player.id));
+    }
+
+    const activeIds = new Set(selectedHomeStarterIds);
+
+    events
+      .filter((event) => event.team_side === 'home' && event.event_type === 'substitution')
+      .slice()
+      .reverse()
+      .forEach((event) => {
+        const playerOutId = event.player_id || null;
+        const playerInId = event.secondary_player_id || null;
+
+        if (playerOutId) {
+          activeIds.delete(playerOutId);
+        }
+
+        if (playerInId) {
+          activeIds.add(playerInId);
+        }
+      });
+
+    return activeIds;
+  }, [events, homePlayers, match?.home_tracking_mode, selectedHomeStarterIds]);
+
+  const awayActivePlayerIds = useMemo(() => {
+    if (match?.away_tracking_mode !== 'full') {
+      return new Set(awayPlayers.map((player) => player.id));
+    }
+
+    const activeIds = new Set(selectedAwayStarterIds);
+
+    events
+      .filter((event) => event.team_side === 'away' && event.event_type === 'substitution')
+      .slice()
+      .reverse()
+      .forEach((event) => {
+        const playerOutId = event.player_id || null;
+        const playerInId = event.secondary_player_id || null;
+
+        if (playerOutId) {
+          activeIds.delete(playerOutId);
+        }
+
+        if (playerInId) {
+          activeIds.add(playerInId);
+        }
+      });
+
+    return activeIds;
+  }, [events, awayPlayers, match?.away_tracking_mode, selectedAwayStarterIds]);
+
+  const homeLineupRows = useMemo(() => {
+    return homeLineups.map((row) => {
+      const player = homePlayers.find((item) => item.id === row.player_id);
+      return { row, player };
+    });
+  }, [homeLineups, homePlayers]);
+
+  const awayLineupRows = useMemo(() => {
+    return awayLineups.map((row) => {
+      const player = awayPlayers.find((item) => item.id === row.player_id);
+      return { row, player };
+    });
+  }, [awayLineups, awayPlayers]);
+
+  const selectedRosterPlayers = useMemo(() => {
+    return form.side === 'home' ? homePlayers : awayPlayers;
+  }, [form.side, homePlayers, awayPlayers]);
+
+  const selectedOnFieldPlayers = useMemo(() => {
+    if (form.side === 'home') {
+      return homePlayers.filter((player) => homeActivePlayerIds.has(player.id));
+    }
+
+    return awayPlayers.filter((player) => awayActivePlayerIds.has(player.id));
+  }, [form.side, homeActivePlayerIds, awayActivePlayerIds, homePlayers, awayPlayers]);
+
+  const selectedBenchPlayers = useMemo(() => {
+    if (form.side === 'home') {
+      return homePlayers.filter((player) => !homeActivePlayerIds.has(player.id));
+    }
+
+    return awayPlayers.filter((player) => !awayActivePlayerIds.has(player.id));
+  }, [form.side, homeActivePlayerIds, awayActivePlayerIds, homePlayers, awayPlayers]);
+
+  const eventSelectablePlayers = useMemo(() => {
+    if (selectedTrackingMode === 'full') {
+      if (form.type === 'substitution') {
+        return selectedOnFieldPlayers;
+      }
+
+      return selectedOnFieldPlayers;
+    }
+
+    return selectedRosterPlayers;
+  }, [form.type, selectedOnFieldPlayers, selectedRosterPlayers, selectedTrackingMode]);
+
+  const eventSelectableSecondaryPlayers = useMemo(() => {
+    if (selectedTrackingMode === 'full' && form.type === 'substitution') {
+      return selectedBenchPlayers;
+    }
+
+    if (selectedTrackingMode === 'full') {
+      return selectedOnFieldPlayers.filter((player) => player.id !== form.playerId);
+    }
+
+    return selectedRosterPlayers.filter((player) => player.id !== form.playerId);
+  }, [
+    form.playerId,
+    form.type,
+    selectedBenchPlayers,
+    selectedOnFieldPlayers,
+    selectedRosterPlayers,
+    selectedTrackingMode,
+  ]);
 
   // ---------------------------------------------------
   // FORM HELPERS
@@ -260,8 +475,8 @@ export default function LiveMatchPage() {
     if (editingDisabled) return 'This match is not editable in its current state.';
     if (form.type === 'half_end' || form.type === 'full_time') return null;
 
-    if (selectedTrackingMode === 'score_only' && form.type !== 'goal') {
-      return 'Score only mode only allows goals and match status events.';
+    if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
+      return 'Lineups mode does not support substitutions yet.';
     }
 
     if (selectedTrackingMode === 'full') {
@@ -274,18 +489,148 @@ export default function LiveMatchPage() {
       ) {
         return 'Choose a player for this event.';
       }
+
       if (form.type === 'substitution' && !form.secondaryPlayerId) {
-        return 'Choose the second player for substitution.';
+        return 'Choose the incoming player for substitution.';
+      }
+
+      if (
+        form.type === 'substitution' &&
+        form.playerId &&
+        form.secondaryPlayerId &&
+        form.playerId === form.secondaryPlayerId
+      ) {
+        return 'Outgoing and incoming players must be different.';
+      }
+
+      if (form.type === 'substitution') {
+        const outgoingOnField = selectedOnFieldPlayers.some(
+          (player) => player.id === form.playerId,
+        );
+
+        const incomingOnBench = selectedBenchPlayers.some(
+          (player) => player.id === form.secondaryPlayerId,
+        );
+
+        if (!outgoingOnField) {
+          return 'Outgoing player must currently be on the field.';
+        }
+
+        if (!incomingOnBench) {
+          return 'Incoming player must currently be off the field.';
+        }
       }
     }
 
-    if (selectedTrackingMode === 'basic') {
+    if (selectedTrackingMode === 'basic' || selectedTrackingMode === 'lineups') {
+      if (
+        (form.type === 'goal' ||
+          form.type === 'yellow_card' ||
+          form.type === 'red_card') &&
+        !form.playerId &&
+        !form.playerNameOverride.trim()
+      ) {
+        return 'Choose a player or type a quick player label.';
+      }
+
       if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
         return 'Add a quick player or note for this substitution.';
       }
     }
 
     return null;
+  }
+
+  // ---------------------------------------------------
+  // STARTER TOGGLE HELPERS
+  // ---------------------------------------------------
+
+  function toggleHomeStarter(playerId: string) {
+    setSelectedHomeStarterIds((current) => {
+      const alreadySelected = current.includes(playerId);
+
+      if (alreadySelected) {
+        return current.filter((id) => id !== playerId);
+      }
+
+      if (current.length >= 11) {
+        return current;
+      }
+
+      return [...current, playerId];
+    });
+  }
+
+  function toggleAwayStarter(playerId: string) {
+    setSelectedAwayStarterIds((current) => {
+      const alreadySelected = current.includes(playerId);
+
+      if (alreadySelected) {
+        return current.filter((id) => id !== playerId);
+      }
+
+      if (current.length >= 11) {
+        return current;
+      }
+
+      return [...current, playerId];
+    });
+  }
+
+  // ---------------------------------------------------
+  // SAVE STARTING LINEUPS
+  // ---------------------------------------------------
+
+  async function handleSaveHomeLineup() {
+    if (!match?.home_team_id) return;
+
+    if (!validateStartingLineupCount(selectedHomeStarterIds)) {
+      setError('Home lineup must contain exactly 11 starters.');
+      return;
+    }
+
+    setSavingHomeLineup(true);
+    setError(null);
+
+    try {
+      await saveStartingLineup(match.id, match.home_team_id, selectedHomeStarterIds);
+
+      const refreshed = await createMatchLineupSnapshot(match.id, match.home_team_id);
+      setHomeLineups(refreshed);
+      setSelectedHomeStarterIds(
+        refreshed.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save home lineup.');
+    } finally {
+      setSavingHomeLineup(false);
+    }
+  }
+
+  async function handleSaveAwayLineup() {
+    if (!match?.away_team_id) return;
+
+    if (!validateStartingLineupCount(selectedAwayStarterIds)) {
+      setError('Away lineup must contain exactly 11 starters.');
+      return;
+    }
+
+    setSavingAwayLineup(true);
+    setError(null);
+
+    try {
+      await saveStartingLineup(match.id, match.away_team_id, selectedAwayStarterIds);
+
+      const refreshed = await createMatchLineupSnapshot(match.id, match.away_team_id);
+      setAwayLineups(refreshed);
+      setSelectedAwayStarterIds(
+        refreshed.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save away lineup.');
+    } finally {
+      setSavingAwayLineup(false);
+    }
   }
 
   // ---------------------------------------------------
@@ -734,11 +1079,11 @@ export default function LiveMatchPage() {
               <Field label="Tracking Mode for This Side">
                 <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
                   {selectedTrackingMode === 'full' &&
-                    'Full tracking — player-based events and detailed logging'}
+                    'Full tracking — player-based events, substitutions, and detailed logging'}
+                  {selectedTrackingMode === 'lineups' &&
+                    'Lineups mode — starting lineup support with simpler event entry'}
                   {selectedTrackingMode === 'basic' &&
-                    'Basic tracking — team events with optional player text'}
-                  {selectedTrackingMode === 'score_only' &&
-                    'Score only — goals and match status events only'}
+                    'Basic tracking — optional roster player selection with no required lineups'}
                 </div>
               </Field>
 
@@ -747,16 +1092,22 @@ export default function LiveMatchPage() {
                   {eventTypeOptions
                     .filter(
                       (option) =>
-                        !(
-                          selectedTrackingMode === 'score_only' &&
-                          !['goal', 'half_end', 'full_time'].includes(option.value)
-                        ),
+                        !(selectedTrackingMode === 'lineups' && option.value === 'substitution'),
                     )
                     .map((option) => (
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, type: option.value }))}
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            type: option.value,
+                            playerId: '',
+                            secondaryPlayerId: '',
+                            playerNameOverride: '',
+                            secondaryPlayerNameOverride: '',
+                          }));
+                        }}
                         disabled={editingDisabled}
                         className={getEventTypeButtonClasses(
                           option.value,
@@ -771,10 +1122,85 @@ export default function LiveMatchPage() {
                 </div>
               </Field>
 
-              {selectedTrackingMode === 'full' &&
+              {(selectedTrackingMode === 'basic' || selectedTrackingMode === 'lineups') &&
                 form.type !== 'half_end' &&
                 form.type !== 'full_time' && (
-                  <Field label={form.type === 'substitution' ? 'Primary Player' : 'Player'}>
+                  <>
+                    <Field label="Player (Optional)">
+                      <select
+                        value={form.playerId}
+                        onChange={(e) => setForm((prev) => ({ ...prev, playerId: e.target.value }))}
+                        disabled={editingDisabled}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                      >
+                        <option value="">No linked player</option>
+                        {eventSelectablePlayers.map((player) => (
+                          <option key={player.id} value={player.id}>
+                            {playerDisplayName(player)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
+                    <Field label="Quick Player / Label (Optional)">
+                      <input
+                        value={form.playerNameOverride}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, playerNameOverride: e.target.value }))
+                        }
+                        disabled={editingDisabled}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                        placeholder="e.g. #10 or Smith"
+                      />
+                    </Field>
+
+                    {form.type === 'goal' && (
+                      <>
+                        <Field label="Assist Player (Optional)">
+                          <select
+                            value={form.secondaryPlayerId}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                secondaryPlayerId: e.target.value,
+                              }))
+                            }
+                            disabled={editingDisabled}
+                            className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                          >
+                            <option value="">No linked assist player</option>
+                            {eventSelectableSecondaryPlayers.map((player) => (
+                              <option key={player.id} value={player.id}>
+                                {playerDisplayName(player)}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <Field label="Assist / Secondary Label (Optional)">
+                          <input
+                            value={form.secondaryPlayerNameOverride}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                secondaryPlayerNameOverride: e.target.value,
+                              }))
+                            }
+                            disabled={editingDisabled}
+                            className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                            placeholder="Optional assist"
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </>
+                )}
+
+              {selectedTrackingMode === 'full' &&
+                form.type !== 'half_end' &&
+                form.type !== 'full_time' &&
+                form.type !== 'substitution' && (
+                  <Field label="Player">
                     <select
                       value={form.playerId}
                       onChange={(e) => setForm((prev) => ({ ...prev, playerId: e.target.value }))}
@@ -782,7 +1208,7 @@ export default function LiveMatchPage() {
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                     >
                       <option value="">Select player</option>
-                      {selectedPlayers.map((player) => (
+                      {eventSelectablePlayers.map((player) => (
                         <option key={player.id} value={player.id}>
                           {playerDisplayName(player)}
                         </option>
@@ -802,73 +1228,99 @@ export default function LiveMatchPage() {
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
                   >
                     <option value="">No assist</option>
-                    {selectedPlayers
-                      .filter((player) => player.id !== form.playerId)
-                      .map((player) => (
-                        <option key={player.id} value={player.id}>
-                          {playerDisplayName(player)}
-                        </option>
-                      ))}
+                    {eventSelectableSecondaryPlayers.map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {playerDisplayName(player)}
+                      </option>
+                    ))}
                   </select>
                 </Field>
               )}
 
               {selectedTrackingMode === 'full' && form.type === 'substitution' && (
-                <Field label="Second Player">
-                  <select
-                    value={form.secondaryPlayerId}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, secondaryPlayerId: e.target.value }))
-                    }
-                    disabled={editingDisabled}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
-                  >
-                    <option value="">Select player</option>
-                    {selectedPlayers
-                      .filter((player) => player.id !== form.playerId)
-                      .map((player) => (
+                <>
+                  <Field label="Outgoing Player">
+                    <select
+                      value={form.playerId}
+                      onChange={(e) => setForm((prev) => ({ ...prev, playerId: e.target.value }))}
+                      disabled={editingDisabled}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                    >
+                      <option value="">Select outgoing player</option>
+                      {eventSelectablePlayers.map((player) => (
                         <option key={player.id} value={player.id}>
                           {playerDisplayName(player)}
                         </option>
                       ))}
-                  </select>
-                </Field>
+                    </select>
+                  </Field>
+
+                  <Field label="Incoming Player">
+                    <select
+                      value={form.secondaryPlayerId}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, secondaryPlayerId: e.target.value }))
+                      }
+                      disabled={editingDisabled}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
+                    >
+                      <option value="">Select incoming player</option>
+                      {eventSelectableSecondaryPlayers.map((player) => (
+                        <option key={player.id} value={player.id}>
+                          {playerDisplayName(player)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
               )}
 
-              {selectedTrackingMode === 'basic' &&
-                form.type !== 'half_end' &&
-                form.type !== 'full_time' && (
-                  <>
-                    <Field label="Quick Player / Label (Optional)">
-                      <input
-                        value={form.playerNameOverride}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, playerNameOverride: e.target.value }))
-                        }
-                        disabled={editingDisabled}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
-                        placeholder="e.g. #10 or Smith"
-                      />
-                    </Field>
+              {selectedTrackingMode === 'full' && form.type === 'substitution' && (
+                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <p className="text-sm font-semibold text-slate-900">Current on-field state</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        On Field
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedOnFieldPlayers.length === 0 ? (
+                          <span className="text-sm text-slate-400">No active players found.</span>
+                        ) : (
+                          selectedOnFieldPlayers.map((player) => (
+                            <span
+                              key={player.id}
+                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                            >
+                              {playerDisplayName(player)}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
 
-                    {form.type === 'goal' && (
-                      <Field label="Assist / Secondary Label (Optional)">
-                        <input
-                          value={form.secondaryPlayerNameOverride}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              secondaryPlayerNameOverride: e.target.value,
-                            }))
-                          }
-                          disabled={editingDisabled}
-                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-40"
-                          placeholder="Optional assist"
-                        />
-                      </Field>
-                    )}
-                  </>
-                )}
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Bench
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedBenchPlayers.length === 0 ? (
+                          <span className="text-sm text-slate-400">No bench players found.</span>
+                        ) : (
+                          selectedBenchPlayers.map((player) => (
+                            <span
+                              key={player.id}
+                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                            >
+                              {playerDisplayName(player)}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Field label="Notes (Optional)">
                 <textarea
@@ -892,6 +1344,97 @@ export default function LiveMatchPage() {
               </button>
             </div>
           </section>
+
+          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold">Lineup Snapshot Status</h2>
+                <p className="text-sm text-slate-600">
+                  Match-day roster snapshots load automatically for teams using lineups or full
+                  tracking.
+                </p>
+              </div>
+              {loadingLineups ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                  Loading...
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+                  Ready
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {match.home_team?.name || 'Home Team'}
+                    </p>
+                    <p className="text-xs text-slate-500">Mode: {match.home_tracking_mode}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {homeSupportsLineups ? `${homeLineups.length} players snapped` : 'Not used'}
+                    </p>
+                    {homeSupportsLineups && (
+                      <p className="text-xs text-slate-500">{homeStarterCount} starters selected</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {match.away_team?.name || 'Away Team'}
+                    </p>
+                    <p className="text-xs text-slate-500">Mode: {match.away_tracking_mode}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {awaySupportsLineups ? `${awayLineups.length} players snapped` : 'Not used'}
+                    </p>
+                    {awaySupportsLineups && (
+                      <p className="text-xs text-slate-500">{awayStarterCount} starters selected</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {homeSupportsLineups && (
+            <LineupSelectionCard
+              title={match.home_team?.name || 'Home Team'}
+              subtitle="Choose exactly 11 starters."
+              rows={homeLineupRows}
+              selectedStarterIds={selectedHomeStarterIds}
+              onToggleStarter={toggleHomeStarter}
+              onSave={handleSaveHomeLineup}
+              saving={savingHomeLineup}
+              loading={loadingLineups}
+              accent="home"
+              disabled={editingDisabled}
+            />
+          )}
+
+          {awaySupportsLineups && (
+            <LineupSelectionCard
+              title={match.away_team?.name || 'Away Team'}
+              subtitle="Choose exactly 11 starters."
+              rows={awayLineupRows}
+              selectedStarterIds={selectedAwayStarterIds}
+              onToggleStarter={toggleAwayStarter}
+              onSave={handleSaveAwayLineup}
+              saving={savingAwayLineup}
+              loading={loadingLineups}
+              accent="away"
+              disabled={editingDisabled}
+            />
+          )}
 
           <MatchActionsCard
             match={match}
@@ -969,6 +1512,8 @@ export default function LiveMatchPage() {
                 ...prev,
                 side: 'home',
                 type: 'goal',
+                playerId: '',
+                secondaryPlayerId: '',
               }))
             }
             disabled={editingDisabled}
@@ -985,6 +1530,8 @@ export default function LiveMatchPage() {
                 ...prev,
                 side: 'away',
                 type: 'goal',
+                playerId: '',
+                secondaryPlayerId: '',
               }))
             }
             disabled={editingDisabled}
@@ -1025,6 +1572,183 @@ export default function LiveMatchPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+// ---------------------------------------------------
+// LINEUP SELECTION CARD
+// ---------------------------------------------------
+
+function LineupSelectionCard({
+  title,
+  subtitle,
+  rows,
+  selectedStarterIds,
+  onToggleStarter,
+  onSave,
+  saving,
+  loading,
+  accent,
+  disabled,
+}: {
+  title: string;
+  subtitle: string;
+  rows: { row: MatchLineup; player: Player | undefined }[];
+  selectedStarterIds: string[];
+  onToggleStarter: (playerId: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  loading: boolean;
+  accent: 'home' | 'away';
+  disabled: boolean;
+}) {
+  const selectedRows = rows.filter(({ row }) => selectedStarterIds.includes(row.player_id));
+  const benchRows = rows.filter(({ row }) => !selectedStarterIds.includes(row.player_id));
+  const isValid = validateStartingLineupCount(selectedStarterIds);
+
+  const persistedStarterIds = rows
+    .filter(({ row }) => row.is_starter)
+    .map(({ row }) => row.player_id)
+    .sort();
+
+  const currentStarterIds = [...selectedStarterIds].sort();
+
+  const isDirty =
+    JSON.stringify(persistedStarterIds) !== JSON.stringify(currentStarterIds);
+
+  const accentBadgeClass =
+    accent === 'home' ? 'bg-blue-50 text-blue-700' : 'bg-rose-50 text-rose-700';
+
+  const accentActiveClass =
+    accent === 'home'
+      ? 'border-blue-300 bg-blue-50'
+      : 'border-rose-300 bg-rose-50';
+
+  return (
+    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-slate-700" />
+            <h2 className="text-xl font-bold">{title} Starting 11</h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+        </div>
+
+        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${accentBadgeClass}`}>
+          {selectedStarterIds.length}/11
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+          Loading lineup...
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+          No lineup snapshot is available for this side yet.
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+            <p className="text-sm font-semibold text-slate-900">Selected starters</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Tap a selected starter to remove them. Tap an available player below to add them.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedRows.length === 0 ? (
+                <span className="text-sm text-slate-400">No starters selected yet.</span>
+              ) : (
+                selectedRows.map(({ row, player }) => (
+                  <button
+                    key={row.player_id}
+                    type="button"
+                    onClick={() => onToggleStarter(row.player_id)}
+                    disabled={disabled}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition disabled:opacity-40 ${accentActiveClass}`}
+                  >
+                    <Check className="h-4 w-4" />
+                    <span>{playerDisplayName(player)}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">
+              Available players (tap to add)
+            </h3>
+            <div className="space-y-2">
+              {benchRows.map(({ row, player }) => {
+                const selected = selectedStarterIds.includes(row.player_id);
+
+                return (
+                  <button
+                    key={row.player_id}
+                    type="button"
+                    onClick={() => onToggleStarter(row.player_id)}
+                    disabled={disabled}
+                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition disabled:opacity-40 ${
+                      selected
+                        ? accentActiveClass
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {playerDisplayName(player) ||
+                          row.player_name_snapshot ||
+                          'Unnamed player'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {selected ? 'Starter' : 'Available'}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        selected ? accentBadgeClass : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {selected ? 'Selected' : 'Tap to start'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <p
+              className={`text-sm font-medium ${
+                !isValid
+                  ? 'text-amber-700'
+                  : isDirty
+                    ? 'text-sky-700'
+                    : 'text-emerald-700'
+              }`}
+            >
+              {!isValid
+                ? 'Select exactly 11 starters before saving.'
+                : isDirty
+                  ? 'Starting 11 is ready to save.'
+                  : 'Starting 11 is saved.'}
+            </p>
+
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={!isValid || saving || disabled || !isDirty}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : isDirty ? 'Save Starting 11' : 'Starting 11 Saved'}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1352,5 +2076,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';
   const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
-  return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
+  return player?.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
 }
