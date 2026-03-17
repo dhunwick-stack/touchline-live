@@ -1,8 +1,16 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchLineup, Player, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// LOCAL TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -16,12 +24,20 @@ type Props = {
   onSaved?: (lineups: MatchLineup[]) => void;
 };
 
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
+
 export default function MatchLineupCard({
   match,
   homePlayers,
   awayPlayers,
   onSaved,
 }: Props) {
+  // ---------------------------------------------------
+  // LOCAL STATE
+  // ---------------------------------------------------
+
   const [lineups, setLineups] = useState<MatchLineup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,6 +45,10 @@ export default function MatchLineupCard({
 
   const [homeStarterIds, setHomeStarterIds] = useState<string[]>([]);
   const [awayStarterIds, setAwayStarterIds] = useState<string[]>([]);
+
+  // ---------------------------------------------------
+  // LOAD SAVED LINEUPS
+  // ---------------------------------------------------
 
   useEffect(() => {
     if (!match?.id) return;
@@ -41,7 +61,6 @@ export default function MatchLineupCard({
         .from('match_lineups')
         .select('*')
         .eq('match_id', match.id)
-        .order('lineup_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -55,13 +74,13 @@ export default function MatchLineupCard({
 
       setHomeStarterIds(
         rows
-          .filter((row) => row.team_side === 'home' && row.is_starter)
+          .filter((row) => row.team_id === match.home_team_id && row.is_starter)
           .map((row) => row.player_id),
       );
 
       setAwayStarterIds(
         rows
-          .filter((row) => row.team_side === 'away' && row.is_starter)
+          .filter((row) => row.team_id === match.away_team_id && row.is_starter)
           .map((row) => row.player_id),
       );
 
@@ -69,7 +88,11 @@ export default function MatchLineupCard({
     }
 
     loadLineups();
-  }, [match?.id]);
+  }, [match?.id, match?.home_team_id, match?.away_team_id]);
+
+  // ---------------------------------------------------
+  // DERIVED STATE
+  // ---------------------------------------------------
 
   const homeStarterCount = homeStarterIds.length;
   const awayStarterCount = awayStarterIds.length;
@@ -86,20 +109,55 @@ export default function MatchLineupCard({
     match.status === 'halftime' ||
     match.status === 'final';
 
-  const homeSelectedPlayers = useMemo(
-    () => homePlayers.filter((player) => homeStarterIds.includes(player.id)),
-    [homePlayers, homeStarterIds],
-  );
+  const homeSelectedPlayers = useMemo(() => {
+    return homeStarterIds
+      .map((playerId) => homePlayers.find((player) => player.id === playerId))
+      .filter(Boolean) as Player[];
+  }, [homePlayers, homeStarterIds]);
 
-  const awaySelectedPlayers = useMemo(
-    () => awayPlayers.filter((player) => awayStarterIds.includes(player.id)),
-    [awayPlayers, awayStarterIds],
-  );
+  const awaySelectedPlayers = useMemo(() => {
+    return awayStarterIds
+      .map((playerId) => awayPlayers.find((player) => player.id === playerId))
+      .filter(Boolean) as Player[];
+  }, [awayPlayers, awayStarterIds]);
+
+  const savedHomeStarterIds = useMemo(() => {
+    return lineups
+      .filter((row) => row.team_id === match.home_team_id && row.is_starter)
+      .map((row) => row.player_id)
+      .sort();
+  }, [lineups, match.home_team_id]);
+
+  const savedAwayStarterIds = useMemo(() => {
+    return lineups
+      .filter((row) => row.team_id === match.away_team_id && row.is_starter)
+      .map((row) => row.player_id)
+      .sort();
+  }, [lineups, match.away_team_id]);
+
+  const currentHomeStarterIds = useMemo(() => [...homeStarterIds].sort(), [homeStarterIds]);
+  const currentAwayStarterIds = useMemo(() => [...awayStarterIds].sort(), [awayStarterIds]);
+
+  const homeDirty =
+    JSON.stringify(savedHomeStarterIds) !== JSON.stringify(currentHomeStarterIds);
+
+  const awayDirty =
+    JSON.stringify(savedAwayStarterIds) !== JSON.stringify(currentAwayStarterIds);
+
+  const anythingDirty = homeDirty || awayDirty;
+
+  // ---------------------------------------------------
+  // DISPLAY HELPERS
+  // ---------------------------------------------------
 
   function playerDisplayName(player: Player) {
     const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
     return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
   }
+
+  // ---------------------------------------------------
+  // STARTER TOGGLES
+  // ---------------------------------------------------
 
   function toggleStarter(side: 'home' | 'away', playerId: string) {
     if (editingDisabled) return;
@@ -146,6 +204,10 @@ export default function MatchLineupCard({
     setAwayStarterIds([]);
   }
 
+  // ---------------------------------------------------
+  // SAVE LINEUPS
+  // ---------------------------------------------------
+
   async function saveLineups() {
     if (editingDisabled) {
       setError('Lineups cannot be edited after the match has started or in this match state.');
@@ -165,25 +227,51 @@ export default function MatchLineupCard({
     setSaving(true);
     setError(null);
 
+    const now = new Date().toISOString();
+
     const payload = [
-      ...homeStarterIds.map((playerId, index) => ({
-        match_id: match.id,
-        team_id: match.home_team_id,
-        player_id: playerId,
-        team_side: 'home' as const,
-        is_starter: true,
-        is_bench: false,
-        lineup_order: index + 1,
-      })),
-      ...awayStarterIds.map((playerId, index) => ({
-        match_id: match.id,
-        team_id: match.away_team_id,
-        player_id: playerId,
-        team_side: 'away' as const,
-        is_starter: true,
-        is_bench: false,
-        lineup_order: index + 1,
-      })),
+      ...homeStarterIds.map((playerId): Omit<MatchLineup, 'id'> => {
+        const player = homePlayers.find((item) => item.id === playerId);
+
+        return {
+          match_id: match.id,
+          team_id: match.home_team_id!,
+          player_id: playerId,
+          is_starter: true,
+          is_available: true,
+          player_name_snapshot:
+            player
+              ? [player.first_name, player.last_name].filter(Boolean).join(' ') || null
+              : null,
+          jersey_number_snapshot:
+            player?.jersey_number !== null && player?.jersey_number !== undefined
+              ? String(player.jersey_number)
+              : null,
+          created_at: now,
+          updated_at: now,
+        };
+      }),
+      ...awayStarterIds.map((playerId): Omit<MatchLineup, 'id'> => {
+        const player = awayPlayers.find((item) => item.id === playerId);
+
+        return {
+          match_id: match.id,
+          team_id: match.away_team_id!,
+          player_id: playerId,
+          is_starter: true,
+          is_available: true,
+          player_name_snapshot:
+            player
+              ? [player.first_name, player.last_name].filter(Boolean).join(' ') || null
+              : null,
+          jersey_number_snapshot:
+            player?.jersey_number !== null && player?.jersey_number !== undefined
+              ? String(player.jersey_number)
+              : null,
+          created_at: now,
+          updated_at: now,
+        };
+      }),
     ];
 
     const { error: deleteError } = await supabase
@@ -209,13 +297,27 @@ export default function MatchLineupCard({
     }
 
     const savedRows = (inserted as MatchLineup[]) ?? [];
+
     setLineups(savedRows);
+    setHomeStarterIds(
+      savedRows
+        .filter((row) => row.team_id === match.home_team_id && row.is_starter)
+        .map((row) => row.player_id),
+    );
+    setAwayStarterIds(
+      savedRows
+        .filter((row) => row.team_id === match.away_team_id && row.is_starter)
+        .map((row) => row.player_id),
+    );
+
     setSaving(false);
 
-    if (onSaved) {
-      onSaved(savedRows);
-    }
+    onSaved?.(savedRows);
   }
+
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
 
   return (
     <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -231,10 +333,10 @@ export default function MatchLineupCard({
           <button
             type="button"
             onClick={saveLineups}
-            disabled={saving || editingDisabled}
+            disabled={saving || editingDisabled || !anythingDirty}
             className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save Lineups'}
+            {saving ? 'Saving…' : anythingDirty ? 'Save Lineups' : 'Lineups Saved'}
           </button>
         </div>
       </div>
@@ -270,6 +372,7 @@ export default function MatchLineupCard({
             complete={homeComplete}
             disabled={editingDisabled}
             selectedPlayers={homeSelectedPlayers}
+            dirty={homeDirty}
           />
 
           <LineupSideCard
@@ -285,6 +388,7 @@ export default function MatchLineupCard({
             complete={awayComplete}
             disabled={editingDisabled}
             selectedPlayers={awaySelectedPlayers}
+            dirty={awayDirty}
           />
         </div>
       )}
@@ -301,6 +405,10 @@ export default function MatchLineupCard({
   );
 }
 
+// ---------------------------------------------------
+// LINEUP SIDE CARD
+// ---------------------------------------------------
+
 function LineupSideCard({
   title,
   side,
@@ -314,6 +422,7 @@ function LineupSideCard({
   complete,
   disabled,
   selectedPlayers,
+  dirty,
 }: {
   title: string;
   side: 'home' | 'away';
@@ -327,6 +436,7 @@ function LineupSideCard({
   complete: boolean;
   disabled: boolean;
   selectedPlayers: Player[];
+  dirty: boolean;
 }) {
   return (
     <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
@@ -336,13 +446,21 @@ function LineupSideCard({
           <p className="mt-1 text-sm text-slate-600">Select 11 starters.</p>
         </div>
 
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-semibold ${
-            complete ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
-          }`}
-        >
-          {selectedCount}/11
-        </span>
+        <div className="flex items-center gap-2">
+          {dirty ? (
+            <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+              Unsaved
+            </span>
+          ) : null}
+
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-semibold ${
+              complete ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {selectedCount}/11
+          </span>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
@@ -405,6 +523,7 @@ function LineupSideCard({
                 }`}
               >
                 <span className="truncate font-medium">{playerDisplayName(player)}</span>
+
                 <span
                   className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
                     selected ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'
