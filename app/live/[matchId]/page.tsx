@@ -10,6 +10,8 @@ import { useParams } from 'next/navigation';
 import {
   ArrowLeftRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   CircleDot,
   Pause,
   Play,
@@ -120,6 +122,15 @@ export default function LiveMatchPage() {
   const [lineupNotice, setLineupNotice] = useState<string | null>(null);
 
   // ---------------------------------------------------
+  // COLLAPSIBLE PANEL STATE
+  // ---------------------------------------------------
+
+  const [showOnFieldState, setShowOnFieldState] = useState(true);
+  const [showLineupSnapshotStatus, setShowLineupSnapshotStatus] = useState(true);
+  const [showHomeLineupCard, setShowHomeLineupCard] = useState(true);
+  const [showAwayLineupCard, setShowAwayLineupCard] = useState(true);
+
+  // ---------------------------------------------------
   // EVENT FORM STATE
   // ---------------------------------------------------
 
@@ -133,7 +144,7 @@ export default function LiveMatchPage() {
     notes: '',
   });
 
-   // ---------------------------------------------------
+  // ---------------------------------------------------
   // INITIAL DATA LOAD
   // ---------------------------------------------------
 
@@ -1173,6 +1184,10 @@ export default function LiveMatchPage() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
         <div className="space-y-6">
+          {/* --------------------------------------------------- */}
+          {/* EVENT ENTRY CARD */}
+          {/* --------------------------------------------------- */}
+
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -1411,50 +1426,88 @@ export default function LiveMatchPage() {
                 </>
               )}
 
-              {selectedTrackingMode === 'full' && form.type === 'substitution' && (
+                            {selectedTrackingMode === 'full' && form.type === 'substitution' && (
                 <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                  <p className="text-sm font-semibold text-slate-900">Current on-field state</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {/* --------------------------------------------------- */}
+                  {/* ON-FIELD STATE HEADER */}
+                  {/* --------------------------------------------------- */}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowOnFieldState((prev) => !prev)}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                  >
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        On Field
+                      <p className="text-sm font-semibold text-slate-900">
+                        Current on-field state
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedOnFieldPlayers.length === 0 ? (
-                          <span className="text-sm text-slate-400">No active players found.</span>
-                        ) : (
-                          selectedOnFieldPlayers.map((player) => (
-                            <span
-                              key={player.id}
-                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
-                            >
-                              {playerDisplayName(player)}
-                            </span>
-                          ))
-                        )}
-                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Expand to review active players and bench players.
+                      </p>
                     </div>
 
-                    <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Bench
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedBenchPlayers.length === 0 ? (
-                          <span className="text-sm text-slate-400">No bench players found.</span>
-                        ) : (
-                          selectedBenchPlayers.map((player) => (
-                            <span
-                              key={player.id}
-                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
-                            >
-                              {playerDisplayName(player)}
-                            </span>
-                          ))
-                        )}
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                      {showOnFieldState ? (
+                        <>
+                          <ChevronUp className="h-4 w-4" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4" />
+                          Show
+                        </>
+                      )}
+                    </span>
+                  </button>
+
+                  {/* --------------------------------------------------- */}
+                  {/* ON-FIELD STATE BODY */}
+                  {/* --------------------------------------------------- */}
+
+                  {showOnFieldState ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          On Field
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedOnFieldPlayers.length === 0 ? (
+                            <span className="text-sm text-slate-400">No active players found.</span>
+                          ) : (
+                            selectedOnFieldPlayers.map((player) => (
+                              <span
+                                key={player.id}
+                                className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                              >
+                                {playerDisplayName(player)}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Bench
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedBenchPlayers.length === 0 ? (
+                            <span className="text-sm text-slate-400">No bench players found.</span>
+                          ) : (
+                            selectedBenchPlayers.map((player) => (
+                              <span
+                                key={player.id}
+                                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                              >
+                                {playerDisplayName(player)}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               )}
 
@@ -1485,8 +1538,12 @@ export default function LiveMatchPage() {
             </div>
           </section>
 
-          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          {/* --------------------------------------------------- */}
+          {/* LINEUP SNAPSHOT STATUS */}
+          {/* --------------------------------------------------- */}
+
+                   <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold">Lineup Snapshot Status</h2>
                 <p className="text-sm text-slate-600">
@@ -1494,59 +1551,86 @@ export default function LiveMatchPage() {
                   tracking.
                 </p>
               </div>
-              {loadingLineups ? (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                  Loading...
-                </span>
-              ) : (
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
-                  Ready
-                </span>
-              )}
+
+              <div className="flex items-center gap-2">
+                {loadingLineups ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                    Loading...
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+                    Ready
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowLineupSnapshotStatus((prev) => !prev)}
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
+                >
+                  {showLineupSnapshotStatus ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Show
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {match.home_team?.name || 'Home Team'}
-                    </p>
-                    <p className="text-xs text-slate-500">Mode: {match.home_tracking_mode}</p>
+            {showLineupSnapshotStatus ? (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {match.home_team?.name || 'Home Team'}
+                      </p>
+                      <p className="text-xs text-slate-500">Mode: {match.home_tracking_mode}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {homeSupportsLineups ? `${homeLineups.length} players snapped` : 'Not used'}
+                      </p>
+                      {homeSupportsLineups && (
+                        <p className="text-xs text-slate-500">{homeStarterCount} starters selected</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {homeSupportsLineups ? `${homeLineups.length} players snapped` : 'Not used'}
-                    </p>
-                    {homeSupportsLineups && (
-                      <p className="text-xs text-slate-500">{homeStarterCount} starters selected</p>
-                    )}
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {match.away_team?.name || 'Away Team'}
+                      </p>
+                      <p className="text-xs text-slate-500">Mode: {match.away_tracking_mode}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {awaySupportsLineups ? `${awayLineups.length} players snapped` : 'Not used'}
+                      </p>
+                      {awaySupportsLineups && (
+                        <p className="text-xs text-slate-500">{awayStarterCount} starters selected</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {match.away_team?.name || 'Away Team'}
-                    </p>
-                    <p className="text-xs text-slate-500">Mode: {match.away_tracking_mode}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {awaySupportsLineups ? `${awayLineups.length} players snapped` : 'Not used'}
-                    </p>
-                    {awaySupportsLineups && (
-                      <p className="text-xs text-slate-500">{awayStarterCount} starters selected</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            ) : null}
           </section>
 
-          {homeSupportsLineups && (
+          {/* --------------------------------------------------- */}
+          {/* HOME LINEUP CARD */}
+          {/* --------------------------------------------------- */}
+
+              {homeSupportsLineups && (
             <LineupSelectionCard
               title={match.home_team?.name || 'Home Team'}
               subtitle="Choose exactly 11 starters."
@@ -1558,10 +1642,16 @@ export default function LiveMatchPage() {
               loading={loadingLineups}
               accent="home"
               disabled={editingDisabled}
+              open={showHomeLineupCard}
+              onToggleOpen={() => setShowHomeLineupCard((prev) => !prev)}
             />
           )}
 
-          {awaySupportsLineups && (
+          {/* --------------------------------------------------- */}
+          {/* AWAY LINEUP CARD */}
+          {/* --------------------------------------------------- */}
+
+                      {awaySupportsLineups && (
             <LineupSelectionCard
               title={match.away_team?.name || 'Away Team'}
               subtitle="Choose exactly 11 starters."
@@ -1573,8 +1663,13 @@ export default function LiveMatchPage() {
               loading={loadingLineups}
               accent="away"
               disabled={editingDisabled}
+              open={showAwayLineupCard}
+              onToggleOpen={() => setShowAwayLineupCard((prev) => !prev)}
             />
           )}
+          {/* --------------------------------------------------- */}
+          {/* MATCH ACTIONS */}
+          {/* --------------------------------------------------- */}
 
           <MatchActionsCard
             match={match}
@@ -1590,6 +1685,10 @@ export default function LiveMatchPage() {
             }
           />
         </div>
+
+        {/* --------------------------------------------------- */}
+        {/* LIVE TIMELINE */}
+        {/* --------------------------------------------------- */}
 
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center justify-between">
@@ -1730,6 +1829,8 @@ function LineupSelectionCard({
   loading,
   accent,
   disabled,
+  open,
+  onToggleOpen,
 }: {
   title: string;
   subtitle: string;
@@ -1741,6 +1842,8 @@ function LineupSelectionCard({
   loading: boolean;
   accent: 'home' | 'away';
   disabled: boolean;
+  open: boolean;
+  onToggleOpen: () => void;
 }) {
   const selectedRows = rows.filter(({ row }) => selectedStarterIds.includes(row.player_id));
   const benchRows = rows.filter(({ row }) => !selectedStarterIds.includes(row.player_id));
@@ -1767,128 +1870,186 @@ function LineupSelectionCard({
   return (
     <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-slate-700" />
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          className="flex min-w-0 items-start gap-2 text-left"
+        >
+          <Users className="mt-0.5 h-5 w-5 shrink-0 text-slate-700" />
+          <div>
             <h2 className="text-xl font-bold">{title} Starting 11</h2>
+            <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
           </div>
-          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
-        </div>
+        </button>
 
-        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${accentBadgeClass}`}>
-          {selectedStarterIds.length}/11
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${accentBadgeClass}`}>
+            {selectedStarterIds.length}/11
+          </span>
+
+          <button
+            type="button"
+            onClick={onToggleOpen}
+            className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
+          >
+            {open ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Hide
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Show
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
-          Loading lineup...
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
-          No lineup snapshot is available for this side yet.
-        </div>
-      ) : (
-        <>
-          <div className="mb-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-            <p className="text-sm font-semibold text-slate-900">Selected starters</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Tap a selected starter to remove them. Tap an available player below to add them.
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectedRows.length === 0 ? (
-                <span className="text-sm text-slate-400">No starters selected yet.</span>
-              ) : (
-                selectedRows.map(({ row, player }) => (
-                  <button
-                    key={row.player_id}
-                    type="button"
-                    onClick={() => onToggleStarter(row.player_id)}
-                    disabled={disabled}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition disabled:opacity-40 ${accentActiveClass}`}
-                  >
-                    <Check className="h-4 w-4" />
-                    <span>{playerDisplayName(player)}</span>
-                  </button>
-                ))
-              )}
-            </div>
+      {open ? (
+        loading ? (
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+            Loading lineup...
           </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+            No lineup snapshot is available for this side yet.
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+              <p className="text-sm font-semibold text-slate-900">Selected starters</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Tap a selected starter to remove them. Tap an available player below to add them.
+              </p>
 
-          <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              Available players (tap to add)
-            </h3>
-            <div className="space-y-2">
-              {benchRows.map(({ row, player }) => {
-                const selected = selectedStarterIds.includes(row.player_id);
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedRows.length === 0 ? (
+                  <span className="text-sm text-slate-400">No starters selected yet.</span>
+                ) : (
+                  selectedRows.map(({ row, player }) => (
+                    <button
+                      key={row.player_id}
+                      type="button"
+                      onClick={() => onToggleStarter(row.player_id)}
+                      disabled={disabled}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition disabled:opacity-40 ${accentActiveClass}`}
+                    >
+                      <Check className="h-4 w-4" />
+                      <span>{playerDisplayName(player)}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
 
-                return (
-                  <button
-                    key={row.player_id}
-                    type="button"
-                    onClick={() => onToggleStarter(row.player_id)}
-                    disabled={disabled}
-                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition disabled:opacity-40 ${
-                      selected
-                        ? accentActiveClass
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {playerDisplayName(player) ||
-                          row.player_name_snapshot ||
-                          'Unnamed player'}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {selected ? 'Starter' : 'Available'}
-                      </p>
-                    </div>
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-slate-700">
+                Available players (tap to add)
+              </h3>
+              <div className="space-y-2">
+                {benchRows.map(({ row, player }) => {
+                  const selected = selectedStarterIds.includes(row.player_id);
 
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        selected ? accentBadgeClass : 'bg-slate-100 text-slate-600'
+                  return (
+                    <button
+                      key={row.player_id}
+                      type="button"
+                      onClick={() => onToggleStarter(row.player_id)}
+                      disabled={disabled}
+                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition disabled:opacity-40 ${
+                        selected
+                          ? accentActiveClass
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                     >
-                      {selected ? 'Selected' : 'Tap to start'}
-                    </span>
-                  </button>
-                );
-              })}
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {playerDisplayName(player) ||
+                            row.player_name_snapshot ||
+                            'Unnamed player'}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {selected ? 'Starter' : 'Available'}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          selected ? accentBadgeClass : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {selected ? 'Selected' : 'Tap to start'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="mt-5 flex items-center justify-between gap-3">
-            <p
-              className={`text-sm font-medium ${
-                !isValid
-                  ? 'text-amber-700'
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <p
+                className={`text-sm font-medium ${
+                  !isValid
+                    ? 'text-amber-700'
+                    : isDirty
+                      ? 'text-sky-700'
+                      : 'text-emerald-700'
+                }`}
+              >
+                {!isValid
+                  ? 'Select exactly 11 starters before saving.'
                   : isDirty
-                    ? 'text-sky-700'
-                    : 'text-emerald-700'
-              }`}
-            >
-              {!isValid
-                ? 'Select exactly 11 starters before saving.'
-                : isDirty
-                  ? 'Starting 11 is ready to save.'
-                  : 'Starting 11 is saved.'}
-            </p>
+                    ? 'Starting 11 is ready to save.'
+                    : 'Starting 11 is saved.'}
+              </p>
 
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={!isValid || saving || disabled || !isDirty}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : isDirty ? 'Save Starting 11' : 'Starting 11 Saved'}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={!isValid || saving || disabled || !isDirty}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : isDirty ? 'Save Starting 11' : 'Starting 11 Saved'}
+              </button>
+            </div>
+          </>
+        )
+      ) : null}
+    </section>
+  );
+}
+
+// ---------------------------------------------------
+// COLLAPSE PILL
+// ---------------------------------------------------
+
+function CollapsePill({
+  open,
+  onClick,
+}: {
+  open: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
+    >
+      {open ? (
+        <>
+          <ChevronUp className="h-4 w-4" />
+          <span>Hide</span>
+        </>
+      ) : (
+        <>
+          <ChevronDown className="h-4 w-4" />
+          <span>Show</span>
         </>
       )}
-    </section>
+    </button>
   );
 }
 

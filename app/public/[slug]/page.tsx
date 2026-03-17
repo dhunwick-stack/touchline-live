@@ -1,10 +1,16 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeftRight,
+  ChevronDown,
+  ChevronUp,
   CircleDot,
   Pause,
   Play,
@@ -12,6 +18,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// LOCAL TYPES
+// ---------------------------------------------------
 
 type PublicMatchRow = Match & {
   home_team: Team | null;
@@ -28,6 +38,10 @@ type MatchLineupRow = {
   lineup_order?: number | null;
   player: Player | null;
 };
+
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
 
 export default function PublicMatchPage() {
   // ---------------------------------------------------
@@ -55,6 +69,13 @@ export default function PublicMatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
+
+  // ---------------------------------------------------
+  // COLLAPSIBLE SECTION STATE
+  // ---------------------------------------------------
+
+  const [showStartingLineups, setShowStartingLineups] = useState(true);
+  const [showOnFieldNow, setShowOnFieldNow] = useState(true);
 
   // ---------------------------------------------------
   // LOAD PAGE DATA
@@ -117,7 +138,7 @@ export default function PublicMatchPage() {
 
     // -------------------------------------------------
     // LOAD MATCH LINEUP SNAPSHOT
-    // Optional so older matches still render.
+    // OPTIONAL SO OLDER MATCHES STILL RENDER
     // -------------------------------------------------
 
     const { data: lineupsData } = await supabase
@@ -305,7 +326,7 @@ export default function PublicMatchPage() {
 
   // ---------------------------------------------------
   // STARTING LINEUP DATA
-  // Uses real schema: team_id instead of team_side.
+  // USES REAL SCHEMA: TEAM_ID INSTEAD OF TEAM_SIDE
   // ---------------------------------------------------
 
   const homeStarters = useMemo(
@@ -322,7 +343,7 @@ export default function PublicMatchPage() {
 
   // ---------------------------------------------------
   // OPTIONAL ON-FIELD VIEW
-  // Derived from starters plus substitutions.
+  // DERIVED FROM STARTERS PLUS SUBSTITUTIONS
   // ---------------------------------------------------
 
   const currentOnField = useMemo(() => {
@@ -675,34 +696,45 @@ export default function PublicMatchPage() {
           {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Starting groups captured before kickoff when lineup snapshots are available.
-            </p>
-
-            {!hasStartingLineups ? (
-              <p className="mt-4 text-sm text-slate-500">
-                No starting lineup snapshot has been published for this match.
-              </p>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <LineupListCard
-                  title={match.home_team?.name || 'Home Team'}
-                  subtitle="Home starters"
-                  players={homeStarters}
-                  accent="blue"
-                  emptyText="No home starters published."
-                />
-
-                <LineupListCard
-                  title={match.away_team?.name || 'Away Team'}
-                  subtitle="Away starters"
-                  players={awayStarters}
-                  accent="rose"
-                  emptyText="No away starters published."
-                />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Starting groups captured before kickoff when lineup snapshots are available.
+                </p>
               </div>
-            )}
+
+              <CollapsePill
+                open={showStartingLineups}
+                onClick={() => setShowStartingLineups((prev) => !prev)}
+              />
+            </div>
+
+            {showStartingLineups ? (
+              !hasStartingLineups ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  No starting lineup snapshot has been published for this match.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <LineupListCard
+                    title={match.home_team?.name || 'Home Team'}
+                    subtitle="Home starters"
+                    players={homeStarters}
+                    accent="blue"
+                    emptyText="No home starters published."
+                  />
+
+                  <LineupListCard
+                    title={match.away_team?.name || 'Away Team'}
+                    subtitle="Away starters"
+                    players={awayStarters}
+                    accent="rose"
+                    emptyText="No away starters published."
+                  />
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* ----------------------------------------------- */}
@@ -710,34 +742,45 @@ export default function PublicMatchPage() {
           {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Current on-field view based on starters and recorded substitutions.
-            </p>
-
-            {!hasOnFieldView ? (
-              <p className="mt-4 text-sm text-slate-500">
-                On-field view is not available yet for this match.
-              </p>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <LineupListCard
-                  title={match.home_team?.name || 'Home Team'}
-                  subtitle="Current home players"
-                  players={currentOnField.home}
-                  accent="blue"
-                  emptyText="No current home on-field data."
-                />
-
-                <LineupListCard
-                  title={match.away_team?.name || 'Away Team'}
-                  subtitle="Current away players"
-                  players={currentOnField.away}
-                  accent="rose"
-                  emptyText="No current away on-field data."
-                />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Current on-field view based on starters and recorded substitutions.
+                </p>
               </div>
-            )}
+
+              <CollapsePill
+                open={showOnFieldNow}
+                onClick={() => setShowOnFieldNow((prev) => !prev)}
+              />
+            </div>
+
+            {showOnFieldNow ? (
+              !hasOnFieldView ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  On-field view is not available yet for this match.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <LineupListCard
+                    title={match.home_team?.name || 'Home Team'}
+                    subtitle="Current home players"
+                    players={currentOnField.home}
+                    accent="blue"
+                    emptyText="No current home on-field data."
+                  />
+
+                  <LineupListCard
+                    title={match.away_team?.name || 'Away Team'}
+                    subtitle="Current away players"
+                    players={currentOnField.away}
+                    accent="rose"
+                    emptyText="No current away on-field data."
+                  />
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* ----------------------------------------------- */}
@@ -1051,6 +1094,38 @@ function PublicScoreboardTeamLink({
         <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
       </div>
     </Link>
+  );
+}
+
+// ---------------------------------------------------
+// COLLAPSE PILL
+// ---------------------------------------------------
+
+function CollapsePill({
+  open,
+  onClick,
+}: {
+  open: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+    >
+      {open ? (
+        <>
+          <ChevronUp className="h-4 w-4" />
+          Hide
+        </>
+      ) : (
+        <>
+          <ChevronDown className="h-4 w-4" />
+          Show
+        </>
+      )}
+    </button>
   );
 }
 
