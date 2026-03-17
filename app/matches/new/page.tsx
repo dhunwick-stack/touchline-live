@@ -365,36 +365,44 @@ function TeamSetupCard({
           </>
         )}
 
-        <Field label="Tracking Mode">
+                <Field label="Tracking Mode">
           <select
             value={trackingMode}
             onChange={(e) => onTrackingModeChange(e.target.value as TrackingMode)}
             className="w-full rounded-2xl border border-slate-200 px-4 py-3"
           >
+            {/* Tracking mode options */}
             <option value="full">Full tracking</option>
+            <option value="lineups">Lineups</option>
             <option value="basic">Basic tracking</option>
-            <option value="score_only">Score only</option>
           </select>
 
           <div className="mt-3 grid gap-3">
+            {/* Full tracking descriptor */}
             <DescriptorCard
               title="Full Tracking"
               body="Track player-based match events like goals, cards, and substitutions with the most detail."
               hint="Best for full match coverage"
               active={trackingMode === 'full'}
             />
+
+             {/* Lineups tracking descriptor */}
+            <DescriptorCard
+              title="Lineups"
+              body="Track score and match flow with lineup support when you want to manage player availability or starters without full stat detail."
+              hint="Best for lineup-based coverage"
+              active={trackingMode === 'lineups'}
+            />
+
+            {/* Basic tracking descriptor */}
             <DescriptorCard
               title="Basic Tracking"
               body="Track the score and key match events with lighter setup and less player-level detail."
               hint="Best for quick but useful coverage"
               active={trackingMode === 'basic'}
             />
-            <DescriptorCard
-              title="Score Only"
-              body="Track only scoring and major match status updates like halftime and full time."
-              hint="Best for fastest setup"
-              active={trackingMode === 'score_only'}
-            />
+
+           
           </div>
         </Field>
       </div>

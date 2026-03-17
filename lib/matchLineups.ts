@@ -11,10 +11,10 @@ import type { MatchLineup, Player } from '@/lib/types';
 
 export async function createMatchLineupSnapshot(
   matchId: string,
-  teamId: string
+  teamId: string,
 ): Promise<MatchLineup[]> {
   // ---------------------------------------------------
-  // LOAD ACTIVE PLAYERS FOR THE TEAM
+  // LOAD ACTIVE PLAYERS
   // ---------------------------------------------------
 
   const { data: players, error: playersError } = await supabase
@@ -22,10 +22,11 @@ export async function createMatchLineupSnapshot(
     .select('id, first_name, last_name, jersey_number, active')
     .eq('team_id', teamId)
     .eq('active', true)
-    .order('jersey_number', { ascending: true });
+    .order('jersey_number', { ascending: true, nullsFirst: false })
+    .order('first_name', { ascending: true });
 
   if (playersError) {
-    throw playersError;
+    throw new Error(`Could not load active players: ${playersError.message}`);
   }
 
   const safePlayers = (players ?? []) as Pick<
@@ -39,31 +40,28 @@ export async function createMatchLineupSnapshot(
 
   const { data: existingRows, error: existingError } = await supabase
     .from('match_lineups')
-    .select('id')
+    .select('*')
     .eq('match_id', matchId)
     .eq('team_id', teamId);
 
   if (existingError) {
-    throw existingError;
+    throw new Error(`Could not check existing lineup snapshot: ${existingError.message}`);
   }
 
   if ((existingRows ?? []).length > 0) {
-    const { data: currentRows, error: currentError } = await supabase
-      .from('match_lineups')
-      .select('*')
-      .eq('match_id', matchId)
-      .eq('team_id', teamId)
-      .order('jersey_number_snapshot', { ascending: true });
-
-    if (currentError) {
-      throw currentError;
-    }
-
-    return (currentRows ?? []) as MatchLineup[];
+    return (existingRows ?? []) as MatchLineup[];
   }
 
   // ---------------------------------------------------
-  // BUILD SNAPSHOT ROWS
+  // RETURN EARLY IF NO PLAYERS
+  // ---------------------------------------------------
+
+  if (safePlayers.length === 0) {
+    return [];
+  }
+
+  // ---------------------------------------------------
+  // BUILD SNAPSHOT ROWS USING ONLY CONFIRMED COLUMNS
   // ---------------------------------------------------
 
   const lineupRows = safePlayers.map((player) => ({
@@ -71,24 +69,7 @@ export async function createMatchLineupSnapshot(
     team_id: teamId,
     player_id: player.id,
     is_starter: false,
-    is_available: true,
-    player_name_snapshot: [player.first_name, player.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .trim(),
-    jersey_number_snapshot:
-      player.jersey_number !== null && player.jersey_number !== undefined
-        ? String(player.jersey_number)
-        : null,
   }));
-
-  // ---------------------------------------------------
-  // PREVENT EMPTY SNAPSHOT INSERTS
-  // ---------------------------------------------------
-
-  if (lineupRows.length === 0) {
-    return [];
-  }
 
   // ---------------------------------------------------
   // INSERT SNAPSHOT
@@ -100,7 +81,7 @@ export async function createMatchLineupSnapshot(
     .select('*');
 
   if (insertError) {
-    throw insertError;
+    throw new Error(`Could not insert lineup snapshot: ${insertError.message}`);
   }
 
   return (insertedRows ?? []) as MatchLineup[];
@@ -113,7 +94,7 @@ export async function createMatchLineupSnapshot(
 export async function saveStartingLineup(
   matchId: string,
   teamId: string,
-  starterPlayerIds: string[]
+  starterPlayerIds: string[],
 ): Promise<void> {
   // ---------------------------------------------------
   // VALIDATE STARTER COUNT
@@ -129,12 +110,14 @@ export async function saveStartingLineup(
 
   const { error: resetError } = await supabase
     .from('match_lineups')
-    .update({ is_starter: false })
+    .update({
+      is_starter: false,
+    })
     .eq('match_id', matchId)
     .eq('team_id', teamId);
 
   if (resetError) {
-    throw resetError;
+    throw new Error(`Could not reset lineup starters: ${resetError.message}`);
   }
 
   // ---------------------------------------------------
@@ -143,13 +126,15 @@ export async function saveStartingLineup(
 
   const { error: starterError } = await supabase
     .from('match_lineups')
-    .update({ is_starter: true })
+    .update({
+      is_starter: true,
+    })
     .eq('match_id', matchId)
     .eq('team_id', teamId)
     .in('player_id', starterPlayerIds);
 
   if (starterError) {
-    throw starterError;
+    throw new Error(`Could not save starting lineup: ${starterError.message}`);
   }
 }
 
