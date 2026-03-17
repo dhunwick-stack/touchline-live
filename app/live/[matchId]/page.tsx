@@ -1904,13 +1904,12 @@ function buildFallbackLineupRows(
 ): MatchLineup[] {
   if (!teamId) return [];
 
-  return players.map((player, index): MatchLineup => ({
+  return players.map((player): MatchLineup => ({
     id: `fallback-${matchId}-${teamId}-${player.id}`,
     match_id: matchId,
     team_id: teamId,
     player_id: player.id,
     is_starter: false,
-    lineup_order: index + 1,
   }));
 }
 
