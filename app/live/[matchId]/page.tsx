@@ -1915,7 +1915,10 @@ function buildFallbackLineupRows(
     is_available: true,
     player_name_snapshot:
       [player.first_name, player.last_name].filter(Boolean).join(' ') || null,
-    jersey_number_snapshot: player.jersey_number ?? null,
+    jersey_number_snapshot:
+      player.jersey_number !== null && player.jersey_number !== undefined
+        ? String(player.jersey_number)
+        : null,
     created_at: now,
     updated_at: now,
   }));
