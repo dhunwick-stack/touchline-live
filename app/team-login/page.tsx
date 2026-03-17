@@ -1,15 +1,28 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, Team } from '@/lib/types';
+import type { User } from '@supabase/supabase-js';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
 };
+
+// ---------------------------------------------------
+// PAGE SHELL
+// ---------------------------------------------------
 
 export default function TeamLoginPage() {
   return (
@@ -24,6 +37,10 @@ export default function TeamLoginPage() {
     </Suspense>
   );
 }
+
+// ---------------------------------------------------
+// PAGE COMPONENT
+// ---------------------------------------------------
 
 function TeamLoginPageInner() {
   // ---------------------------------------------------
@@ -45,6 +62,13 @@ function TeamLoginPageInner() {
   const [error, setError] = useState('');
 
   // ---------------------------------------------------
+  // AUTH STATE
+  // ---------------------------------------------------
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // ---------------------------------------------------
   // ADMIN LOGIN STATE
   // ---------------------------------------------------
 
@@ -53,6 +77,27 @@ function TeamLoginPageInner() {
   const [adminError, setAdminError] = useState('');
   const [checkingAdminCode, setCheckingAdminCode] = useState(false);
   const [adminTarget, setAdminTarget] = useState<'overview' | 'live'>('overview');
+
+  // ---------------------------------------------------
+  // LOAD CURRENT AUTH USER
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    async function loadAuthUser() {
+      const { data, error } = await supabase.auth.getUser();
+
+      if (error) {
+        setCurrentUser(null);
+        setAuthChecked(true);
+        return;
+      }
+
+      setCurrentUser(data.user ?? null);
+      setAuthChecked(true);
+    }
+
+    loadAuthUser();
+  }, []);
 
   // ---------------------------------------------------
   // LOAD TEAM / LIVE MATCH
@@ -106,20 +151,30 @@ function TeamLoginPageInner() {
   }, [teamId]);
 
   // ---------------------------------------------------
-  // AUTO OPEN ADMIN LOGIN FROM TEAMS PAGE
+  // AUTO OPEN ADMIN LOGIN FROM TEAM PAGE
   // ---------------------------------------------------
 
   useEffect(() => {
-    if (!loading && team && teamId && mode === 'admin') {
-      setAdminTarget('overview');
-      setAdminCode('');
-      setAdminError('');
-      setShowAdminLogin(true);
-    }
-  }, [loading, team, teamId, mode]);
+  if (!loading || !team || !teamId) return;
+
+  if (mode === 'admin') {
+    setAdminTarget('overview');
+    setAdminCode('');
+    setAdminError('');
+    setShowAdminLogin(true);
+    return;
+  }
+
+  if (mode === 'live') {
+    setAdminTarget('live');
+    setAdminCode('');
+    setAdminError('');
+    setShowAdminLogin(true);
+  }
+}, [loading, team, teamId, mode]);
 
   // ---------------------------------------------------
-  // ADMIN LOGIN ACTIONS
+  // BEGIN ADMIN LOGIN
   // ---------------------------------------------------
 
   function beginAdminLogin(target: 'overview' | 'live') {
@@ -129,11 +184,53 @@ function TeamLoginPageInner() {
     setShowAdminLogin(true);
   }
 
+  // ---------------------------------------------------
+  // REDIRECT TO LOGIN IF USER IS NOT AUTHENTICATED
+  // ---------------------------------------------------
+
+  function redirectToLogin(target: 'overview' | 'live') {
+    const params = new URLSearchParams();
+
+    params.set('teamId', teamId);
+
+    if (target === 'live') {
+      params.set('mode', 'live');
+    } else {
+      params.set('mode', 'admin');
+    }
+
+    const nextUrl = `/team-login?${params.toString()}`;
+
+    router.push(`/login?next=${encodeURIComponent(nextUrl)}`);
+  }
+
+  // ---------------------------------------------------
+  // JOIN TEAM / ADMIN ACCESS ACTION
+  // ---------------------------------------------------
+
   async function handleAdminLogin() {
     if (!team) return;
 
+    // -------------------------------------------------
+    // REQUIRE AUTH FIRST
+    // -------------------------------------------------
+
+    if (!authChecked) {
+      setAdminError('Still checking sign-in status. Please try again.');
+      return;
+    }
+
+    if (!currentUser) {
+      redirectToLogin(adminTarget);
+      return;
+    }
+
     setCheckingAdminCode(true);
     setAdminError('');
+
+    // -------------------------------------------------
+    // VALIDATE CODE
+    // -------------------------------------------------
 
     const entered = adminCode.trim();
     const expected = (team.admin_code || '').trim();
@@ -145,7 +242,7 @@ function TeamLoginPageInner() {
     }
 
     if (!entered) {
-      setAdminError('Enter the admin code.');
+      setAdminError('Enter the team code.');
       setCheckingAdminCode(false);
       return;
     }
@@ -156,7 +253,34 @@ function TeamLoginPageInner() {
       return;
     }
 
-    localStorage.setItem('teamId', team.id);
+    // -------------------------------------------------
+    // CREATE OR REUSE TEAM MEMBERSHIP
+    // -------------------------------------------------
+
+    const { error: membershipError } = await supabase
+      .from('team_users')
+      .upsert(
+        {
+          team_id: team.id,
+          user_id: currentUser.id,
+          role: 'team_admin',
+        },
+        {
+          onConflict: 'team_id,user_id',
+        },
+      );
+
+    if (membershipError) {
+      setAdminError(membershipError.message || 'Failed to grant team access.');
+      setCheckingAdminCode(false);
+      return;
+    }
+
+    
+
+    // -------------------------------------------------
+    // REDIRECT TO TARGET PAGE
+    // -------------------------------------------------
 
     setCheckingAdminCode(false);
     setShowAdminLogin(false);
@@ -280,12 +404,20 @@ function TeamLoginPageInner() {
                 Manage roster, schedule, results, team settings, and match operations.
               </p>
 
-              {liveMatch ? (
-                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-                  Live match available
-                </div>
-              ) : null}
+              <div className="mt-4 space-y-2">
+                <p className="text-sm text-slate-600">
+                  {currentUser
+                    ? `Signed in as ${currentUser.email || 'authenticated user'}.`
+                    : 'Sign in first, then enter your team code to get admin access.'}
+                </p>
+
+                {liveMatch ? (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                    Live match available
+                  </div>
+                ) : null}
+              </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -366,8 +498,11 @@ function TeamLoginPageInner() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              Enter the admin code to access the{' '}
-              {adminTarget === 'live' ? 'live admin page' : 'admin overview'}.
+              {currentUser
+                ? `Enter the team code to access the ${
+                    adminTarget === 'live' ? 'live admin page' : 'admin overview'
+                  }.`
+                : 'You will be asked to sign in before the team code can grant access.'}
             </p>
 
             <div className="mt-5">
@@ -392,7 +527,11 @@ function TeamLoginPageInner() {
                 disabled={checkingAdminCode}
                 className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {checkingAdminCode ? 'Checking…' : 'Continue'}
+                {checkingAdminCode
+                  ? 'Checking…'
+                  : currentUser
+                    ? 'Continue'
+                    : 'Sign In & Continue'}
               </button>
 
               <button

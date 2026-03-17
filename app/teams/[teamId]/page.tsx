@@ -1,25 +1,40 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import FieldCard from '@/components/FieldCard';
 import LiveMatchHero from '@/components/LiveMatchHero';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Player, Team } from '@/lib/types';
+import type { User } from '@supabase/supabase-js';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
 };
 
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
+
 export default function TeamDetailPage() {
   // ---------------------------------------------------
-  // ROUTE PARAMS
+  // ROUTE PARAMS / ROUTER
   // ---------------------------------------------------
 
   const params = useParams();
+  const router = useRouter();
+
   const teamId =
     typeof params?.teamId === 'string'
       ? params.teamId
@@ -32,6 +47,9 @@ export default function TeamDetailPage() {
   // ---------------------------------------------------
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [hasTeamAccess, setHasTeamAccess] = useState(false);
+
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
@@ -63,26 +81,81 @@ export default function TeamDetailPage() {
   // ---------------------------------------------------
 
   useEffect(() => {
-    if (!teamId) return;
+    async function checkAccess() {
+      if (!teamId) {
+        setError('No team id was found in the URL.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
 
-    const savedTeamId = localStorage.getItem('teamId');
+      // -----------------------------------------------
+      // LOAD CURRENT AUTH USER
+      // -----------------------------------------------
 
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = `/team-login?teamId=${teamId}`;
-      return;
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        setError(userError.message || 'Failed to check sign-in status.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      const user = userData.user ?? null;
+      setCurrentUser(user);
+
+      // -----------------------------------------------
+      // REQUIRE SIGN-IN
+      // -----------------------------------------------
+
+      if (!user) {
+        router.replace(`/login?next=${encodeURIComponent(`/teams/${teamId}`)}`);
+        return;
+      }
+
+      // -----------------------------------------------
+      // VERIFY TEAM MEMBERSHIP
+      // -----------------------------------------------
+
+      const { data: membership, error: membershipError } = await supabase
+        .from('team_users')
+        .select('id, role')
+        .eq('team_id', teamId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (membershipError) {
+        setError(membershipError.message || 'Failed to verify team access.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      // -----------------------------------------------
+      // REDIRECT TO TEAM CODE FLOW IF NOT LINKED
+      // -----------------------------------------------
+
+      if (!membership) {
+        router.replace(`/team-login?teamId=${teamId}&mode=admin`);
+        return;
+      }
+
+      setHasTeamAccess(true);
+      setAuthChecked(true);
     }
 
-    setAuthChecked(true);
-  }, [teamId]);
+    checkAccess();
+  }, [teamId, router]);
 
   // ---------------------------------------------------
   // INITIAL DATA LOAD
   // ---------------------------------------------------
 
   useEffect(() => {
-    if (!teamId || !authChecked) return;
+    if (!teamId || !authChecked || !hasTeamAccess) return;
     loadTeamData();
-  }, [teamId, authChecked]);
+  }, [teamId, authChecked, hasTeamAccess]);
 
   // ---------------------------------------------------
   // LOAD TEAM DATA
@@ -326,6 +399,15 @@ export default function TeamDetailPage() {
         description="Overview, roster preview, field details, recent matches, and team settings."
         rightSlot={
           <>
+            <div className="mr-2 hidden text-right text-xs text-slate-500 md:block">
+              {currentUser?.email ? (
+                <>
+                  <div className="font-semibold text-slate-700">Signed in</div>
+                  <div>{currentUser.email}</div>
+                </>
+              ) : null}
+            </div>
+
             <button
               type="button"
               onClick={() => setEditing((prev) => !prev)}
