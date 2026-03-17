@@ -133,7 +133,7 @@ export default function LiveMatchPage() {
     notes: '',
   });
 
-  // ---------------------------------------------------
+   // ---------------------------------------------------
   // INITIAL DATA LOAD
   // ---------------------------------------------------
 
@@ -180,83 +180,6 @@ export default function LiveMatchPage() {
       setMatch(loadedMatch);
       setEvents((eventData as MatchEvent[]) ?? []);
 
-
-const awayPlayersResult = loadedMatch.away_team_id
-  ? await supabase
-      .from('players')
-      .select('*')
-      .eq('team_id', loadedMatch.away_team_id)
-      .eq('active', true)
-      .order('jersey_number', { ascending: true, nullsFirst: false })
-      .order('first_name', { ascending: true })
-  : { data: [], error: null };
-
-if (homePlayersResult.error || awayPlayersResult.error) {
-  setError(
-    homePlayersResult.error?.message ||
-      awayPlayersResult.error?.message ||
-      'Failed to load players.',
-  );
-  setLoading(false);
-  return;
-}
-
-const loadedHomePlayers = (homePlayersResult.data as Player[]) ?? [];
-const loadedAwayPlayers = (awayPlayersResult.data as Player[]) ?? [];
-
-setHomePlayers(loadedHomePlayers);
-setAwayPlayers(loadedAwayPlayers);
-
-const { data: lineupData, error: lineupError } = await supabase
-  .from('match_lineups')
-  .select('*')
-  .eq('match_id', loadedMatch.id);
-
-if (lineupError) {
-  setError(lineupError.message);
-  setLoading(false);
-  return;
-}
-
-const allLineups = (lineupData as MatchLineup[]) ?? [];
-
-const realHomeLineups = allLineups.filter(
-  (lineup) => lineup.team_id === loadedMatch.home_team_id,
-);
-
-const realAwayLineups = allLineups.filter(
-  (lineup) => lineup.team_id === loadedMatch.away_team_id,
-);
-
-const resolvedHomeLineups =
-  realHomeLineups.length > 0
-    ? realHomeLineups
-    : buildFallbackLineupRows(
-        loadedMatch.id,
-        loadedMatch.home_team_id,
-        'home',
-        loadedHomePlayers,
-      );
-
-const resolvedAwayLineups =
-  realAwayLineups.length > 0
-    ? realAwayLineups
-    : buildFallbackLineupRows(
-        loadedMatch.id,
-        loadedMatch.away_team_id,
-        'away',
-        loadedAwayPlayers,
-      );
-
-setHomeLineups(resolvedHomeLineups);
-setAwayLineups(resolvedAwayLineups);
-setSelectedHomeStarterIds(
-  resolvedHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-);
-setSelectedAwayStarterIds(
-  resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-);
-
       // ---------------------------------------------------
       // LOAD HOME / AWAY PLAYERS
       // ---------------------------------------------------
@@ -271,6 +194,15 @@ setSelectedAwayStarterIds(
             .order('first_name', { ascending: true })
         : { data: [], error: null };
 
+      const awayPlayersResult = loadedMatch.away_team_id
+        ? await supabase
+            .from('players')
+            .select('*')
+            .eq('team_id', loadedMatch.away_team_id)
+            .eq('active', true)
+            .order('jersey_number', { ascending: true, nullsFirst: false })
+            .order('first_name', { ascending: true })
+        : { data: [], error: null };
 
       if (homePlayersResult.error || awayPlayersResult.error) {
         setError(
@@ -289,71 +221,29 @@ setSelectedAwayStarterIds(
       setAwayPlayers(resolvedAwayPlayers);
 
       // ---------------------------------------------------
-      // LOAD OR CREATE MATCH LINEUP SNAPSHOTS
+      // LOAD LINEUP SNAPSHOTS OR FALL BACK TO ROSTERS
       // ---------------------------------------------------
 
       setLoadingLineups(true);
 
       try {
         // ---------------------------------------------------
-        // HOME LINEUP SNAPSHOT
+        // LOAD EXISTING MATCH LINEUPS
         // ---------------------------------------------------
 
-        if (
-          loadedMatch.home_team_id &&
-          (loadedMatch.home_tracking_mode === 'lineups' ||
-            loadedMatch.home_tracking_mode === 'full')
-        ) {
-          const homeSnapshot = await createMatchLineupSnapshot(
-            loadedMatch.id,
-            loadedMatch.home_team_id,
-          );
+        const { data: lineupData, error: lineupError } = await supabase
+          .from('match_lineups')
+          .select('*')
+          .eq('match_id', loadedMatch.id);
 
-          setHomeLineups(homeSnapshot);
-          setSelectedHomeStarterIds(
-            homeSnapshot.filter((row) => row.is_starter).map((row) => row.player_id),
-          );
-        } else {
-          setHomeLineups([]);
-          setSelectedHomeStarterIds([]);
+        if (lineupError) {
+          throw lineupError;
         }
 
-        // ---------------------------------------------------
-        // AWAY LINEUP SNAPSHOT
-        // ---------------------------------------------------
-
-        if (
-          loadedMatch.away_team_id &&
-          (loadedMatch.away_tracking_mode === 'lineups' ||
-            loadedMatch.away_tracking_mode === 'full')
-        ) {
-          const awaySnapshot = await createMatchLineupSnapshot(
-            loadedMatch.id,
-            loadedMatch.away_team_id,
-          );
-
-          setAwayLineups(awaySnapshot);
-          setSelectedAwayStarterIds(
-            awaySnapshot.filter((row) => row.is_starter).map((row) => row.player_id),
-          );
-        } else {
-          setAwayLineups([]);
-          setSelectedAwayStarterIds([]);
-        }
-      } catch (lineupError) {
-        // ---------------------------------------------------
-        // NON-BLOCKING LINEUP FAILURE
-        // ---------------------------------------------------
-
-        console.error('Failed to load match lineups:', lineupError);
-
-        setHomeLineups([]);
-        setAwayLineups([]);
-        setSelectedHomeStarterIds([]);
-        setSelectedAwayStarterIds([]);
+        const allLineups = (lineupData as MatchLineup[]) ?? [];
 
         // ---------------------------------------------------
-        // FALL BACK TO PLAYER ROSTERS INSTEAD OF SHOWING A RED PAGE ERROR
+        // DETERMINE WHICH SIDES REQUIRE LINEUPS
         // ---------------------------------------------------
 
         const homeNeedsLineups =
@@ -364,18 +254,134 @@ setSelectedAwayStarterIds(
           loadedMatch.away_tracking_mode === 'lineups' ||
           loadedMatch.away_tracking_mode === 'full';
 
-        if (homeNeedsLineups && resolvedHomePlayers.length > 0) {
-          setHomeLineups(buildFallbackLineupRows(loadedMatch.id, loadedMatch.home_team_id, resolvedHomePlayers));
-        }
+        // ---------------------------------------------------
+        // SPLIT REAL LINEUPS BY SIDE
+        // ---------------------------------------------------
 
-        if (awayNeedsLineups && resolvedAwayPlayers.length > 0) {
-          setAwayLineups(buildFallbackLineupRows(loadedMatch.id, loadedMatch.away_team_id, resolvedAwayPlayers));
-        }
+        const realHomeLineups = allLineups.filter(
+          (lineup) => lineup.team_id === loadedMatch.home_team_id,
+        );
 
-        setLineupNotice('Lineup snapshot could not be loaded, but players are still available.');
+        const realAwayLineups = allLineups.filter(
+          (lineup) => lineup.team_id === loadedMatch.away_team_id,
+        );
+
+        // ---------------------------------------------------
+        // RESOLVE HOME LINEUPS
+        // ---------------------------------------------------
+
+        const resolvedHomeLineups = homeNeedsLineups
+          ? realHomeLineups.length > 0
+            ? realHomeLineups
+            : buildFallbackLineupRows(
+                loadedMatch.id,
+                loadedMatch.home_team_id,
+                'home',
+                resolvedHomePlayers,
+              )
+          : [];
+
+        // ---------------------------------------------------
+        // RESOLVE AWAY LINEUPS
+        // ---------------------------------------------------
+
+        const resolvedAwayLineups = awayNeedsLineups
+          ? realAwayLineups.length > 0
+            ? realAwayLineups
+            : buildFallbackLineupRows(
+                loadedMatch.id,
+                loadedMatch.away_team_id,
+                'away',
+                resolvedAwayPlayers,
+              )
+          : [];
+
+        // ---------------------------------------------------
+        // SAVE RESOLVED LINEUPS INTO PAGE STATE
+        // ---------------------------------------------------
+
+        setHomeLineups(resolvedHomeLineups);
+        setAwayLineups(resolvedAwayLineups);
+
+        setSelectedHomeStarterIds(
+          resolvedHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+        );
+
+        setSelectedAwayStarterIds(
+          resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+        );
+
+        // ---------------------------------------------------
+        // SHOW NOTICE ONLY WHEN FALLBACK WAS NEEDED
+        // ---------------------------------------------------
+
+        setLineupNotice(
+          realHomeLineups.length === 0 || realAwayLineups.length === 0
+            ? 'Using roster fallback where saved lineup snapshots were not found.'
+            : null,
+        );
+      } catch (lineupError) {
+        // ---------------------------------------------------
+        // NON-BLOCKING LINEUP FAILURE
+        // ---------------------------------------------------
+
+        console.error('Failed to load match lineups:', lineupError);
+
+        const homeNeedsLineups =
+          loadedMatch.home_tracking_mode === 'lineups' ||
+          loadedMatch.home_tracking_mode === 'full';
+
+        const awayNeedsLineups =
+          loadedMatch.away_tracking_mode === 'lineups' ||
+          loadedMatch.away_tracking_mode === 'full';
+
+        // ---------------------------------------------------
+        // FALL BACK TO PLAYER ROSTERS
+        // ---------------------------------------------------
+
+        const fallbackHomeLineups = homeNeedsLineups
+          ? buildFallbackLineupRows(
+              loadedMatch.id,
+              loadedMatch.home_team_id,
+              'home',
+              resolvedHomePlayers,
+            )
+          : [];
+
+        const fallbackAwayLineups = awayNeedsLineups
+          ? buildFallbackLineupRows(
+              loadedMatch.id,
+              loadedMatch.away_team_id,
+              'away',
+              resolvedAwayPlayers,
+            )
+          : [];
+
+        setHomeLineups(fallbackHomeLineups);
+        setAwayLineups(fallbackAwayLineups);
+
+        setSelectedHomeStarterIds(
+          fallbackHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+        );
+
+        setSelectedAwayStarterIds(
+          fallbackAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+        );
+
+        setLineupNotice(
+          'Lineup snapshot could not be loaded, but players are still available.',
+        );
       } finally {
+        // ---------------------------------------------------
+        // LINEUP LOADING COMPLETE
+        // ---------------------------------------------------
+
         setLoadingLineups(false);
       }
+
+      // ---------------------------------------------------
+      // PAGE LOAD COMPLETE
+      // ---------------------------------------------------
 
       setLoading(false);
     }
