@@ -1904,12 +1904,20 @@ function buildFallbackLineupRows(
 ): MatchLineup[] {
   if (!teamId) return [];
 
+  const now = new Date().toISOString();
+
   return players.map((player): MatchLineup => ({
     id: `fallback-${matchId}-${teamId}-${player.id}`,
     match_id: matchId,
     team_id: teamId,
     player_id: player.id,
     is_starter: false,
+    is_available: true,
+    player_name_snapshot:
+      [player.first_name, player.last_name].filter(Boolean).join(' ') || null,
+    jersey_number_snapshot: player.jersey_number ?? null,
+    created_at: now,
+    updated_at: now,
   }));
 }
 
