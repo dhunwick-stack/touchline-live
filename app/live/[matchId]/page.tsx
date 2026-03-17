@@ -1899,7 +1899,7 @@ function LineupSelectionCard({
 function buildFallbackLineupRows(
   matchId: string,
   teamId: string | null | undefined,
-  teamSide: 'home' | 'away',
+  _teamSide: 'home' | 'away',
   players: Player[],
 ): MatchLineup[] {
   if (!teamId) return [];
@@ -1909,11 +1909,9 @@ function buildFallbackLineupRows(
     match_id: matchId,
     team_id: teamId,
     player_id: player.id,
-    team_side: teamSide,
     is_starter: false,
     is_bench: true,
     lineup_order: index + 1,
-    created_at: new Date().toISOString(),
   }));
 }
 
