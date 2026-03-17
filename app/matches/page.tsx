@@ -398,7 +398,6 @@ function StatusBadge({ status }: { status: Match['status'] }) {
 function prettyTrackingMode(mode: Match['home_tracking_mode']) {
   if (mode === 'full') return 'Full';
   if (mode === 'basic') return 'Basic';
-  if (mode === 'score_only') return 'Score Only';
   return mode;
 }
 

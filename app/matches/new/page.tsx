@@ -151,7 +151,9 @@ export default function NewMatchPage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Touchline Live</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Touchline Live
+        </p>
         <h1 className="text-3xl font-black tracking-tight">New Match</h1>
         <p className="mt-2 text-slate-600">
           Choose saved teams or create one-off opponents, then set the tracking depth for each side.
@@ -161,6 +163,7 @@ export default function NewMatchPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-xl font-bold">Match Details</h2>
+
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <Field label="Season">
               <select
@@ -285,7 +288,7 @@ function TeamSetupCard({
         </span>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         <Field label="Team Source">
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -306,6 +309,21 @@ function TeamSetupCard({
             >
               New Team
             </button>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <DescriptorCard
+              title="Saved Team"
+              body="Use a team already in Touchline with its existing roster, branding, and team settings."
+              hint="Best for returning teams"
+              active={mode === 'saved'}
+            />
+            <DescriptorCard
+              title="New Team"
+              body="Create a one-off or brand new opponent during setup. You can optionally save it for later."
+              hint="Best for ad hoc opponents"
+              active={mode === 'new'}
+            />
           </div>
         </Field>
 
@@ -340,7 +358,9 @@ function TeamSetupCard({
                 checked={saveReusable}
                 onChange={(e) => onSaveReusableChange(e.target.checked)}
               />
-              <span className="text-sm font-medium text-slate-700">Save this team for reuse later</span>
+              <span className="text-sm font-medium text-slate-700">
+                Save this team for reuse later
+              </span>
             </label>
           </>
         )}
@@ -355,9 +375,58 @@ function TeamSetupCard({
             <option value="basic">Basic tracking</option>
             <option value="score_only">Score only</option>
           </select>
+
+          <div className="mt-3 grid gap-3">
+            <DescriptorCard
+              title="Full Tracking"
+              body="Track player-based match events like goals, cards, and substitutions with the most detail."
+              hint="Best for full match coverage"
+              active={trackingMode === 'full'}
+            />
+            <DescriptorCard
+              title="Basic Tracking"
+              body="Track the score and key match events with lighter setup and less player-level detail."
+              hint="Best for quick but useful coverage"
+              active={trackingMode === 'basic'}
+            />
+            <DescriptorCard
+              title="Score Only"
+              body="Track only scoring and major match status updates like halftime and full time."
+              hint="Best for fastest setup"
+              active={trackingMode === 'score_only'}
+            />
+          </div>
         </Field>
       </div>
     </section>
+  );
+}
+
+function DescriptorCard({
+  title,
+  body,
+  hint,
+  active,
+}: {
+  title: string;
+  body: string;
+  hint: string;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-4 ${
+        active
+          ? 'border-slate-900 bg-slate-50'
+          : 'border-slate-200 bg-white'
+      }`}
+    >
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {hint}
+      </p>
+    </div>
   );
 }
 
