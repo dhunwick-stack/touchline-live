@@ -72,6 +72,7 @@ const eventTypeOptions: { value: EventType; label: string }[] = [
 
 // ---------------------------------------------------
 // PAGE
+// FILE: app/live/[matchId]/page.tsx
 // ---------------------------------------------------
 
 export default function LiveMatchPage() {
@@ -126,6 +127,13 @@ export default function LiveMatchPage() {
   const [showAwayLineupCard, setShowAwayLineupCard] = useState(true);
 
   // ---------------------------------------------------
+  // PAUSE MATCH MODAL STATE
+  // ---------------------------------------------------
+
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pauseNote, setPauseNote] = useState('');
+
+  // ---------------------------------------------------
   // EVENT FORM STATE
   // ---------------------------------------------------
 
@@ -140,290 +148,347 @@ export default function LiveMatchPage() {
   });
 
   // ---------------------------------------------------
+  // LOAD MATCH PAGE DATA
+  // ---------------------------------------------------
+
+  async function loadMatchPage() {
+    if (!matchId) return;
+
+    // ---------------------------------------------------
+    // RESET STATE
+    // ---------------------------------------------------
+
+    setLoading(true);
+    setError(null);
+    setLineupNotice(null);
+    setAuthChecked(false);
+    setHasMatchAccess(false);
+    setLoadingLineups(false);
+
+    // ---------------------------------------------------
+    // LOAD MATCH
+    // ---------------------------------------------------
+
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .select(`
+        *,
+        home_team:home_team_id (*),
+        away_team:away_team_id (*)
+      `)
+      .eq('id', matchId)
+      .single();
+
+    if (matchError || !matchData) {
+      setError(matchError?.message || 'Failed to load match.');
+      setLoading(false);
+      setAuthChecked(true);
+      return;
+    }
+
+    const loadedMatch = matchData as MatchRow;
+
+    // ---------------------------------------------------
+    // CHECK SESSION
+    // ---------------------------------------------------
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      setError(sessionError.message || 'Failed to check sign-in status.');
+      setLoading(false);
+      setAuthChecked(true);
+      return;
+    }
+
+    const user = session?.user ?? null;
+
+    if (!user) {
+      router.replace(`/login?next=${encodeURIComponent(`/live/${matchId}`)}`);
+      return;
+    }
+
+    // ---------------------------------------------------
+    // CHECK TEAM ACCESS
+    // ---------------------------------------------------
+
+    const eligibleTeamIds = [loadedMatch.home_team_id, loadedMatch.away_team_id].filter(
+      Boolean,
+    ) as string[];
+
+    if (eligibleTeamIds.length === 0) {
+      setError('This match does not have valid team assignments.');
+      setLoading(false);
+      setAuthChecked(true);
+      return;
+    }
+
+    const { data: memberships, error: membershipError } = await supabase
+      .from('team_users')
+      .select('team_id')
+      .eq('user_id', user.id)
+      .in('team_id', eligibleTeamIds);
+
+    if (membershipError) {
+      setError(membershipError.message || 'Failed to verify match access.');
+      setLoading(false);
+      setAuthChecked(true);
+      return;
+    }
+
+    if (!memberships || memberships.length === 0) {
+      const fallbackTeamId = loadedMatch.home_team_id || loadedMatch.away_team_id || '';
+      router.replace(`/team-login?teamId=${fallbackTeamId}&mode=live`);
+      return;
+    }
+
+    setAuthChecked(true);
+    setHasMatchAccess(true);
+    setMatch(loadedMatch);
+
+    // ---------------------------------------------------
+    // LOAD EVENTS
+    // ---------------------------------------------------
+
+    const { data: eventData, error: eventError } = await supabase
+      .from('match_events')
+      .select('*')
+      .eq('match_id', loadedMatch.id)
+      .order('created_at', { ascending: false });
+
+    if (eventError) {
+      setError(eventError.message || 'Failed to load match events.');
+      setLoading(false);
+      return;
+    }
+
+    setEvents((eventData as MatchEvent[]) ?? []);
+
+    // ---------------------------------------------------
+    // LOAD PLAYERS
+    // ---------------------------------------------------
+
+    const homePlayersResult = loadedMatch.home_team_id
+      ? await supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', loadedMatch.home_team_id)
+          .eq('active', true)
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true })
+      : { data: [], error: null };
+
+    const awayPlayersResult = loadedMatch.away_team_id
+      ? await supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', loadedMatch.away_team_id)
+          .eq('active', true)
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true })
+      : { data: [], error: null };
+
+    if (homePlayersResult.error || awayPlayersResult.error) {
+      setError(
+        homePlayersResult.error?.message ||
+          awayPlayersResult.error?.message ||
+          'Failed to load players.',
+      );
+      setLoading(false);
+      return;
+    }
+
+    const resolvedHomePlayers = (homePlayersResult.data as Player[]) ?? [];
+    const resolvedAwayPlayers = (awayPlayersResult.data as Player[]) ?? [];
+
+    setHomePlayers(resolvedHomePlayers);
+    setAwayPlayers(resolvedAwayPlayers);
+
+    // ---------------------------------------------------
+    // LOAD LINEUP SNAPSHOTS
+    // ---------------------------------------------------
+
+    setLoadingLineups(true);
+
+    try {
+      const { data: lineupData, error: lineupError } = await supabase
+        .from('match_lineups')
+        .select('*')
+        .eq('match_id', loadedMatch.id);
+
+      if (lineupError) {
+        throw lineupError;
+      }
+
+      const allLineups = (lineupData as MatchLineup[]) ?? [];
+
+      const homeNeedsLineups =
+        loadedMatch.home_tracking_mode === 'lineups' ||
+        loadedMatch.home_tracking_mode === 'full';
+
+      const awayNeedsLineups =
+        loadedMatch.away_tracking_mode === 'lineups' ||
+        loadedMatch.away_tracking_mode === 'full';
+
+      const realHomeLineups = allLineups.filter(
+        (lineup) => lineup.team_id === loadedMatch.home_team_id,
+      );
+
+      const realAwayLineups = allLineups.filter(
+        (lineup) => lineup.team_id === loadedMatch.away_team_id,
+      );
+
+      const resolvedHomeLineups = homeNeedsLineups
+        ? realHomeLineups.length > 0
+          ? realHomeLineups
+          : buildFallbackLineupRows(
+              loadedMatch.id,
+              loadedMatch.home_team_id,
+              resolvedHomePlayers,
+            )
+        : [];
+
+      const resolvedAwayLineups = awayNeedsLineups
+        ? realAwayLineups.length > 0
+          ? realAwayLineups
+          : buildFallbackLineupRows(
+              loadedMatch.id,
+              loadedMatch.away_team_id,
+              resolvedAwayPlayers,
+            )
+        : [];
+
+      setHomeLineups(resolvedHomeLineups);
+      setAwayLineups(resolvedAwayLineups);
+
+      setSelectedHomeStarterIds(
+        resolvedHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+
+      setSelectedAwayStarterIds(
+        resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+
+      const homeIsMissingRequiredSnapshot =
+        homeNeedsLineups && realHomeLineups.length === 0;
+
+      const awayIsMissingRequiredSnapshot =
+        awayNeedsLineups && realAwayLineups.length === 0;
+
+      setLineupNotice(
+        homeIsMissingRequiredSnapshot || awayIsMissingRequiredSnapshot
+          ? 'Using roster fallback where saved lineup snapshots were not found.'
+          : null,
+      );
+    } catch (lineupLoadError) {
+      console.error('Failed to load match lineups:', lineupLoadError);
+
+      const homeNeedsLineups =
+        loadedMatch.home_tracking_mode === 'lineups' ||
+        loadedMatch.home_tracking_mode === 'full';
+
+      const awayNeedsLineups =
+        loadedMatch.away_tracking_mode === 'lineups' ||
+        loadedMatch.away_tracking_mode === 'full';
+
+      const fallbackHomeLineups = homeNeedsLineups
+        ? buildFallbackLineupRows(
+            loadedMatch.id,
+            loadedMatch.home_team_id,
+            resolvedHomePlayers,
+          )
+        : [];
+
+      const fallbackAwayLineups = awayNeedsLineups
+        ? buildFallbackLineupRows(
+            loadedMatch.id,
+            loadedMatch.away_team_id,
+            resolvedAwayPlayers,
+          )
+        : [];
+
+      setHomeLineups(fallbackHomeLineups);
+      setAwayLineups(fallbackAwayLineups);
+
+      setSelectedHomeStarterIds(
+        fallbackHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+
+      setSelectedAwayStarterIds(
+        fallbackAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+      );
+
+      setLineupNotice(null);
+    } finally {
+      setLoadingLineups(false);
+    }
+
+    setLoading(false);
+  }
+
+  // ---------------------------------------------------
   // INITIAL LOAD
   // ---------------------------------------------------
 
   useEffect(() => {
     if (!matchId) return;
-
-    async function loadMatchPage() {
-      // ---------------------------------------------------
-      // RESET STATE
-      // ---------------------------------------------------
-
-      setLoading(true);
-      setError(null);
-      setLineupNotice(null);
-      setAuthChecked(false);
-      setHasMatchAccess(false);
-      setLoadingLineups(false);
-
-      // ---------------------------------------------------
-      // LOAD MATCH
-      // ---------------------------------------------------
-
-      const { data: matchData, error: matchError } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:home_team_id (*),
-          away_team:away_team_id (*)
-        `)
-        .eq('id', matchId)
-        .single();
-
-      if (matchError || !matchData) {
-        setError(matchError?.message || 'Failed to load match.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      const loadedMatch = matchData as MatchRow;
-
-      // ---------------------------------------------------
-      // CHECK SESSION
-      // ---------------------------------------------------
-
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        setError(sessionError.message || 'Failed to check sign-in status.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      const user = session?.user ?? null;
-
-      if (!user) {
-        router.replace(`/login?next=${encodeURIComponent(`/live/${matchId}`)}`);
-        return;
-      }
-
-      // ---------------------------------------------------
-      // CHECK TEAM ACCESS
-      // ---------------------------------------------------
-
-      const eligibleTeamIds = [loadedMatch.home_team_id, loadedMatch.away_team_id].filter(
-        Boolean,
-      ) as string[];
-
-      if (eligibleTeamIds.length === 0) {
-        setError('This match does not have valid team assignments.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      const { data: memberships, error: membershipError } = await supabase
-        .from('team_users')
-        .select('team_id')
-        .eq('user_id', user.id)
-        .in('team_id', eligibleTeamIds);
-
-      if (membershipError) {
-        setError(membershipError.message || 'Failed to verify match access.');
-        setLoading(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      if (!memberships || memberships.length === 0) {
-        const fallbackTeamId = loadedMatch.home_team_id || loadedMatch.away_team_id || '';
-        router.replace(`/team-login?teamId=${fallbackTeamId}&mode=live`);
-        return;
-      }
-
-      setAuthChecked(true);
-      setHasMatchAccess(true);
-      setMatch(loadedMatch);
-
-      // ---------------------------------------------------
-      // LOAD EVENTS
-      // ---------------------------------------------------
-
-      const { data: eventData, error: eventError } = await supabase
-        .from('match_events')
-        .select('*')
-        .eq('match_id', loadedMatch.id)
-        .order('created_at', { ascending: false });
-
-      if (eventError) {
-        setError(eventError.message || 'Failed to load match events.');
-        setLoading(false);
-        return;
-      }
-
-      setEvents((eventData as MatchEvent[]) ?? []);
-
-      // ---------------------------------------------------
-      // LOAD PLAYERS
-      // ---------------------------------------------------
-
-      const homePlayersResult = loadedMatch.home_team_id
-        ? await supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.home_team_id)
-            .eq('active', true)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true })
-        : { data: [], error: null };
-
-      const awayPlayersResult = loadedMatch.away_team_id
-        ? await supabase
-            .from('players')
-            .select('*')
-            .eq('team_id', loadedMatch.away_team_id)
-            .eq('active', true)
-            .order('jersey_number', { ascending: true, nullsFirst: false })
-            .order('first_name', { ascending: true })
-        : { data: [], error: null };
-
-      if (homePlayersResult.error || awayPlayersResult.error) {
-        setError(
-          homePlayersResult.error?.message ||
-            awayPlayersResult.error?.message ||
-            'Failed to load players.',
-        );
-        setLoading(false);
-        return;
-      }
-
-      const resolvedHomePlayers = (homePlayersResult.data as Player[]) ?? [];
-      const resolvedAwayPlayers = (awayPlayersResult.data as Player[]) ?? [];
-
-      setHomePlayers(resolvedHomePlayers);
-      setAwayPlayers(resolvedAwayPlayers);
-
-      // ---------------------------------------------------
-      // LOAD LINEUP SNAPSHOTS
-      // ---------------------------------------------------
-
-      setLoadingLineups(true);
-
-      try {
-        const { data: lineupData, error: lineupError } = await supabase
-          .from('match_lineups')
-          .select('*')
-          .eq('match_id', loadedMatch.id);
-
-        if (lineupError) {
-          throw lineupError;
-        }
-
-        const allLineups = (lineupData as MatchLineup[]) ?? [];
-
-        const homeNeedsLineups =
-          loadedMatch.home_tracking_mode === 'lineups' ||
-          loadedMatch.home_tracking_mode === 'full';
-
-        const awayNeedsLineups =
-          loadedMatch.away_tracking_mode === 'lineups' ||
-          loadedMatch.away_tracking_mode === 'full';
-
-        const realHomeLineups = allLineups.filter(
-          (lineup) => lineup.team_id === loadedMatch.home_team_id,
-        );
-
-        const realAwayLineups = allLineups.filter(
-          (lineup) => lineup.team_id === loadedMatch.away_team_id,
-        );
-
-        const resolvedHomeLineups = homeNeedsLineups
-          ? realHomeLineups.length > 0
-            ? realHomeLineups
-            : buildFallbackLineupRows(
-                loadedMatch.id,
-                loadedMatch.home_team_id,
-                resolvedHomePlayers,
-              )
-          : [];
-
-        const resolvedAwayLineups = awayNeedsLineups
-          ? realAwayLineups.length > 0
-            ? realAwayLineups
-            : buildFallbackLineupRows(
-                loadedMatch.id,
-                loadedMatch.away_team_id,
-                resolvedAwayPlayers,
-              )
-          : [];
-
-        setHomeLineups(resolvedHomeLineups);
-        setAwayLineups(resolvedAwayLineups);
-
-        setSelectedHomeStarterIds(
-          resolvedHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-        );
-
-        setSelectedAwayStarterIds(
-          resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-        );
-
-               const homeIsMissingRequiredSnapshot =
-          homeNeedsLineups && realHomeLineups.length === 0;
-
-        const awayIsMissingRequiredSnapshot =
-          awayNeedsLineups && realAwayLineups.length === 0;
-
-        setLineupNotice(
-          homeIsMissingRequiredSnapshot || awayIsMissingRequiredSnapshot
-            ? 'Using roster fallback where saved lineup snapshots were not found.'
-            : null,
-        );
-      } catch (lineupLoadError) {
-        console.error('Failed to load match lineups:', lineupLoadError);
-
-        const homeNeedsLineups =
-          loadedMatch.home_tracking_mode === 'lineups' ||
-          loadedMatch.home_tracking_mode === 'full';
-
-        const awayNeedsLineups =
-          loadedMatch.away_tracking_mode === 'lineups' ||
-          loadedMatch.away_tracking_mode === 'full';
-
-        const fallbackHomeLineups = homeNeedsLineups
-          ? buildFallbackLineupRows(
-              loadedMatch.id,
-              loadedMatch.home_team_id,
-              resolvedHomePlayers,
-            )
-          : [];
-
-        const fallbackAwayLineups = awayNeedsLineups
-          ? buildFallbackLineupRows(
-              loadedMatch.id,
-              loadedMatch.away_team_id,
-              resolvedAwayPlayers,
-            )
-          : [];
-
-        setHomeLineups(fallbackHomeLineups);
-        setAwayLineups(fallbackAwayLineups);
-
-        setSelectedHomeStarterIds(
-          fallbackHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-        );
-
-        setSelectedAwayStarterIds(
-          fallbackAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
-        );
-
-               setLineupNotice(null);
-      } finally {
-        setLoadingLineups(false);
-      }
-
-      setLoading(false);
-    }
-
     loadMatchPage();
-  }, [matchId, router]);
+  }, [matchId]);
+
+  // ---------------------------------------------------
+  // REALTIME SUBSCRIPTIONS
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    if (!match?.id || !hasMatchAccess) return;
+
+    const channel = supabase
+      .channel(`admin-match-${match.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matches',
+          filter: `id=eq.${match.id}`,
+        },
+        async () => {
+          await loadMatchPage();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_events',
+          filter: `match_id=eq.${match.id}`,
+        },
+        async () => {
+          await loadMatchPage();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_lineups',
+          filter: `match_id=eq.${match.id}`,
+        },
+        async () => {
+          await loadMatchPage();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [match?.id, hasMatchAccess]);
 
   // ---------------------------------------------------
   // LIVE CLOCK TICKER
@@ -639,76 +704,105 @@ export default function LiveMatchPage() {
     }));
   }
 
+  // ---------------------------------------------------
+  // PAUSE MODAL HELPERS
+  // ---------------------------------------------------
+
+  function openPauseModal() {
+    if (!match || !match.clock_running || editingDisabled) return;
+
+    setPauseNote('');
+    setShowPauseModal(true);
+    setError(null);
+  }
+
+  function closePauseModal() {
+    setShowPauseModal(false);
+    setPauseNote('');
+  }
+
+  function applyPauseReason(reason: string) {
+    setPauseNote(reason);
+  }
+
   function validateEvent() {
-    if (!match) return 'Match not loaded.';
-    if (editingDisabled) return 'This match is not editable in its current state.';
-    if (form.type === 'half_end' || form.type === 'full_time') return null;
+  if (!match) return 'Match not loaded.';
+  if (editingDisabled) return 'This match is not editable in its current state.';
+  if (form.type === 'half_end' || form.type === 'full_time') return null;
 
-    if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
-      return 'Lineups mode does not support substitutions yet.';
+  if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
+    return 'Lineups mode does not support substitutions yet.';
+  }
+
+  if (selectedTrackingMode === 'full') {
+    if (
+      (form.type === 'goal' ||
+        form.type === 'yellow_card' ||
+        form.type === 'red_card' ||
+        form.type === 'substitution') &&
+      !form.playerId
+    ) {
+      return 'Choose a player for this event.';
     }
 
-    if (selectedTrackingMode === 'full') {
-      if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card' ||
-          form.type === 'substitution') &&
-        !form.playerId
-      ) {
-        return 'Choose a player for this event.';
-      }
-
-      if (form.type === 'substitution' && !form.secondaryPlayerId) {
-        return 'Choose the incoming player for substitution.';
-      }
-
-      if (
-        form.type === 'substitution' &&
-        form.playerId &&
-        form.secondaryPlayerId &&
-        form.playerId === form.secondaryPlayerId
-      ) {
-        return 'Outgoing and incoming players must be different.';
-      }
-
-      if (form.type === 'substitution') {
-        const outgoingOnField = selectedOnFieldPlayers.some(
-          (player) => player.id === form.playerId,
-        );
-
-        const incomingOnBench = selectedBenchPlayers.some(
-          (player) => player.id === form.secondaryPlayerId,
-        );
-
-        if (!outgoingOnField) {
-          return 'Outgoing player must currently be on the field.';
-        }
-
-        if (!incomingOnBench) {
-          return 'Incoming player must currently be off the field.';
-        }
-      }
+    if (form.type === 'substitution' && !form.secondaryPlayerId) {
+      return 'Choose the incoming player for substitution.';
     }
 
-    if (selectedTrackingMode === 'basic' || selectedTrackingMode === 'lineups') {
-      if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card') &&
-        !form.playerId &&
-        !form.playerNameOverride.trim()
-      ) {
-        return 'Choose a player or type a quick player label.';
+    if (
+      form.type === 'substitution' &&
+      form.playerId &&
+      form.secondaryPlayerId &&
+      form.playerId === form.secondaryPlayerId
+    ) {
+      return 'Outgoing and incoming players must be different.';
+    }
+
+    if (form.type === 'substitution') {
+      const outgoingOnField = selectedOnFieldPlayers.some(
+        (player) => player.id === form.playerId,
+      );
+
+      const incomingOnBench = selectedBenchPlayers.some(
+        (player) => player.id === form.secondaryPlayerId,
+      );
+
+      if (!outgoingOnField) {
+        return 'Outgoing player must currently be on the field.';
       }
 
-      if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
-        return 'Add a quick player or note for this substitution.';
+      if (!incomingOnBench) {
+        return 'Incoming player must currently be off the field.';
       }
     }
 
     return null;
   }
+
+  if (selectedTrackingMode === 'lineups') {
+    if (
+      (form.type === 'goal' ||
+        form.type === 'yellow_card' ||
+        form.type === 'red_card') &&
+      !form.playerId &&
+      !form.playerNameOverride.trim()
+    ) {
+      return 'Choose a player or type a quick player label.';
+    }
+
+    if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
+      return 'Add a quick player or note for this substitution.';
+    }
+
+    return null;
+  }
+
+  if (selectedTrackingMode === 'basic') {
+    return null;
+  }
+
+  return null;
+}
 
   // ---------------------------------------------------
   // STARTER TOGGLE HELPERS
@@ -981,13 +1075,14 @@ export default function LiveMatchPage() {
   // PAUSE CLOCK
   // ---------------------------------------------------
 
-  async function pauseClock() {
+  async function pauseClock(note?: string) {
     if (!match || !match.clock_running || editingDisabled) return;
 
     setError(null);
 
     const pausedElapsed = secondsElapsed;
     const minute = Math.floor(pausedElapsed / 60);
+    const cleanPauseNote = note?.trim() || null;
 
     const { error: matchUpdateError } = await supabase
       .from('matches')
@@ -1018,6 +1113,7 @@ export default function LiveMatchPage() {
       event_type: 'match_paused',
       team_side: 'home',
       team_id: match.home_team_id,
+      notes: cleanPauseNote,
     });
 
     if (eventInsertError) {
@@ -1037,6 +1133,7 @@ export default function LiveMatchPage() {
     }
 
     setEvents((refreshedEvents as MatchEvent[]) ?? []);
+    closePauseModal();
   }
 
   // ---------------------------------------------------
@@ -1148,36 +1245,36 @@ export default function LiveMatchPage() {
         actions={
           <>
             {(match.status === 'not_started' ||
-  match.status === 'scheduled' ||
-  match.status === 'halftime') && (
-  <button
-    onClick={startLivePeriod}
-    disabled={editingDisabled}
-    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-  >
-    {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
-  </button>
-)}
+              match.status === 'scheduled' ||
+              match.status === 'halftime') && (
+              <button
+                onClick={startLivePeriod}
+                disabled={editingDisabled}
+                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
+              </button>
+            )}
 
-{match.status === 'live' && match.clock_running && (
-  <button
-    onClick={pauseClock}
-    disabled={editingDisabled}
-    className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-  >
-    Pause
-  </button>
-)}
+            {match.status === 'live' && match.clock_running && (
+              <button
+                onClick={openPauseModal}
+                disabled={editingDisabled}
+                className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                Pause
+              </button>
+            )}
 
-{match.status === 'live' && !match.clock_running && (
-  <button
-    onClick={startLivePeriod}
-    disabled={editingDisabled}
-    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-  >
-    Resume
-  </button>
-)}
+            {match.status === 'live' && !match.clock_running && (
+              <button
+                onClick={startLivePeriod}
+                disabled={editingDisabled}
+                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                Resume
+              </button>
+            )}
 
             <button
               onClick={undoLastEvent}
@@ -1808,7 +1905,7 @@ export default function LiveMatchPage() {
 
           <button
             type="button"
-            onClick={match.clock_running ? pauseClock : startLivePeriod}
+            onClick={match.clock_running ? openPauseModal : startLivePeriod}
             disabled={editingDisabled}
             className="flex items-center justify-center gap-2 rounded-2xl bg-amber-100 py-4 text-base font-bold text-amber-900 ring-1 ring-amber-300 disabled:opacity-40"
           >
@@ -1832,6 +1929,96 @@ export default function LiveMatchPage() {
           </button>
         </div>
       </div>
+
+      {/* --------------------------------------------------- */}
+      {/* PAUSE MATCH MODAL */}
+      {/* --------------------------------------------------- */}
+
+      {showPauseModal ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
+            <div className="mb-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Pause Match
+              </p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+                Add an optional pause note
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Save context for why the match was paused. This will appear in the timeline.
+              </p>
+            </div>
+
+            {/* --------------------------------------------------- */}
+            {/* QUICK REASON BUTTONS */}
+            {/* --------------------------------------------------- */}
+
+            <div className="mb-4 flex flex-wrap gap-2">
+              {[
+                'Injury delay',
+                'Weather delay',
+                'Official timeout',
+                'Field issue',
+                'Equipment issue',
+                'Crowd / safety issue',
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => applyPauseReason(reason)}
+                  className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+
+            {/* --------------------------------------------------- */}
+            {/* NOTE FIELD */}
+            {/* --------------------------------------------------- */}
+
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-slate-700">Pause Note</span>
+              <textarea
+                value={pauseNote}
+                onChange={(e) => setPauseNote(e.target.value)}
+                placeholder="Optional note such as injury, lightning, field repair, or referee stoppage"
+                className="min-h-28 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+              />
+            </label>
+
+            {/* --------------------------------------------------- */}
+            {/* MODAL ACTIONS */}
+            {/* --------------------------------------------------- */}
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closePauseModal}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => pauseClock()}
+                className="rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-900"
+              >
+                Pause Without Note
+              </button>
+
+              <button
+                type="button"
+                onClick={() => pauseClock(pauseNote)}
+                className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white"
+              >
+                Pause Match
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

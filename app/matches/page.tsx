@@ -4,47 +4,39 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Match, Team } from '@/lib/types';
-
-// ---------------------------------------------------
-// TYPES
-// ---------------------------------------------------
-
-type MatchRow = Match & {
-  home_team: Team | null;
-  away_team: Team | null;
-};
+import type { Organization } from '@/lib/types';
 
 // ---------------------------------------------------
 // PAGE
-// FILE: app/matches/page.tsx
+// FILE: app/public/org/page.tsx
 // ---------------------------------------------------
 
-export default function MatchesPage() {
-  const [matches, setMatches] = useState<MatchRow[]>([]);
+export default function PublicOrganizationDirectory() {
+  // ---------------------------------------------------
+  // STATE
+  // ---------------------------------------------------
+
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [search, setSearch] = useState('');
 
   // ---------------------------------------------------
-  // LOAD MATCHES
+  // LOAD PUBLIC ORGANIZATIONS
   // ---------------------------------------------------
 
-  async function loadMatches() {
+  async function loadOrganizations() {
     setLoading(true);
     setMessage('');
 
     const { data, error } = await supabase
-      .from('matches')
-      .select(`
-        *,
-        home_team:home_team_id (*),
-        away_team:away_team_id (*)
-      `)
-      .order('match_date', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
+      .from('organizations')
+      .select('*')
+      .eq('is_public', true)
+      .order('name', { ascending: true });
 
     if (error) {
       setMessage(`Load error: ${error.message}`);
@@ -52,53 +44,41 @@ export default function MatchesPage() {
       return;
     }
 
-    setMatches((data as MatchRow[]) ?? []);
+    setOrganizations((data as Organization[]) ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
-    loadMatches();
+    loadOrganizations();
   }, []);
 
   // ---------------------------------------------------
-  // DERIVED MATCH GROUPS
+  // FILTERED ORGANIZATIONS
   // ---------------------------------------------------
 
-  const liveMatches = useMemo(
-    () =>
-      matches
-        .filter((match) => match.status === 'live' || match.status === 'halftime')
-        .sort((a, b) => {
-          const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
-          const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
-          return bTime - aTime;
-        }),
-    [matches],
-  );
+  const filteredOrganizations = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  const upcomingMatches = useMemo(
-    () =>
-      matches
-        .filter((match) => ['not_started', 'scheduled'].includes(match.status))
-        .sort((a, b) => {
-          const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-          const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-          return aTime - bTime;
-        }),
-    [matches],
-  );
+    if (!q) return organizations;
 
-  const recentResults = useMemo(
-    () =>
-      matches
-        .filter((match) => match.status === 'final')
-        .sort((a, b) => {
-          const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
-          const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
-          return bTime - aTime;
-        }),
-    [matches],
-  );
+    return organizations.filter((org) => {
+      const name = (org.name || '').toLowerCase();
+      const shortName = (org.short_name || '').toLowerCase();
+      const slug = (org.slug || '').toLowerCase();
+      const type = (org.organization_type || '').toLowerCase();
+      const city = (org.city || '').toLowerCase();
+      const state = (org.state || '').toLowerCase();
+
+      return (
+        name.includes(q) ||
+        shortName.includes(q) ||
+        slug.includes(q) ||
+        type.includes(q) ||
+        city.includes(q) ||
+        state.includes(q)
+      );
+    });
+  }, [organizations, search]);
 
   // ---------------------------------------------------
   // PAGE
@@ -106,23 +86,27 @@ export default function MatchesPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
+      {/* --------------------------------------------------- */}
+      {/* PAGE HEADER */}
+      {/* --------------------------------------------------- */}
+
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Touchline Live
           </p>
-          <h1 className="text-3xl font-black tracking-tight">Matches</h1>
+          <h1 className="text-3xl font-black tracking-tight">Organizations</h1>
           <p className="mt-2 text-slate-600">
-            Review live, scheduled, and completed matches.
+            Browse public clubs, schools, academies, and leagues using Touchline Live.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/matches/new"
+            href="/admin/admin-login?next=/admin/org"
             className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
           >
-            New Match
+            Admin Login
           </Link>
 
           <Link
@@ -134,332 +118,154 @@ export default function MatchesPage() {
         </div>
       </div>
 
+      {/* --------------------------------------------------- */}
+      {/* SEARCH BAR */}
+      {/* --------------------------------------------------- */}
+
+      <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Search
+        </label>
+
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-100 px-4 py-3 ring-1 ring-slate-200">
+          <svg
+            className="h-4 w-4 shrink-0 text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search organization, location, or type"
+            className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+          />
+        </div>
+      </section>
+
+      {/* --------------------------------------------------- */}
+      {/* STATUS MESSAGE */}
+      {/* --------------------------------------------------- */}
+
       {message ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {message}
         </div>
       ) : null}
 
+      {/* --------------------------------------------------- */}
+      {/* LOADING / EMPTY / GRID */}
+      {/* --------------------------------------------------- */}
+
       {loading ? (
         <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          Loading matches...
+          Loading organizations...
         </div>
-      ) : matches.length === 0 ? (
+      ) : filteredOrganizations.length === 0 ? (
         <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">No matches yet</h2>
+          <h2 className="text-xl font-bold text-slate-900">No organizations found</h2>
           <p className="mt-2 text-slate-600">
-            Create your first match to start scoring live.
+            Try another search or check back once more organizations are published.
           </p>
-
-          <Link
-            href="/matches/new"
-            className="mt-5 inline-flex rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
-          >
-            Create Match
-          </Link>
         </div>
       ) : (
-        <div className="space-y-8">
-          <MatchSection
-            title="Live Now"
-            subtitle="Matches currently in progress or at halftime."
-            count={liveMatches.length}
-            emptyText="No live matches right now."
-            matches={liveMatches}
-            highlight={liveMatches.length > 0}
-          />
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Public Organizations</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Clubs, schools, leagues, and academies available on the public site.
+              </p>
+            </div>
 
-          <MatchSection
-            title="Upcoming"
-            subtitle="Scheduled matches coming up next."
-            count={upcomingMatches.length}
-            emptyText="No upcoming matches scheduled."
-            matches={upcomingMatches}
-          />
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+              {filteredOrganizations.length}
+            </span>
+          </div>
 
-          <MatchSection
-            title="Recent Results"
-            subtitle="Completed matches and final scores."
-            count={recentResults.length}
-            emptyText="No completed matches yet."
-            matches={recentResults}
-          />
-        </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredOrganizations.map((org) => (
+              <Link
+                key={org.id}
+                href={`/public/org/${org.slug}`}
+                className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-5 transition-all duration-200 hover:-translate-y-1 hover:bg-white hover:shadow-lg"
+              >
+                {/* --------------------------------------------------- */}
+                {/* ORG BRAND STRIPE */}
+                {/* --------------------------------------------------- */}
+
+                <div
+                  className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
+                  style={{
+                    backgroundColor: org.primary_color || '#0e172b',
+                  }}
+                />
+
+                {/* --------------------------------------------------- */}
+                {/* ORG HEADER */}
+                {/* --------------------------------------------------- */}
+
+                <div className="flex items-center gap-3">
+                  {org.logo_url ? (
+                    <img
+                      src={org.logo_url}
+                      alt={`${org.name} logo`}
+                      className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                      LOGO
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-lg font-bold text-slate-900">{org.name}</h3>
+                    <p className="truncate text-sm text-slate-500 capitalize">
+                      {org.organization_type.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* --------------------------------------------------- */}
+                {/* ORG META */}
+                {/* --------------------------------------------------- */}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {org.short_name ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                      {org.short_name}
+                    </span>
+                  ) : null}
+
+                  {org.city || org.state ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                      {[org.city, org.state].filter(Boolean).join(', ')}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* --------------------------------------------------- */}
+                {/* CTA */}
+                {/* --------------------------------------------------- */}
+
+                <div className="mt-5">
+                  <div className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition group-hover:bg-slate-50">
+                    View Organization
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );
-}
-
-// ---------------------------------------------------
-// MATCH SECTION
-// ---------------------------------------------------
-
-function MatchSection({
-  title,
-  subtitle,
-  count,
-  emptyText,
-  matches,
-  highlight = false,
-}: {
-  title: string;
-  subtitle: string;
-  count: number;
-  emptyText: string;
-  matches: MatchRow[];
-  highlight?: boolean;
-}) {
-  return (
-    <section
-      className={`rounded-3xl p-6 shadow-sm ring-1 ${
-        highlight ? 'bg-red-50/70 ring-red-200' : 'bg-white ring-slate-200'
-      }`}
-    >
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2
-            className={`flex items-center gap-2 text-2xl font-bold ${
-              highlight ? 'text-red-700' : 'text-slate-900'
-            }`}
-          >
-            {highlight ? (
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
-              </span>
-            ) : null}
-            {title}
-          </h2>
-
-          <p className={`mt-1 text-sm ${highlight ? 'text-red-700/80' : 'text-slate-500'}`}>
-            {subtitle}
-          </p>
-        </div>
-
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-semibold ${
-            highlight
-              ? 'bg-white text-red-700 ring-1 ring-red-200'
-              : 'bg-slate-100 text-slate-600'
-          }`}
-        >
-          {count}
-        </span>
-      </div>
-
-      {matches.length === 0 ? (
-        <p className={`text-sm ${highlight ? 'text-red-700/70' : 'text-slate-500'}`}>
-          {emptyText}
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {matches.map((match) => (
-            <MatchCard key={match.id} match={match} highlight={highlight} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------
-// MATCH CARD
-// ---------------------------------------------------
-
-function MatchCard({
-  match,
-  highlight = false,
-}: {
-  match: MatchRow;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-3xl p-5 ring-1 ${
-        highlight
-          ? 'border-l-4 border-red-500 bg-white ring-red-100'
-          : 'bg-slate-50 ring-slate-200'
-      }`}
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <StatusBadge status={match.status} />
-
-            {match.match_date ? (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                {formatMatchDate(match.match_date)}
-              </span>
-            ) : (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                Date TBD
-              </span>
-            )}
-
-            {match.venue ? (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                {match.venue}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
-
-              <div className="mt-1 flex items-center gap-3">
-                {match.home_team?.logo_url ? (
-                  <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
-                    <img
-                      src={match.home_team.logo_url}
-                      alt={`${match.home_team.name} logo`}
-                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-                    />
-                  </Link>
-                ) : null}
-
-                <Link
-                  href={`/teams/${match.home_team_id}`}
-                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
-                >
-                  {match.home_team?.name || 'Home Team'}
-                </Link>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
-              <div className="text-3xl font-black">
-                {match.home_score} - {match.away_score}
-              </div>
-            </div>
-
-            <div className="min-w-0 md:text-right">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
-
-              <div className="mt-1 flex items-center justify-end gap-3">
-                <Link
-                  href={`/teams/${match.away_team_id}`}
-                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
-                >
-                  {match.away_team?.name || 'Away Team'}
-                </Link>
-
-                {match.away_team?.logo_url ? (
-                  <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
-                    <img
-                      src={match.away_team.logo_url}
-                      alt={`${match.away_team.name} logo`}
-                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-                    />
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-              Home: {prettyTrackingMode(match.home_tracking_mode)}
-            </span>
-            <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">
-              Away: {prettyTrackingMode(match.away_tracking_mode)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 lg:justify-end">
-          <Link
-            href={`/live/${match.id}`}
-            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-          >
-            Open Match
-          </Link>
-
-          <Link
-            href={`/public/${match.public_slug}`}
-            target="_blank"
-            className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
-          >
-            Public Scoreboard
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------
-// STATUS BADGE
-// ---------------------------------------------------
-
-function StatusBadge({ status }: { status: Match['status'] }) {
-  if (status === 'live') {
-    return (
-      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-        Live
-      </span>
-    );
-  }
-
-  if (status === 'halftime') {
-    return (
-      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-        Halftime
-      </span>
-    );
-  }
-
-  if (status === 'final') {
-    return (
-      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
-        Final
-      </span>
-    );
-  }
-
-  if (status === 'postponed') {
-    return (
-      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-        Postponed
-      </span>
-    );
-  }
-
-  if (status === 'cancelled') {
-    return (
-      <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">
-        Cancelled
-      </span>
-    );
-  }
-
-  return (
-    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
-      Scheduled
-    </span>
-  );
-}
-
-// ---------------------------------------------------
-// TRACKING MODE LABEL
-// ---------------------------------------------------
-
-function prettyTrackingMode(mode: Match['home_tracking_mode']) {
-  if (mode === 'full') return 'Full';
-  if (mode === 'basic') return 'Basic';
-  return mode;
-}
-
-// ---------------------------------------------------
-// DATE FORMATTER
-// ---------------------------------------------------
-
-function formatMatchDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
 }
