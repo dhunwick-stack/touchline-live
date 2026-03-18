@@ -1,13 +1,26 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Organization, Team } from '@/lib/types';
 
+// ---------------------------------------------------
+// LOCAL TYPES
+// ---------------------------------------------------
+
 type TeamRow = Team & {
   organization: Organization | null;
 };
+
+// ---------------------------------------------------
+// PAGE
+// FILE: app/teams/page.tsx
+// ---------------------------------------------------
 
 export default function TeamsPage() {
   // ---------------------------------------------------
@@ -17,6 +30,13 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [search, setSearch] = useState('');
+
+  // ---------------------------------------------------
+  // ACCESS STATE
+  // ---------------------------------------------------
+
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
 
   // ---------------------------------------------------
   // FORM STATE
@@ -31,7 +51,7 @@ export default function TeamsPage() {
   const [logoUrl, setLogoUrl] = useState('');
 
   // ---------------------------------------------------
-  // UI STATE 
+  // UI STATE
   // ---------------------------------------------------
 
   const [loading, setLoading] = useState(false);
@@ -39,7 +59,42 @@ export default function TeamsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // ---------------------------------------------------
-  // DATA LOADING
+  // ACCESS CHECK
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    try {
+      const rawSession = localStorage.getItem('teamAdminSession');
+      const storedTeamId = localStorage.getItem('teamId');
+
+      if (!rawSession || !storedTeamId) {
+        setHasAccess(false);
+        setAccessChecked(true);
+        return;
+      }
+
+      const session = JSON.parse(rawSession);
+
+      if (session.teamId !== storedTeamId || session.expires <= Date.now()) {
+        localStorage.removeItem('teamAdminSession');
+        localStorage.removeItem('teamId');
+        setHasAccess(false);
+        setAccessChecked(true);
+        return;
+      }
+
+      setHasAccess(true);
+      setAccessChecked(true);
+    } catch {
+      localStorage.removeItem('teamAdminSession');
+      localStorage.removeItem('teamId');
+      setHasAccess(false);
+      setAccessChecked(true);
+    }
+  }, []);
+
+  // ---------------------------------------------------
+  // LOAD TEAMS + ORGANIZATIONS
   // ---------------------------------------------------
 
   async function loadTeams() {
@@ -52,8 +107,7 @@ export default function TeamsPage() {
         .select(`
           *,
           organization:organization_id (*)
-        `)
-        .order('created_at', { ascending: false }),
+        `),
       supabase.from('organizations').select('*').order('name', { ascending: true }),
     ]);
 
@@ -66,6 +120,10 @@ export default function TeamsPage() {
     setOrganizations((organizationData as Organization[]) ?? []);
   }
 
+  // ---------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
     loadTeams();
   }, []);
@@ -76,6 +134,11 @@ export default function TeamsPage() {
 
   async function createTeam(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!hasAccess) {
+      setMessage('You do not have permission to create a team.');
+      return;
+    }
 
     if (!name.trim()) return;
 
@@ -104,6 +167,10 @@ export default function TeamsPage() {
       return;
     }
 
+    // ---------------------------------------------------
+    // RESET FORM
+    // ---------------------------------------------------
+
     setName('');
     setClubName('');
     setOrganizationId(null);
@@ -119,31 +186,35 @@ export default function TeamsPage() {
   }
 
   // ---------------------------------------------------
-  // FILTERED TEAMS
+  // FILTERED + SORTED TEAMS
   // ---------------------------------------------------
 
   const filteredTeams = useMemo(() => {
     const q = search.toLowerCase().trim();
 
-    if (!q) return teams;
+    const base = !q
+      ? teams
+      : teams.filter((team) => {
+          const teamName = (team.name || '').toLowerCase();
+          const club = (team.club_name || '').toLowerCase();
+          const orgName = (team.organization?.name || '').toLowerCase();
+          const age = (team.age_group || '').toLowerCase();
+          const level = (team.team_level || '').toLowerCase();
+          const teamGender = (team.gender || '').toLowerCase();
 
-    return teams.filter((team) => {
-      const teamName = (team.name || '').toLowerCase();
-      const club = (team.club_name || '').toLowerCase();
-      const orgName = (team.organization?.name || '').toLowerCase();
-      const age = (team.age_group || '').toLowerCase();
-      const level = (team.team_level || '').toLowerCase();
-      const teamGender = (team.gender || '').toLowerCase();
+          return (
+            teamName.includes(q) ||
+            club.includes(q) ||
+            orgName.includes(q) ||
+            age.includes(q) ||
+            level.includes(q) ||
+            teamGender.includes(q)
+          );
+        });
 
-      return (
-        teamName.includes(q) ||
-        club.includes(q) ||
-        orgName.includes(q) ||
-        age.includes(q) ||
-        level.includes(q) ||
-        teamGender.includes(q)
-      );
-    });
+    return [...base].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }),
+    );
   }, [teams, search]);
 
   // ---------------------------------------------------
@@ -157,6 +228,14 @@ export default function TeamsPage() {
       .join(' • ');
 
     return details ? `${parentName} • ${details}` : parentName;
+  }
+
+  // ---------------------------------------------------
+  // ACCESS LOADING
+  // ---------------------------------------------------
+
+  if (!accessChecked) {
+    return <main className="mx-auto max-w-5xl px-6 py-10">Checking access...</main>;
   }
 
   // ---------------------------------------------------
@@ -177,13 +256,15 @@ export default function TeamsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowCreateForm((prev) => !prev)}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800"
-        >
-          {showCreateForm ? 'Cancel' : '+ Create Team'}
-        </button>
+        {hasAccess ? (
+          <button
+            type="button"
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800"
+          >
+            {showCreateForm ? 'Cancel' : '+ Create Team'}
+          </button>
+        ) : null}
       </div>
 
       {/* --------------------------------------------------- */}
@@ -197,10 +278,10 @@ export default function TeamsPage() {
       ) : null}
 
       {/* --------------------------------------------------- */}
-      {/* CREATE TEAM FORM */}
+      {/* CREATE TEAM FORM
       {/* --------------------------------------------------- */}
 
-      {showCreateForm ? (
+      {hasAccess && showCreateForm ? (
         <form
           onSubmit={createTeam}
           className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -317,7 +398,7 @@ export default function TeamsPage() {
         </form>
       ) : null}
 
-                   {/* --------------------------------------------------- */}
+      {/* --------------------------------------------------- */}
       {/* SEARCH BAR */}
       {/* --------------------------------------------------- */}
 
@@ -429,9 +510,7 @@ export default function TeamsPage() {
                     {team.name}
                   </Link>
 
-                  <div className="truncate text-sm text-slate-500">
-                    {getTeamSubtext(team)}
-                  </div>
+                  <div className="truncate text-sm text-slate-500">{getTeamSubtext(team)}</div>
                 </div>
               </div>
 
@@ -443,13 +522,13 @@ export default function TeamsPage() {
                   Public View
                 </Link>
 
-               <Link
-  href={`/teams/${team.id}`}
-  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
-  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
->
-  Admin View
-</Link>
+                <Link
+                  href={`/teams/${team.id}`}
+                  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
+                  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
+                >
+                  Admin View
+                </Link>
               </div>
             </div>
           ))}
