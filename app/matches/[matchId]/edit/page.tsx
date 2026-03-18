@@ -6,7 +6,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { buildReadableMatchSlug } from '@/lib/utils';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, Season, Team } from '@/lib/types';
@@ -34,26 +33,54 @@ function toLocalInputValue(isoString: string | null | undefined) {
 }
 
 // ---------------------------------------------------
+// READABLE PUBLIC SLUG HELPER
+// ---------------------------------------------------
+
+function buildReadableMatchSlug({
+  homeTeamName,
+  awayTeamName,
+  matchDate,
+}: {
+  homeTeamName?: string | null;
+  awayTeamName?: string | null;
+  matchDate?: string | null;
+}) {
+  const home = slugifySegment(homeTeamName || 'home-team');
+  const away = slugifySegment(awayTeamName || 'away-team');
+
+  let datePart = 'date-tbd';
+
+  if (matchDate) {
+    const parsed = new Date(matchDate);
+
+    if (!Number.isNaN(parsed.getTime())) {
+      datePart = parsed.toISOString().slice(0, 10);
+    }
+  }
+
+  return `${home}-vs-${away}-${datePart}`;
+}
+
+// ---------------------------------------------------
+// SLUGIFY SEGMENT
+// ---------------------------------------------------
+
+function slugifySegment(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+// ---------------------------------------------------
 // PAGE
 // FILE: app/matches/[matchId]/edit/page.tsx
 // ---------------------------------------------------
 
 export default function EditMatchPage() {
-    // ---------------------------------------------------
-  // REGENERATE PUBLIC SLUG
-  // ---------------------------------------------------
-
-  function handleRegenerateSlug() {
-    if (!match) return;
-
-    setPublicSlug(
-      buildReadableMatchSlug({
-        homeTeamName: match.home_team?.name,
-        awayTeamName: match.away_team?.name,
-        matchDate: matchDate ? new Date(matchDate).toISOString() : match.match_date,
-      }),
-    );
-  }
   // ---------------------------------------------------
   // ROUTE / NAVIGATION
   // ---------------------------------------------------
@@ -137,7 +164,7 @@ export default function EditMatchPage() {
       setVenue(loadedMatch.venue || '');
       setStatus(loadedMatch.status);
       setStatusNote(loadedMatch.status_note || '');
-           setPublicSlug(
+      setPublicSlug(
         loadedMatch.public_slug ||
           buildReadableMatchSlug({
             homeTeamName: loadedMatch.home_team?.name,
@@ -151,6 +178,22 @@ export default function EditMatchPage() {
 
     loadPage();
   }, [matchId]);
+
+  // ---------------------------------------------------
+  // REGENERATE PUBLIC SLUG
+  // ---------------------------------------------------
+
+  function handleRegenerateSlug() {
+    if (!match) return;
+
+    setPublicSlug(
+      buildReadableMatchSlug({
+        homeTeamName: match.home_team?.name,
+        awayTeamName: match.away_team?.name,
+        matchDate: matchDate ? new Date(matchDate).toISOString() : match.match_date,
+      }),
+    );
+  }
 
   // ---------------------------------------------------
   // SAVE MATCH
@@ -331,32 +374,35 @@ export default function EditMatchPage() {
             />
           </Field>
 
-                   {/* ------------------------------------------------- */}
+          {/* ------------------------------------------------- */}
           {/* PUBLIC SLUG */}
           {/* ------------------------------------------------- */}
 
-         <Field label="Public Slug">
-  <div className="flex items-stretch gap-3">
-    <input
-      value={publicSlug}
-      onChange={(e) => setPublicSlug(e.target.value)}
-      placeholder="evanston-vs-new-trier-2026-04-12"
-      className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-    />
+          <div className="md:col-span-2">
+            <Field label="Public Slug">
+              <div className="flex items-stretch gap-3">
+                <input
+                  value={publicSlug}
+                  onChange={(e) => setPublicSlug(e.target.value)}
+                  placeholder="evanston-vs-new-trier-2026-04-12"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                />
 
-    <button
-      type="button"
-      onClick={handleRegenerateSlug}
-      className="rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-900 hover:bg-slate-200"
-    >
-      Regenerate
-    </button>
-  </div>
+                <button
+                  type="button"
+                  onClick={handleRegenerateSlug}
+                  className="rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-900 hover:bg-slate-200"
+                >
+                  Regenerate
+                </button>
+              </div>
 
-  <p className="text-xs text-slate-500">
-    Changing this updates the public scoreboard URL and old shared links will stop working.
-  </p>
-</Field>
+              <p className="text-xs text-slate-500">
+                Changing this updates the public scoreboard URL and old shared links will stop
+                working.
+              </p>
+            </Field>
+          </div>
 
           {/* ------------------------------------------------- */}
           {/* STATUS NOTE */}
