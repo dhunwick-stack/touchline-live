@@ -58,7 +58,7 @@ export type Organization = {
   id: string;
   name: string;
   slug: string;
-  organization_type: OrganizationType;
+  organization_type: string;
   short_name?: string | null;
   logo_url?: string | null;
   banner_url?: string | null;
@@ -69,6 +69,7 @@ export type Organization = {
   state?: string | null;
   description?: string | null;
   created_at: string;
+  is_public: boolean;
 };
 
 // ---------------------------------------------------
