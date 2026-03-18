@@ -12,7 +12,7 @@ export function validateStartingLineupCount(playerIds: string[]) {
 }
 
 // ---------------------------------------------------
-// CREATE MATCH LINEUP SNAPSHOT
+// CREATE OR COMPLETE MATCH LINEUP SNAPSHOT
 // ---------------------------------------------------
 
 export async function createMatchLineupSnapshot(
@@ -38,52 +38,71 @@ export async function createMatchLineupSnapshot(
   const activePlayers = players ?? [];
 
   // ---------------------------------------------------
-  // REMOVE EXISTING SNAPSHOT ROWS FOR THIS TEAM / MATCH
+  // LOAD EXISTING SNAPSHOT ROWS FOR THIS TEAM / MATCH
   // ---------------------------------------------------
 
-  const { error: deleteError } = await supabase
+  const { data: existingRows, error: existingError } = await supabase
     .from('match_lineups')
-    .delete()
+    .select('*')
     .eq('match_id', matchId)
     .eq('team_id', teamId);
 
-  if (deleteError) {
-    throw new Error(deleteError.message || 'Failed to clear existing lineup snapshot.');
+  if (existingError) {
+    throw new Error(existingError.message || 'Failed to load existing lineup snapshot.');
+  }
+
+  const existingLineups = (existingRows as MatchLineup[]) ?? [];
+  const existingPlayerIds = new Set(existingLineups.map((row) => row.player_id));
+
+  // ---------------------------------------------------
+  // INSERT ONLY MISSING PLAYERS
+  // ---------------------------------------------------
+
+  const missingPlayers = activePlayers.filter((player) => !existingPlayerIds.has(player.id));
+
+  if (missingPlayers.length > 0) {
+    const startingOrder = existingLineups.length;
+
+    const rowsToInsert = missingPlayers.map((player, index) => ({
+      match_id: matchId,
+      team_id: teamId,
+      player_id: player.id,
+      is_starter: false,
+      is_available: true,
+      lineup_order: startingOrder + index + 1,
+      player_name_snapshot:
+        [player.first_name, player.last_name].filter(Boolean).join(' ') || null,
+      jersey_number_snapshot:
+        player.jersey_number !== null && player.jersey_number !== undefined
+          ? String(player.jersey_number)
+          : null,
+    }));
+
+    const { error: insertError } = await supabase
+      .from('match_lineups')
+      .insert(rowsToInsert);
+
+    if (insertError) {
+      throw new Error(insertError.message || 'Failed to create lineup snapshot.');
+    }
   }
 
   // ---------------------------------------------------
-  // INSERT FRESH SNAPSHOT ROWS
+  // RETURN ACTUAL SAVED SNAPSHOT ROWS
   // ---------------------------------------------------
 
-  if (activePlayers.length === 0) {
-    return [];
-  }
-
-  const snapshotRows = activePlayers.map((player, index) => ({
-    match_id: matchId,
-    team_id: teamId,
-    player_id: player.id,
-    is_starter: false,
-    is_available: true,
-    lineup_order: index + 1,
-    player_name_snapshot:
-      [player.first_name, player.last_name].filter(Boolean).join(' ') || null,
-    jersey_number_snapshot:
-      player.jersey_number !== null && player.jersey_number !== undefined
-        ? String(player.jersey_number)
-        : null,
-  }));
-
-  const { data: insertedRows, error: insertError } = await supabase
+  const { data: finalRows, error: finalError } = await supabase
     .from('match_lineups')
-    .insert(snapshotRows)
-    .select('*');
+    .select('*')
+    .eq('match_id', matchId)
+    .eq('team_id', teamId)
+    .order('lineup_order', { ascending: true });
 
-  if (insertError) {
-    throw new Error(insertError.message || 'Failed to create lineup snapshot.');
+  if (finalError) {
+    throw new Error(finalError.message || 'Failed to reload lineup snapshot.');
   }
 
-  return (insertedRows as MatchLineup[]) ?? [];
+  return (finalRows as MatchLineup[]) ?? [];
 }
 
 // ---------------------------------------------------
@@ -104,13 +123,13 @@ export async function saveStartingLineup(
   }
 
   // ---------------------------------------------------
-  // ALWAYS REBUILD FULL SNAPSHOT FIRST
+  // ENSURE SNAPSHOT EXISTS FIRST
   // ---------------------------------------------------
 
   await createMatchLineupSnapshot(matchId, teamId);
 
   // ---------------------------------------------------
-  // MARK ALL PLAYERS AS NON-STARTERS
+  // RESET ALL PLAYERS AS NON-STARTERS
   // ---------------------------------------------------
 
   const { error: resetError } = await supabase
