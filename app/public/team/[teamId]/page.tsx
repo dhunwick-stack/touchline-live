@@ -1,11 +1,19 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -22,6 +30,11 @@ type TeamSummary = {
   goalDifference: number;
   cleanSheets: number;
 };
+
+// ---------------------------------------------------
+// PAGE
+// FILE: app/public/team/[teamId]/page.tsx
+// ---------------------------------------------------
 
 export default function PublicTeamPage() {
   // ---------------------------------------------------
@@ -66,13 +79,13 @@ export default function PublicTeamPage() {
         { data: nextMatchData, error: nextMatchError },
       ] = await Promise.all([
         supabase
-  .from('teams')
-  .select(`
-    *,
-    organization:organization_id (*)
-  `)
-  .eq('id', teamId)
-  .single(),
+          .from('teams')
+          .select(`
+            *,
+            organization:organization_id (*)
+          `)
+          .eq('id', teamId)
+          .single(),
         supabase
           .from('players')
           .select('*')
@@ -290,6 +303,21 @@ export default function PublicTeamPage() {
   }, [matches, teamId]);
 
   // ---------------------------------------------------
+  // FEATURED LIVE MATCH
+  // Push live or halftime match to the top on mobile.
+  // ---------------------------------------------------
+
+  const featuredLiveMatch = useMemo(() => {
+    if (!nextMatch) return null;
+
+    if (nextMatch.status === 'live' || nextMatch.status === 'halftime') {
+      return nextMatch;
+    }
+
+    return null;
+  }, [nextMatch]);
+
+  // ---------------------------------------------------
   // HERO STYLE
   // ---------------------------------------------------
 
@@ -321,8 +349,80 @@ export default function PublicTeamPage() {
     );
   }
 
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
+
   return (
-   <PublicTeamPageShell team={team} teamId={teamId}>
+    <PublicTeamPageShell team={team} teamId={teamId}>
+      {/* --------------------------------------------------- */}
+      {/* MOBILE FEATURED LIVE MATCH */}
+      {/* --------------------------------------------------- */}
+
+      {featuredLiveMatch ? (
+        <section className="mb-6 block lg:hidden">
+          <div
+            className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
+            style={nextMatchHeroStyle}
+          >
+            <div className="bg-black/25 p-5 backdrop-blur-[2px]">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/80">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    {featuredLiveMatch.status === 'halftime' ? 'Halftime Match' : 'Live Match'}
+                  </p>
+
+                  <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
+                    {featuredLiveMatch.home_team?.name || 'Home Team'} vs{' '}
+                    {featuredLiveMatch.away_team?.name || 'Away Team'}
+                  </h2>
+                </div>
+
+                <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
+                  {featuredLiveMatch.status === 'halftime' ? 'Halftime' : 'Live'}
+                </span>
+              </div>
+
+              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/15">
+                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
+                  Score
+                </div>
+
+                <div className="mt-1 text-3xl font-black text-white">
+                  {featuredLiveMatch.home_score} - {featuredLiveMatch.away_score}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                {featuredLiveMatch.public_slug ? (
+                  <Link
+                    href={`/public/${featuredLiveMatch.public_slug}`}
+                    className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
+                  >
+                    Open Live Match
+                  </Link>
+                ) : null}
+
+                <Link
+                  href={`/public/team/${team.id}/schedule`}
+                  className="inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Full Schedule
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS */}
+      {/* --------------------------------------------------- */}
+
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
         <SummaryCard
@@ -338,9 +438,16 @@ export default function PublicTeamPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6">
+          {/* --------------------------------------------------- */}
+          {/* NEXT MATCH HERO
+          Hide on mobile when there is already a featured live match.
+          --------------------------------------------------- */}
+
           {nextMatch ? (
             <div
-              className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
+              className={`overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10 ${
+                featuredLiveMatch ? 'hidden lg:block' : 'block'
+              }`}
               style={nextMatchHeroStyle}
             >
               <div className="bg-black/25 p-6 backdrop-blur-[2px]">
@@ -450,6 +557,10 @@ export default function PublicTeamPage() {
             </div>
           ) : null}
 
+          {/* --------------------------------------------------- */}
+          {/* RECENT MATCHES */}
+          {/* --------------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Recent Matches</h2>
@@ -522,6 +633,10 @@ export default function PublicTeamPage() {
             )}
           </div>
 
+          {/* --------------------------------------------------- */}
+          {/* ROSTER PREVIEW */}
+          {/* --------------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
@@ -560,6 +675,10 @@ export default function PublicTeamPage() {
         </section>
 
         <section className="space-y-6">
+          {/* --------------------------------------------------- */}
+          {/* TEAM SNAPSHOT */}
+          {/* --------------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <h2 className="text-xl font-bold text-slate-900">Team Snapshot</h2>
             <p className="mt-2 text-sm text-slate-600">
@@ -614,6 +733,10 @@ export default function PublicTeamPage() {
             </div>
           </div>
 
+          {/* --------------------------------------------------- */}
+          {/* EXPLORE MORE */}
+          {/* --------------------------------------------------- */}
+
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <h2 className="text-xl font-bold text-slate-900">Explore More</h2>
             <p className="mt-2 text-sm text-slate-600">
@@ -642,6 +765,10 @@ export default function PublicTeamPage() {
   );
 }
 
+// ---------------------------------------------------
+// SUMMARY CARD
+// ---------------------------------------------------
+
 function SummaryCard({
   label,
   value,
@@ -656,6 +783,10 @@ function SummaryCard({
     </div>
   );
 }
+
+// ---------------------------------------------------
+// SNAPSHOT MINI CARD
+// ---------------------------------------------------
 
 function SnapshotMiniCard({
   label,
@@ -672,11 +803,19 @@ function SnapshotMiniCard({
   );
 }
 
+// ---------------------------------------------------
+// PLAYER DISPLAY NAME
+// ---------------------------------------------------
+
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';
   const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
   return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
 }
+
+// ---------------------------------------------------
+// RESULT LABEL
+// ---------------------------------------------------
 
 function resultLabel(match: MatchRow, teamId: string) {
   const isHome = match.home_team_id === teamId;
@@ -688,10 +827,18 @@ function resultLabel(match: MatchRow, teamId: string) {
   return 'D';
 }
 
+// ---------------------------------------------------
+// OPPONENT NAME
+// ---------------------------------------------------
+
 function opponentName(match: MatchRow, teamId: string) {
   const isHome = match.home_team_id === teamId;
   return isHome ? match.away_team?.name || 'Opponent' : match.home_team?.name || 'Opponent';
 }
+
+// ---------------------------------------------------
+// SCORE LINE
+// ---------------------------------------------------
 
 function scoreLine(match: MatchRow, teamId: string) {
   const isHome = match.home_team_id === teamId;
