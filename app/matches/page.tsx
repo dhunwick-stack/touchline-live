@@ -27,6 +27,7 @@ export default function MatchesPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [nowMs, setNowMs] = useState(Date.now());
 
   // ---------------------------------------------------
   // LOAD MATCHES
@@ -56,9 +57,68 @@ export default function MatchesPage() {
     setLoading(false);
   }
 
+  // ---------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
     loadMatches();
   }, []);
+
+  // ---------------------------------------------------
+  // REALTIME REFRESH
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('matches-page-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matches',
+        },
+        async () => {
+          await loadMatches();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_events',
+        },
+        async () => {
+          await loadMatches();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // ---------------------------------------------------
+  // LIVE CLOCK TICKER
+  // Keeps live cards feeling current between DB updates.
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    const hasRunningLiveMatch = matches.some(
+      (match) => match.status === 'live' && match.clock_running,
+    );
+
+    if (!hasRunningLiveMatch) return;
+
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [matches]);
 
   // ---------------------------------------------------
   // DERIVED MATCH GROUPS
@@ -167,6 +227,7 @@ export default function MatchesPage() {
             emptyText="No live matches right now."
             matches={liveMatches}
             highlight={liveMatches.length > 0}
+            nowMs={nowMs}
           />
 
           <MatchSection
@@ -175,6 +236,7 @@ export default function MatchesPage() {
             count={upcomingMatches.length}
             emptyText="No upcoming matches scheduled."
             matches={upcomingMatches}
+            nowMs={nowMs}
           />
 
           <MatchSection
@@ -183,6 +245,7 @@ export default function MatchesPage() {
             count={recentResults.length}
             emptyText="No completed matches yet."
             matches={recentResults}
+            nowMs={nowMs}
           />
         </div>
       )}
@@ -201,6 +264,7 @@ function MatchSection({
   emptyText,
   matches,
   highlight = false,
+  nowMs,
 }: {
   title: string;
   subtitle: string;
@@ -208,6 +272,7 @@ function MatchSection({
   emptyText: string;
   matches: MatchRow[];
   highlight?: boolean;
+  nowMs: number;
 }) {
   return (
     <section
@@ -254,7 +319,7 @@ function MatchSection({
       ) : (
         <div className="space-y-4">
           {matches.map((match) => (
-            <MatchCard key={match.id} match={match} highlight={highlight} />
+            <MatchCard key={match.id} match={match} highlight={highlight} nowMs={nowMs} />
           ))}
         </div>
       )}
@@ -269,10 +334,18 @@ function MatchSection({
 function MatchCard({
   match,
   highlight = false,
+  nowMs,
 }: {
   match: MatchRow;
   highlight?: boolean;
+  nowMs: number;
 }) {
+  // ---------------------------------------------------
+  // LIVE CLOCK LABEL
+  // ---------------------------------------------------
+
+  const liveClockText = getLiveClockText(match, nowMs);
+
   return (
     <div
       className={`rounded-3xl p-5 ring-1 ${
@@ -295,6 +368,12 @@ function MatchCard({
                 Date TBD
               </span>
             )}
+
+            {liveClockText ? (
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                {liveClockText}
+              </span>
+            ) : null}
 
             {match.venue ? (
               <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
@@ -447,7 +526,36 @@ function StatusBadge({ status }: { status: Match['status'] }) {
 function prettyTrackingMode(mode: Match['home_tracking_mode']) {
   if (mode === 'full') return 'Full';
   if (mode === 'basic') return 'Basic';
+  if (mode === 'lineups') return 'Lineups';
   return mode;
+}
+
+// ---------------------------------------------------
+// LIVE CLOCK LABEL HELPER
+// ---------------------------------------------------
+
+function getLiveClockText(match: MatchRow, nowMs: number) {
+  if (match.status !== 'live' && match.status !== 'halftime') {
+    return null;
+  }
+
+  if (match.status === 'halftime') {
+    return 'Halftime';
+  }
+
+  const baseSeconds = match.elapsed_seconds || 0;
+
+  if (match.clock_running && match.period_started_at) {
+    const startedMs = new Date(match.period_started_at).getTime();
+    const runningSeconds = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+    const totalSeconds = baseSeconds + runningSeconds;
+    const minute = Math.floor(totalSeconds / 60);
+
+    return `${minute}' Live`;
+  }
+
+  const pausedMinute = Math.floor(baseSeconds / 60);
+  return `${pausedMinute}' Paused`;
 }
 
 // ---------------------------------------------------
