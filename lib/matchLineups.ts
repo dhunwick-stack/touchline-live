@@ -1,12 +1,18 @@
-// ---------------------------------------------------
-// IMPORTS
-// ---------------------------------------------------
+// File: /lib/matchLineups.ts
 
 import { supabase } from '@/lib/supabase';
-import type { MatchLineup, Player } from '@/lib/types';
+import type { MatchLineup } from '@/lib/types';
 
 // ---------------------------------------------------
-// SNAPSHOT TEAM ROSTER INTO MATCH LINEUPS
+// VALIDATE STARTING LINEUP COUNT
+// ---------------------------------------------------
+
+export function validateStartingLineupCount(playerIds: string[]) {
+  return playerIds.length === 11;
+}
+
+// ---------------------------------------------------
+// CREATE MATCH LINEUP SNAPSHOT
 // ---------------------------------------------------
 
 export async function createMatchLineupSnapshot(
@@ -14,7 +20,7 @@ export async function createMatchLineupSnapshot(
   teamId: string,
 ): Promise<MatchLineup[]> {
   // ---------------------------------------------------
-  // LOAD ACTIVE PLAYERS
+  // LOAD ACTIVE PLAYERS FOR TEAM
   // ---------------------------------------------------
 
   const { data: players, error: playersError } = await supabase
@@ -26,65 +32,58 @@ export async function createMatchLineupSnapshot(
     .order('first_name', { ascending: true });
 
   if (playersError) {
-    throw new Error(`Could not load active players: ${playersError.message}`);
+    throw new Error(playersError.message || 'Failed to load active players.');
   }
 
-  const safePlayers = (players ?? []) as Pick<
-    Player,
-    'id' | 'first_name' | 'last_name' | 'jersey_number'
-  >[];
+  const activePlayers = players ?? [];
 
   // ---------------------------------------------------
-  // CHECK FOR EXISTING SNAPSHOT
+  // REMOVE EXISTING SNAPSHOT ROWS FOR THIS TEAM / MATCH
   // ---------------------------------------------------
 
-  const { data: existingRows, error: existingError } = await supabase
+  const { error: deleteError } = await supabase
     .from('match_lineups')
-    .select('*')
+    .delete()
     .eq('match_id', matchId)
     .eq('team_id', teamId);
 
-  if (existingError) {
-    throw new Error(`Could not check existing lineup snapshot: ${existingError.message}`);
-  }
-
-  if ((existingRows ?? []).length > 0) {
-    return (existingRows ?? []) as MatchLineup[];
+  if (deleteError) {
+    throw new Error(deleteError.message || 'Failed to clear existing lineup snapshot.');
   }
 
   // ---------------------------------------------------
-  // RETURN EARLY IF NO PLAYERS
+  // INSERT FRESH SNAPSHOT ROWS
   // ---------------------------------------------------
 
-  if (safePlayers.length === 0) {
+  if (activePlayers.length === 0) {
     return [];
   }
 
-  // ---------------------------------------------------
-  // BUILD SNAPSHOT ROWS USING ONLY CONFIRMED COLUMNS
-  // ---------------------------------------------------
-
-  const lineupRows = safePlayers.map((player) => ({
+  const snapshotRows = activePlayers.map((player, index) => ({
     match_id: matchId,
     team_id: teamId,
     player_id: player.id,
     is_starter: false,
+    is_available: true,
+    lineup_order: index + 1,
+    player_name_snapshot:
+      [player.first_name, player.last_name].filter(Boolean).join(' ') || null,
+    jersey_number_snapshot:
+      player.jersey_number !== null && player.jersey_number !== undefined
+        ? String(player.jersey_number)
+        : null,
   }));
-
-  // ---------------------------------------------------
-  // INSERT SNAPSHOT
-  // ---------------------------------------------------
 
   const { data: insertedRows, error: insertError } = await supabase
     .from('match_lineups')
-    .insert(lineupRows)
+    .insert(snapshotRows)
     .select('*');
 
   if (insertError) {
-    throw new Error(`Could not insert lineup snapshot: ${insertError.message}`);
+    throw new Error(insertError.message || 'Failed to create lineup snapshot.');
   }
 
-  return (insertedRows ?? []) as MatchLineup[];
+  return (insertedRows as MatchLineup[]) ?? [];
 }
 
 // ---------------------------------------------------
@@ -97,7 +96,7 @@ export async function saveStartingLineup(
   starterPlayerIds: string[],
 ): Promise<void> {
   // ---------------------------------------------------
-  // VALIDATE STARTER COUNT
+  // ENFORCE EXACTLY 11 STARTERS
   // ---------------------------------------------------
 
   if (!validateStartingLineupCount(starterPlayerIds)) {
@@ -105,43 +104,37 @@ export async function saveStartingLineup(
   }
 
   // ---------------------------------------------------
-  // RESET ALL PLAYERS TO NON-STARTERS
+  // ALWAYS REBUILD FULL SNAPSHOT FIRST
+  // ---------------------------------------------------
+
+  await createMatchLineupSnapshot(matchId, teamId);
+
+  // ---------------------------------------------------
+  // MARK ALL PLAYERS AS NON-STARTERS
   // ---------------------------------------------------
 
   const { error: resetError } = await supabase
     .from('match_lineups')
-    .update({
-      is_starter: false,
-    })
+    .update({ is_starter: false })
     .eq('match_id', matchId)
     .eq('team_id', teamId);
 
   if (resetError) {
-    throw new Error(`Could not reset lineup starters: ${resetError.message}`);
+    throw new Error(resetError.message || 'Failed to reset starters.');
   }
 
   // ---------------------------------------------------
-  // MARK SELECTED PLAYERS AS STARTERS
+  // MARK SELECTED 11 AS STARTERS
   // ---------------------------------------------------
 
   const { error: starterError } = await supabase
     .from('match_lineups')
-    .update({
-      is_starter: true,
-    })
+    .update({ is_starter: true })
     .eq('match_id', matchId)
     .eq('team_id', teamId)
     .in('player_id', starterPlayerIds);
 
   if (starterError) {
-    throw new Error(`Could not save starting lineup: ${starterError.message}`);
+    throw new Error(starterError.message || 'Failed to save starters.');
   }
-}
-
-// ---------------------------------------------------
-// VALIDATE STARTING LINEUP COUNT
-// ---------------------------------------------------
-
-export function validateStartingLineupCount(playerIds: string[]): boolean {
-  return playerIds.length === 11;
 }

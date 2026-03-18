@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import { supabase } from '@/lib/supabase';
 import { slugifyMatch } from '@/lib/utils';
 import type { Season, Team, TrackingMode } from '@/lib/types';
@@ -38,7 +39,14 @@ export default function TeamNewMatchPage() {
   // AUTH / PAGE STATE
   // ---------------------------------------------------
 
-  const [authChecked, setAuthChecked] = useState(false);
+ const {
+  authChecked,
+  error: accessError,
+  loading: accessLoading,
+} = useTeamAccessGuard({
+  teamId,
+  nextPath: `/teams/${teamId}/new-match`,
+});
   const [team, setTeam] = useState<Team | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -62,22 +70,7 @@ export default function TeamNewMatchPage() {
   const [homeTrackingMode, setHomeTrackingMode] = useState<TrackingMode>('full');
   const [awayTrackingMode, setAwayTrackingMode] = useState<TrackingMode>('basic');
 
-  // ---------------------------------------------------
-  // TEAM AUTH GUARD
-  // ---------------------------------------------------
 
-  useEffect(() => {
-    if (!teamId) return;
-
-    const savedTeamId = localStorage.getItem('teamId');
-
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = `/team-login?teamId=${teamId}`;
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [teamId]);
 
   // ---------------------------------------------------
   // LOAD TEAM + SUPPORTING DATA
@@ -210,17 +203,21 @@ export default function TeamNewMatchPage() {
   // LOADING / ERROR STATES
   // ---------------------------------------------------
 
-  if (loading || !authChecked) {
-    return <main className="mx-auto max-w-5xl px-6 py-8">Loading match setup...</main>;
-  }
+  if (loading || accessLoading || !authChecked) {
+  return <main className="mx-auto max-w-5xl px-6 py-8">Loading match setup...</main>;
+}
 
-  if (message && !team) {
-    return <main className="mx-auto max-w-5xl px-6 py-8 text-red-600">{message}</main>;
-  }
+if ((accessError || message) && !team) {
+  return (
+    <main className="mx-auto max-w-5xl px-6 py-8 text-red-600">
+      {accessError || message}
+    </main>
+  );
+}
 
-  if (!team) {
-    return <main className="mx-auto max-w-5xl px-6 py-8 text-red-600">Team not found.</main>;
-  }
+if (!team) {
+  return <main className="mx-auto max-w-5xl px-6 py-8 text-red-600">Team not found.</main>;
+}
 
   // ---------------------------------------------------
   // PAGE

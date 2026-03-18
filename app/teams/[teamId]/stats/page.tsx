@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
@@ -40,7 +41,14 @@ export default function TeamStatsPage() {
   // AUTH / PAGE STATE
   // ---------------------------------------------------
 
-  const [authChecked, setAuthChecked] = useState(false);
+  const {
+  authChecked,
+  error: accessError,
+  loading: accessLoading,
+} = useTeamAccessGuard({
+  teamId,
+  nextPath: `/teams/${teamId}/stats`,
+});
   const [team, setTeam] = useState<Team | null>(null);
   const [nextMatch, setNextMatch] = useState<MatchRow | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -49,22 +57,6 @@ export default function TeamStatsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // ---------------------------------------------------
-  // TEAM AUTH GUARD
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    if (!teamId) return;
-
-    const savedTeamId = localStorage.getItem('teamId');
-
-    if (!savedTeamId || savedTeamId !== String(teamId)) {
-      window.location.href = `/team-login?teamId=${teamId}`;
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [teamId]);
 
   // ---------------------------------------------------
   // INITIAL DATA LOAD
@@ -300,25 +292,27 @@ export default function TeamStatsPage() {
   // LOADING / ERROR STATES
   // ---------------------------------------------------
 
-  if (loading || !authChecked) {
-    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team stats...</main>;
-  }
+  if (loading || accessLoading || !authChecked) {
+  return <main className="mx-auto max-w-7xl px-6 py-8">Loading team stats...</main>;
+}
 
-  if (error || !team) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6 py-12">
-        <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Team Admin
-          </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            Team not found
-          </h1>
-          <p className="mt-3 text-slate-600">{error || 'This team could not be found.'}</p>
-        </div>
-      </main>
-    );
-  }
+if ((accessError || error) || !team) {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6 py-12">
+      <div className="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Team Admin
+        </p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+          Team not found
+        </h1>
+        <p className="mt-3 text-slate-600">
+          {accessError || error || 'This team could not be found.'}
+        </p>
+      </div>
+    </main>
+  );
+}
 
   // ---------------------------------------------------
   // PAGE

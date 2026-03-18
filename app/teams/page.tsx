@@ -31,7 +31,7 @@ export default function TeamsPage() {
   const [logoUrl, setLogoUrl] = useState('');
 
   // ---------------------------------------------------
-  // UI STATE
+  // UI STATE 
   // ---------------------------------------------------
 
   const [loading, setLoading] = useState(false);

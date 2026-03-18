@@ -1,11 +1,20 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import { supabase } from '@/lib/supabase';
 import type { Match, Season, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -16,6 +25,10 @@ type GroupedMatches = {
   label: string;
   matches: MatchRow[];
 };
+
+// ---------------------------------------------------
+// PAGE
+// ---------------------------------------------------
 
 export default function TeamSchedulePage() {
   // ---------------------------------------------------
@@ -31,6 +44,19 @@ export default function TeamSchedulePage() {
         : '';
 
   // ---------------------------------------------------
+  // SHARED TEAM ACCESS GUARD
+  // ---------------------------------------------------
+
+  const {
+    authChecked,
+    error: accessError,
+    loading: accessLoading,
+  } = useTeamAccessGuard({
+    teamId,
+    nextPath: `/teams/${teamId}/schedule`,
+  });
+
+  // ---------------------------------------------------
   // PAGE STATE
   // ---------------------------------------------------
 
@@ -41,7 +67,6 @@ export default function TeamSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  
 
   // ---------------------------------------------------
   // LOAD TEAM + MATCHES + SEASONS
@@ -69,10 +94,7 @@ export default function TeamSchedulePage() {
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
         .order('match_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),
-      supabase
-        .from('seasons')
-        .select('*')
-        .order('start_date', { ascending: false }),
+      supabase.from('seasons').select('*').order('start_date', { ascending: false }),
     ]);
 
     if (teamError || matchError || seasonError) {
@@ -88,7 +110,7 @@ export default function TeamSchedulePage() {
 
     const loadedSeasons = (seasonData as Season[]) ?? [];
 
-    setTeam(teamData as Team);
+    setTeam((teamData as Team) ?? null);
     setMatches((matchData as MatchRow[]) ?? []);
     setSeasons(loadedSeasons);
 
@@ -98,9 +120,14 @@ export default function TeamSchedulePage() {
     setLoading(false);
   }
 
+  // ---------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------
+
   useEffect(() => {
+    if (!teamId || !authChecked) return;
     loadData();
-  }, [teamId]);
+  }, [teamId, authChecked]);
 
   // ---------------------------------------------------
   // FILTERED MATCHES
@@ -147,30 +174,33 @@ export default function TeamSchedulePage() {
   );
 
   const delayedMatches = useMemo(
-    () =>
-      filteredMatches.filter((match) =>
-        ['postponed', 'cancelled'].includes(match.status),
-      ),
+    () => filteredMatches.filter((match) => ['postponed', 'cancelled'].includes(match.status)),
     [filteredMatches],
   );
 
   const nextUpcomingMatch = useMemo(() => {
     const now = Date.now();
 
-    return scheduledMatches
-      .filter((match) => {
-        if (!match.match_date) return false;
+    return (
+      scheduledMatches
+        .filter((match) => {
+          if (!match.match_date) return false;
 
-        return (
-          ['not_started', 'scheduled'].includes(match.status) &&
-          new Date(match.match_date).getTime() >= now
-        );
-      })
-      .sort((a, b) => {
-        const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-        const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-        return aTime - bTime;
-      })[0] ?? null;
+          return (
+            ['not_started', 'scheduled'].includes(match.status) &&
+            new Date(match.match_date).getTime() >= now
+          );
+        })
+        .sort((a, b) => {
+          const aTime = a.match_date
+            ? new Date(a.match_date).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          const bTime = b.match_date
+            ? new Date(b.match_date).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          return aTime - bTime;
+        })[0] ?? null
+    );
   }, [scheduledMatches]);
 
   const groupedScheduledMatches = useMemo<GroupedMatches[]>(() => {
@@ -189,8 +219,12 @@ export default function TeamSchedulePage() {
     return Array.from(groups.entries()).map(([label, grouped]) => ({
       label,
       matches: grouped.sort((a, b) => {
-        const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-        const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+        const aTime = a.match_date
+          ? new Date(a.match_date).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const bTime = b.match_date
+          ? new Date(b.match_date).getTime()
+          : Number.MAX_SAFE_INTEGER;
         return aTime - bTime;
       }),
     }));
@@ -200,12 +234,20 @@ export default function TeamSchedulePage() {
   // LOADING / ERROR / EMPTY TEAM
   // ---------------------------------------------------
 
-  if (loading && !team) {
+  if ((loading || accessLoading) && !team) {
     return <main className="mx-auto max-w-7xl px-6 py-8">Loading team schedule...</main>;
   }
 
-  if (message && !team) {
-    return <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">{message}</main>;
+  if ((accessError || message) && !team) {
+    return (
+      <main className="mx-auto max-w-7xl px-6 py-8 text-red-600">
+        {accessError || message}
+      </main>
+    );
+  }
+
+  if (!authChecked && !team) {
+    return <main className="mx-auto max-w-7xl px-6 py-8">Loading team schedule...</main>;
   }
 
   if (!team) {
@@ -218,8 +260,6 @@ export default function TeamSchedulePage() {
 
   return (
     <>
-      
-
       {/* --------------------------------------------------- */}
       {/* PAGE INTRO */}
       {/* --------------------------------------------------- */}
@@ -321,12 +361,14 @@ export default function TeamSchedulePage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
               {/* HOME */}
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
 
               <div className="min-w-0">
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">Home</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                  Home
+                </p>
                 <div className="mt-2 flex items-center gap-3">
                   {nextUpcomingMatch.home_team?.logo_url ? (
                     <img
@@ -342,9 +384,9 @@ export default function TeamSchedulePage() {
                 </div>
               </div>
 
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
               {/* CENTER */}
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
 
               <div className="rounded-2xl bg-white/10 px-5 py-4 text-center ring-1 ring-white/10">
                 <div className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
@@ -353,12 +395,14 @@ export default function TeamSchedulePage() {
                 <div className="mt-1 text-lg font-bold text-white">vs</div>
               </div>
 
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
               {/* AWAY */}
-              {/* ----------------------------------------------- */}
+              {/* ------------------------------------------------- */}
 
               <div className="min-w-0 md:text-right">
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">Away</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                  Away
+                </p>
                 <div className="mt-2 flex items-center justify-end gap-3">
                   <h3 className="truncate text-2xl font-black text-white">
                     {nextUpcomingMatch.away_team?.name || 'Away Team'}
@@ -527,12 +571,14 @@ function ScheduleMatchCard({ match }: { match: MatchRow }) {
           </div>
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
             {/* HOME TEAM */}
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
 
             <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Home
+              </p>
 
               <div className="mt-1 flex items-center gap-3">
                 {match.home_team?.logo_url ? (
@@ -549,9 +595,9 @@ function ScheduleMatchCard({ match }: { match: MatchRow }) {
               </div>
             </div>
 
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
             {/* SCORE / VS */}
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
 
             <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
               {match.status === 'final' || match.status === 'live' || match.status === 'halftime' ? (
@@ -563,12 +609,14 @@ function ScheduleMatchCard({ match }: { match: MatchRow }) {
               )}
             </div>
 
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
             {/* AWAY TEAM */}
-            {/* ----------------------------------------------- */}
+            {/* ------------------------------------------------- */}
 
             <div className="min-w-0 md:text-right">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Away
+              </p>
 
               <div className="mt-1 flex items-center justify-end gap-3">
                 <h3 className="truncate text-xl font-black text-slate-900">
@@ -706,9 +754,7 @@ function formatGroupDate(value: string) {
     return 'Tomorrow';
   }
 
-  const diffDays = Math.floor(
-    (matchDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const diffDays = Math.floor((matchDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays <= 6) {
     return new Intl.DateTimeFormat('en-US', {

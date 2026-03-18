@@ -6,10 +6,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import StartingLineupSelector from '@/components/live/StartingLineupSelector';
+import LiveTimeline from '@/components/live/LiveTimeline';
 import {
   ArrowLeftRight,
-  Check,
   ChevronDown,
   ChevronUp,
   CircleDot,
@@ -17,7 +18,6 @@ import {
   Play,
   RotateCcw,
   Square,
-  Users,
 } from 'lucide-react';
 import MatchActionsCard from '@/components/MatchActionsCard';
 import MatchHeader from '@/components/match/MatchHeader';
@@ -70,18 +70,6 @@ const eventTypeOptions: { value: EventType; label: string }[] = [
   { value: 'full_time', label: 'Full Time' },
 ];
 
-const eventLabels: Record<EventType, string> = {
-  goal: 'Goal',
-  yellow_card: 'Yellow Card',
-  red_card: 'Red Card',
-  substitution: 'Substitution',
-  half_start: 'Half Started',
-  match_resumed: 'Match Resumed',
-  match_paused: 'Match Paused',
-  half_end: 'Halftime',
-  full_time: 'Full Time',
-};
-
 // ---------------------------------------------------
 // PAGE
 // ---------------------------------------------------
@@ -92,6 +80,8 @@ export default function LiveMatchPage() {
   // ---------------------------------------------------
 
   const params = useParams();
+  const router = useRouter();
+
   const matchId =
     typeof params?.matchId === 'string'
       ? params.matchId
@@ -100,8 +90,11 @@ export default function LiveMatchPage() {
         : '';
 
   // ---------------------------------------------------
-  // PAGE STATE
+  // ACCESS / PAGE STATE
   // ---------------------------------------------------
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [hasMatchAccess, setHasMatchAccess] = useState(false);
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
@@ -111,18 +104,20 @@ export default function LiveMatchPage() {
   const [awayLineups, setAwayLineups] = useState<MatchLineup[]>([]);
   const [selectedHomeStarterIds, setSelectedHomeStarterIds] = useState<string[]>([]);
   const [selectedAwayStarterIds, setSelectedAwayStarterIds] = useState<string[]>([]);
+
+  const [loading, setLoading] = useState(true);
   const [loadingLineups, setLoadingLineups] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savingHomeLineup, setSavingHomeLineup] = useState(false);
   const [savingAwayLineup, setSavingAwayLineup] = useState(false);
-  const [nowMs, setNowMs] = useState(Date.now());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineupNotice, setLineupNotice] = useState<string | null>(null);
 
+  const [nowMs, setNowMs] = useState(Date.now());
+
   // ---------------------------------------------------
-  // COLLAPSIBLE PANEL STATE
+  // COLLAPSIBLE STATE
   // ---------------------------------------------------
 
   const [showOnFieldState, setShowOnFieldState] = useState(true);
@@ -145,24 +140,26 @@ export default function LiveMatchPage() {
   });
 
   // ---------------------------------------------------
-  // INITIAL DATA LOAD
+  // INITIAL LOAD
   // ---------------------------------------------------
 
   useEffect(() => {
     if (!matchId) return;
 
-    async function loadMatch() {
+    async function loadMatchPage() {
       // ---------------------------------------------------
-      // RESET PAGE-LEVEL STATE
+      // RESET STATE
       // ---------------------------------------------------
 
       setLoading(true);
       setError(null);
       setLineupNotice(null);
+      setAuthChecked(false);
+      setHasMatchAccess(false);
       setLoadingLineups(false);
 
       // ---------------------------------------------------
-      // LOAD MATCH + EVENTS
+      // LOAD MATCH
       // ---------------------------------------------------
 
       const { data: matchData, error: matchError } = await supabase
@@ -175,24 +172,96 @@ export default function LiveMatchPage() {
         .eq('id', matchId)
         .single();
 
-      const { data: eventData, error: eventError } = await supabase
-        .from('match_events')
-        .select('*')
-        .eq('match_id', matchId)
-        .order('created_at', { ascending: false });
-
-      if (matchError || eventError) {
-        setError(matchError?.message || eventError?.message || 'Failed to load match.');
+      if (matchError || !matchData) {
+        setError(matchError?.message || 'Failed to load match.');
         setLoading(false);
+        setAuthChecked(true);
         return;
       }
 
       const loadedMatch = matchData as MatchRow;
+
+      // ---------------------------------------------------
+      // CHECK SESSION
+      // ---------------------------------------------------
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        setError(sessionError.message || 'Failed to check sign-in status.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      const user = session?.user ?? null;
+
+      if (!user) {
+        router.replace(`/login?next=${encodeURIComponent(`/live/${matchId}`)}`);
+        return;
+      }
+
+      // ---------------------------------------------------
+      // CHECK TEAM ACCESS
+      // ---------------------------------------------------
+
+      const eligibleTeamIds = [loadedMatch.home_team_id, loadedMatch.away_team_id].filter(
+        Boolean,
+      ) as string[];
+
+      if (eligibleTeamIds.length === 0) {
+        setError('This match does not have valid team assignments.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      const { data: memberships, error: membershipError } = await supabase
+        .from('team_users')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .in('team_id', eligibleTeamIds);
+
+      if (membershipError) {
+        setError(membershipError.message || 'Failed to verify match access.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      if (!memberships || memberships.length === 0) {
+        const fallbackTeamId = loadedMatch.home_team_id || loadedMatch.away_team_id || '';
+        router.replace(`/team-login?teamId=${fallbackTeamId}&mode=live`);
+        return;
+      }
+
+      setAuthChecked(true);
+      setHasMatchAccess(true);
       setMatch(loadedMatch);
+
+      // ---------------------------------------------------
+      // LOAD EVENTS
+      // ---------------------------------------------------
+
+      const { data: eventData, error: eventError } = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', loadedMatch.id)
+        .order('created_at', { ascending: false });
+
+      if (eventError) {
+        setError(eventError.message || 'Failed to load match events.');
+        setLoading(false);
+        return;
+      }
+
       setEvents((eventData as MatchEvent[]) ?? []);
 
       // ---------------------------------------------------
-      // LOAD HOME / AWAY PLAYERS
+      // LOAD PLAYERS
       // ---------------------------------------------------
 
       const homePlayersResult = loadedMatch.home_team_id
@@ -232,16 +301,12 @@ export default function LiveMatchPage() {
       setAwayPlayers(resolvedAwayPlayers);
 
       // ---------------------------------------------------
-      // LOAD LINEUP SNAPSHOTS OR FALL BACK TO ROSTERS
+      // LOAD LINEUP SNAPSHOTS
       // ---------------------------------------------------
 
       setLoadingLineups(true);
 
       try {
-        // ---------------------------------------------------
-        // LOAD EXISTING MATCH LINEUPS
-        // ---------------------------------------------------
-
         const { data: lineupData, error: lineupError } = await supabase
           .from('match_lineups')
           .select('*')
@@ -253,10 +318,6 @@ export default function LiveMatchPage() {
 
         const allLineups = (lineupData as MatchLineup[]) ?? [];
 
-        // ---------------------------------------------------
-        // DETERMINE WHICH SIDES REQUIRE LINEUPS
-        // ---------------------------------------------------
-
         const homeNeedsLineups =
           loadedMatch.home_tracking_mode === 'lineups' ||
           loadedMatch.home_tracking_mode === 'full';
@@ -264,10 +325,6 @@ export default function LiveMatchPage() {
         const awayNeedsLineups =
           loadedMatch.away_tracking_mode === 'lineups' ||
           loadedMatch.away_tracking_mode === 'full';
-
-        // ---------------------------------------------------
-        // SPLIT REAL LINEUPS BY SIDE
-        // ---------------------------------------------------
 
         const realHomeLineups = allLineups.filter(
           (lineup) => lineup.team_id === loadedMatch.home_team_id,
@@ -277,24 +334,15 @@ export default function LiveMatchPage() {
           (lineup) => lineup.team_id === loadedMatch.away_team_id,
         );
 
-        // ---------------------------------------------------
-        // RESOLVE HOME LINEUPS
-        // ---------------------------------------------------
-
         const resolvedHomeLineups = homeNeedsLineups
           ? realHomeLineups.length > 0
             ? realHomeLineups
             : buildFallbackLineupRows(
                 loadedMatch.id,
                 loadedMatch.home_team_id,
-                'home',
                 resolvedHomePlayers,
               )
           : [];
-
-        // ---------------------------------------------------
-        // RESOLVE AWAY LINEUPS
-        // ---------------------------------------------------
 
         const resolvedAwayLineups = awayNeedsLineups
           ? realAwayLineups.length > 0
@@ -302,14 +350,9 @@ export default function LiveMatchPage() {
             : buildFallbackLineupRows(
                 loadedMatch.id,
                 loadedMatch.away_team_id,
-                'away',
                 resolvedAwayPlayers,
               )
           : [];
-
-        // ---------------------------------------------------
-        // SAVE RESOLVED LINEUPS INTO PAGE STATE
-        // ---------------------------------------------------
 
         setHomeLineups(resolvedHomeLineups);
         setAwayLineups(resolvedAwayLineups);
@@ -322,21 +365,19 @@ export default function LiveMatchPage() {
           resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
         );
 
-        // ---------------------------------------------------
-        // SHOW NOTICE ONLY WHEN FALLBACK WAS NEEDED
-        // ---------------------------------------------------
+               const homeIsMissingRequiredSnapshot =
+          homeNeedsLineups && realHomeLineups.length === 0;
+
+        const awayIsMissingRequiredSnapshot =
+          awayNeedsLineups && realAwayLineups.length === 0;
 
         setLineupNotice(
-          realHomeLineups.length === 0 || realAwayLineups.length === 0
+          homeIsMissingRequiredSnapshot || awayIsMissingRequiredSnapshot
             ? 'Using roster fallback where saved lineup snapshots were not found.'
             : null,
         );
-      } catch (lineupError) {
-        // ---------------------------------------------------
-        // NON-BLOCKING LINEUP FAILURE
-        // ---------------------------------------------------
-
-        console.error('Failed to load match lineups:', lineupError);
+      } catch (lineupLoadError) {
+        console.error('Failed to load match lineups:', lineupLoadError);
 
         const homeNeedsLineups =
           loadedMatch.home_tracking_mode === 'lineups' ||
@@ -346,15 +387,10 @@ export default function LiveMatchPage() {
           loadedMatch.away_tracking_mode === 'lineups' ||
           loadedMatch.away_tracking_mode === 'full';
 
-        // ---------------------------------------------------
-        // FALL BACK TO PLAYER ROSTERS
-        // ---------------------------------------------------
-
         const fallbackHomeLineups = homeNeedsLineups
           ? buildFallbackLineupRows(
               loadedMatch.id,
               loadedMatch.home_team_id,
-              'home',
               resolvedHomePlayers,
             )
           : [];
@@ -363,7 +399,6 @@ export default function LiveMatchPage() {
           ? buildFallbackLineupRows(
               loadedMatch.id,
               loadedMatch.away_team_id,
-              'away',
               resolvedAwayPlayers,
             )
           : [];
@@ -379,26 +414,20 @@ export default function LiveMatchPage() {
           fallbackAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
         );
 
-        setLineupNotice(
-          'Lineup snapshot could not be loaded, but players are still available.',
+               setLineupNotice(
+          homeNeedsLineups || awayNeedsLineups
+            ? 'Lineup snapshot could not be loaded, but players are still available.'
+            : null,
         );
       } finally {
-        // ---------------------------------------------------
-        // LINEUP LOADING COMPLETE
-        // ---------------------------------------------------
-
         setLoadingLineups(false);
       }
-
-      // ---------------------------------------------------
-      // PAGE LOAD COMPLETE
-      // ---------------------------------------------------
 
       setLoading(false);
     }
 
-    loadMatch();
-  }, [matchId]);
+    loadMatchPage();
+  }, [matchId, router]);
 
   // ---------------------------------------------------
   // LIVE CLOCK TICKER
@@ -415,7 +444,7 @@ export default function LiveMatchPage() {
   }, [match?.clock_running]);
 
   // ---------------------------------------------------
-  // DERIVED MATCH CLOCK
+  // DERIVED CLOCK
   // ---------------------------------------------------
 
   const secondsElapsed = useMemo(() => {
@@ -442,7 +471,7 @@ export default function LiveMatchPage() {
   }, [secondsElapsed]);
 
   // ---------------------------------------------------
-  // DERIVED MATCH / TEAM MODES
+  // DERIVED MATCH / MODE STATE
   // ---------------------------------------------------
 
   const selectedTrackingMode = useMemo<TrackingMode>(() => {
@@ -469,11 +498,20 @@ export default function LiveMatchPage() {
       match.status === 'cancelled' ||
       match.status === 'postponed');
 
+  const lineupEditingDisabled =
+    !!match &&
+    (match.is_locked === true ||
+      match.status === 'cancelled' ||
+      match.status === 'postponed' ||
+      match.status === 'live' ||
+      match.status === 'halftime' ||
+      match.status === 'final');
+
   const homeStarterCount = selectedHomeStarterIds.length;
   const awayStarterCount = selectedAwayStarterIds.length;
 
   // ---------------------------------------------------
-  // DERIVED ON-FIELD / BENCH STATES
+  // DERIVED ON-FIELD / BENCH STATE
   // ---------------------------------------------------
 
   const homeActivePlayerIds = useMemo(() => {
@@ -488,15 +526,12 @@ export default function LiveMatchPage() {
       .slice()
       .reverse()
       .forEach((event) => {
-        const playerOutId = event.player_id || null;
-        const playerInId = event.secondary_player_id || null;
-
-        if (playerOutId) {
-          activeIds.delete(playerOutId);
+        if (event.player_id) {
+          activeIds.delete(event.player_id);
         }
 
-        if (playerInId) {
-          activeIds.add(playerInId);
+        if (event.secondary_player_id) {
+          activeIds.add(event.secondary_player_id);
         }
       });
 
@@ -515,15 +550,12 @@ export default function LiveMatchPage() {
       .slice()
       .reverse()
       .forEach((event) => {
-        const playerOutId = event.player_id || null;
-        const playerInId = event.secondary_player_id || null;
-
-        if (playerOutId) {
-          activeIds.delete(playerOutId);
+        if (event.player_id) {
+          activeIds.delete(event.player_id);
         }
 
-        if (playerInId) {
-          activeIds.add(playerInId);
+        if (event.secondary_player_id) {
+          activeIds.add(event.secondary_player_id);
         }
       });
 
@@ -531,25 +563,25 @@ export default function LiveMatchPage() {
   }, [events, awayPlayers, match?.away_tracking_mode, selectedAwayStarterIds]);
 
   // ---------------------------------------------------
-  // LINEUP ROW / PLAYER MAPPINGS
+  // DERIVED LINEUP ROWS
   // ---------------------------------------------------
 
   const homeLineupRows = useMemo(() => {
-    return homeLineups.map((row) => {
-      const player = homePlayers.find((item) => item.id === row.player_id);
-      return { row, player };
-    });
+    return homeLineups.map((row) => ({
+      row,
+      player: homePlayers.find((player) => player.id === row.player_id),
+    }));
   }, [homeLineups, homePlayers]);
 
   const awayLineupRows = useMemo(() => {
-    return awayLineups.map((row) => {
-      const player = awayPlayers.find((item) => item.id === row.player_id);
-      return { row, player };
-    });
+    return awayLineups.map((row) => ({
+      row,
+      player: awayPlayers.find((player) => player.id === row.player_id),
+    }));
   }, [awayLineups, awayPlayers]);
 
   // ---------------------------------------------------
-  // PLAYER SELECTION POOLS
+  // DERIVED PLAYER POOLS
   // ---------------------------------------------------
 
   const selectedRosterPlayers = useMemo(() => {
@@ -562,7 +594,7 @@ export default function LiveMatchPage() {
     }
 
     return awayPlayers.filter((player) => awayActivePlayerIds.has(player.id));
-  }, [form.side, homeActivePlayerIds, awayActivePlayerIds, homePlayers, awayPlayers]);
+  }, [form.side, homePlayers, awayPlayers, homeActivePlayerIds, awayActivePlayerIds]);
 
   const selectedBenchPlayers = useMemo(() => {
     if (form.side === 'home') {
@@ -570,14 +602,10 @@ export default function LiveMatchPage() {
     }
 
     return awayPlayers.filter((player) => !awayActivePlayerIds.has(player.id));
-  }, [form.side, homeActivePlayerIds, awayActivePlayerIds, homePlayers, awayPlayers]);
+  }, [form.side, homePlayers, awayPlayers, homeActivePlayerIds, awayActivePlayerIds]);
 
   const eventSelectablePlayers = useMemo(() => {
-    if (selectedTrackingMode === 'full') {
-      return selectedOnFieldPlayers;
-    }
-
-    return selectedRosterPlayers;
+    return selectedTrackingMode === 'full' ? selectedOnFieldPlayers : selectedRosterPlayers;
   }, [selectedOnFieldPlayers, selectedRosterPlayers, selectedTrackingMode]);
 
   const eventSelectableSecondaryPlayers = useMemo(() => {
@@ -593,10 +621,10 @@ export default function LiveMatchPage() {
   }, [
     form.playerId,
     form.type,
+    selectedTrackingMode,
     selectedBenchPlayers,
     selectedOnFieldPlayers,
     selectedRosterPlayers,
-    selectedTrackingMode,
   ]);
 
   // ---------------------------------------------------
@@ -692,9 +720,7 @@ export default function LiveMatchPage() {
 
   function toggleHomeStarter(playerId: string) {
     setSelectedHomeStarterIds((current) => {
-      const alreadySelected = current.includes(playerId);
-
-      if (alreadySelected) {
+      if (current.includes(playerId)) {
         return current.filter((id) => id !== playerId);
       }
 
@@ -708,9 +734,7 @@ export default function LiveMatchPage() {
 
   function toggleAwayStarter(playerId: string) {
     setSelectedAwayStarterIds((current) => {
-      const alreadySelected = current.includes(playerId);
-
-      if (alreadySelected) {
+      if (current.includes(playerId)) {
         return current.filter((id) => id !== playerId);
       }
 
@@ -797,14 +821,14 @@ export default function LiveMatchPage() {
     setError(null);
 
     const minute = Math.floor(secondsElapsed / 60);
-    const teamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
+    const eventTeamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
 
     const insertPayload = {
       match_id: match.id,
       minute,
       event_type: form.type,
       team_side: form.side,
-      team_id: teamId,
+      team_id: eventTeamId,
       player_id: form.playerId || null,
       secondary_player_id: form.secondaryPlayerId || null,
       player_name_override: form.playerNameOverride.trim() || null,
@@ -812,15 +836,15 @@ export default function LiveMatchPage() {
       notes: form.notes.trim() || null,
     };
 
-    const { data, error } = await supabase
+    const { data, error: insertError } = await supabase
       .from('match_events')
       .insert(insertPayload)
       .select('*')
       .single();
 
-    if (error) {
+    if (insertError) {
       setSaving(false);
-      setError(error.message);
+      setError(insertError.message);
       return;
     }
 
@@ -828,7 +852,6 @@ export default function LiveMatchPage() {
     let nextAwayScore = match.away_score;
     let nextStatus = match.status;
     let nextClockRunning = match.clock_running;
-    let nextPeriodStartedAt = match.period_started_at;
     let nextElapsedSeconds = match.elapsed_seconds;
 
     if (form.type === 'goal') {
@@ -839,14 +862,12 @@ export default function LiveMatchPage() {
     if (form.type === 'half_end') {
       nextStatus = 'halftime';
       nextClockRunning = false;
-      nextPeriodStartedAt = null;
       nextElapsedSeconds = secondsElapsed;
     }
 
     if (form.type === 'full_time') {
       nextStatus = 'final';
       nextClockRunning = false;
-      nextPeriodStartedAt = null;
       nextElapsedSeconds = secondsElapsed;
     }
 
@@ -885,7 +906,7 @@ export default function LiveMatchPage() {
             current_minute: minute,
             elapsed_seconds: !nextClockRunning ? nextElapsedSeconds : prev.elapsed_seconds,
             clock_running: nextClockRunning,
-            period_started_at: nextPeriodStartedAt,
+            period_started_at: nextClockRunning ? prev.period_started_at : null,
           }
         : prev,
     );
@@ -905,8 +926,7 @@ export default function LiveMatchPage() {
 
     const startedAt = new Date().toISOString();
     const minute = Math.floor(secondsElapsed / 60);
-    const previousStatus = match.status;
-    const wasPausedLive = previousStatus === 'live' && !match.clock_running;
+    const wasPausedLive = match.status === 'live' && !match.clock_running;
 
     const { error: statusError } = await supabase
       .from('matches')
@@ -1031,6 +1051,7 @@ export default function LiveMatchPage() {
     if (!match || events.length === 0 || editingDisabled) return;
 
     const latest = events[0];
+
     setUndoing(true);
     setError(null);
 
@@ -1054,11 +1075,7 @@ export default function LiveMatchPage() {
       if (latest.team_side === 'away') nextAwayScore = Math.max(0, nextAwayScore - 1);
     }
 
-    if (latest.event_type === 'full_time') {
-      nextStatus = 'live';
-    }
-
-    if (latest.event_type === 'half_end') {
+    if (latest.event_type === 'full_time' || latest.event_type === 'half_end') {
       nextStatus = 'live';
     }
 
@@ -1101,7 +1118,7 @@ export default function LiveMatchPage() {
   // LOADING / ERROR STATES
   // ---------------------------------------------------
 
-  if (loading) {
+  if (loading || !authChecked || !hasMatchAccess) {
     return <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">Loading match...</main>;
   }
 
@@ -1123,6 +1140,10 @@ export default function LiveMatchPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">
+      {/* --------------------------------------------------- */}
+      {/* MATCH HEADER */}
+      {/* --------------------------------------------------- */}
+
       <MatchHeader
         match={match}
         formattedClock={formattedClock}
@@ -1183,6 +1204,10 @@ export default function LiveMatchPage() {
       />
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
+        {/* --------------------------------------------------- */}
+        {/* LEFT COLUMN */}
+        {/* --------------------------------------------------- */}
+
         <div className="space-y-6">
           {/* --------------------------------------------------- */}
           {/* EVENT ENTRY CARD */}
@@ -1196,12 +1221,17 @@ export default function LiveMatchPage() {
                   The form adapts to each side’s tracking mode.
                 </p>
               </div>
+
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
                 {selectedTeamName}
               </span>
             </div>
 
             <div className="space-y-4">
+              {/* --------------------------------------------------- */}
+              {/* TEAM SIDE */}
+              {/* --------------------------------------------------- */}
+
               <Field label="Team Side">
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -1214,6 +1244,7 @@ export default function LiveMatchPage() {
                   >
                     Home
                   </button>
+
                   <button
                     type="button"
                     onClick={() => resetForm('away')}
@@ -1227,6 +1258,10 @@ export default function LiveMatchPage() {
                 </div>
               </Field>
 
+              {/* --------------------------------------------------- */}
+              {/* TRACKING MODE */}
+              {/* --------------------------------------------------- */}
+
               <Field label="Tracking Mode for This Side">
                 <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
                   {selectedTrackingMode === 'full' &&
@@ -1237,6 +1272,10 @@ export default function LiveMatchPage() {
                     'Basic tracking — optional roster player selection with no required lineups'}
                 </div>
               </Field>
+
+              {/* --------------------------------------------------- */}
+              {/* EVENT TYPE */}
+              {/* --------------------------------------------------- */}
 
               <Field label="Event Type">
                 <div className="grid grid-cols-2 gap-3">
@@ -1272,6 +1311,10 @@ export default function LiveMatchPage() {
                     ))}
                 </div>
               </Field>
+
+              {/* --------------------------------------------------- */}
+              {/* BASIC / LINEUPS EVENT ENTRY */}
+              {/* --------------------------------------------------- */}
 
               {(selectedTrackingMode === 'basic' || selectedTrackingMode === 'lineups') &&
                 form.type !== 'half_end' &&
@@ -1346,6 +1389,10 @@ export default function LiveMatchPage() {
                     )}
                   </>
                 )}
+
+              {/* --------------------------------------------------- */}
+              {/* FULL MODE EVENT ENTRY */}
+              {/* --------------------------------------------------- */}
 
               {selectedTrackingMode === 'full' &&
                 form.type !== 'half_end' &&
@@ -1426,12 +1473,12 @@ export default function LiveMatchPage() {
                 </>
               )}
 
-                            {selectedTrackingMode === 'full' && form.type === 'substitution' && (
-                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                  {/* --------------------------------------------------- */}
-                  {/* ON-FIELD STATE HEADER */}
-                  {/* --------------------------------------------------- */}
+              {/* --------------------------------------------------- */}
+              {/* FULL MODE ON-FIELD STATE */}
+              {/* --------------------------------------------------- */}
 
+              {selectedTrackingMode === 'full' && form.type === 'substitution' && (
+                <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                   <button
                     type="button"
                     onClick={() => setShowOnFieldState((prev) => !prev)}
@@ -1460,10 +1507,6 @@ export default function LiveMatchPage() {
                       )}
                     </span>
                   </button>
-
-                  {/* --------------------------------------------------- */}
-                  {/* ON-FIELD STATE BODY */}
-                  {/* --------------------------------------------------- */}
 
                   {showOnFieldState ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1511,6 +1554,10 @@ export default function LiveMatchPage() {
                 </div>
               )}
 
+              {/* --------------------------------------------------- */}
+              {/* NOTES */}
+              {/* --------------------------------------------------- */}
+
               <Field label="Notes (Optional)">
                 <textarea
                   value={form.notes}
@@ -1542,7 +1589,7 @@ export default function LiveMatchPage() {
           {/* LINEUP SNAPSHOT STATUS */}
           {/* --------------------------------------------------- */}
 
-                   <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold">Lineup Snapshot Status</h2>
@@ -1593,12 +1640,16 @@ export default function LiveMatchPage() {
                       </p>
                       <p className="text-xs text-slate-500">Mode: {match.home_tracking_mode}</p>
                     </div>
+
                     <div className="text-right">
                       <p className="text-sm font-semibold text-slate-900">
                         {homeSupportsLineups ? `${homeLineups.length} players snapped` : 'Not used'}
                       </p>
+
                       {homeSupportsLineups && (
-                        <p className="text-xs text-slate-500">{homeStarterCount} starters selected</p>
+                        <p className="text-xs text-slate-500">
+                          {homeStarterCount} starters selected
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1612,12 +1663,16 @@ export default function LiveMatchPage() {
                       </p>
                       <p className="text-xs text-slate-500">Mode: {match.away_tracking_mode}</p>
                     </div>
+
                     <div className="text-right">
                       <p className="text-sm font-semibold text-slate-900">
                         {awaySupportsLineups ? `${awayLineups.length} players snapped` : 'Not used'}
                       </p>
+
                       {awaySupportsLineups && (
-                        <p className="text-xs text-slate-500">{awayStarterCount} starters selected</p>
+                        <p className="text-xs text-slate-500">
+                          {awayStarterCount} starters selected
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1630,8 +1685,8 @@ export default function LiveMatchPage() {
           {/* HOME LINEUP CARD */}
           {/* --------------------------------------------------- */}
 
-              {homeSupportsLineups && (
-            <LineupSelectionCard
+          {homeSupportsLineups && (
+            <StartingLineupSelector
               title={match.home_team?.name || 'Home Team'}
               subtitle="Choose exactly 11 starters."
               rows={homeLineupRows}
@@ -1641,9 +1696,10 @@ export default function LiveMatchPage() {
               saving={savingHomeLineup}
               loading={loadingLineups}
               accent="home"
-              disabled={editingDisabled}
+              disabled={lineupEditingDisabled}
               open={showHomeLineupCard}
               onToggleOpen={() => setShowHomeLineupCard((prev) => !prev)}
+              playerDisplayName={playerDisplayName}
             />
           )}
 
@@ -1651,8 +1707,8 @@ export default function LiveMatchPage() {
           {/* AWAY LINEUP CARD */}
           {/* --------------------------------------------------- */}
 
-                      {awaySupportsLineups && (
-            <LineupSelectionCard
+          {awaySupportsLineups && (
+            <StartingLineupSelector
               title={match.away_team?.name || 'Away Team'}
               subtitle="Choose exactly 11 starters."
               rows={awayLineupRows}
@@ -1662,11 +1718,13 @@ export default function LiveMatchPage() {
               saving={savingAwayLineup}
               loading={loadingLineups}
               accent="away"
-              disabled={editingDisabled}
+              disabled={lineupEditingDisabled}
               open={showAwayLineupCard}
               onToggleOpen={() => setShowAwayLineupCard((prev) => !prev)}
+              playerDisplayName={playerDisplayName}
             />
           )}
+
           {/* --------------------------------------------------- */}
           {/* MATCH ACTIONS */}
           {/* --------------------------------------------------- */}
@@ -1687,55 +1745,15 @@ export default function LiveMatchPage() {
         </div>
 
         {/* --------------------------------------------------- */}
-        {/* LIVE TIMELINE */}
+        {/* RIGHT COLUMN */}
         {/* --------------------------------------------------- */}
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Live Timeline</h2>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-              {events.length} events
-            </span>
-          </div>
-
-          <div className="mb-4 flex flex-wrap gap-3">
-            <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
-              Goals: {events.filter((e) => e.event_type === 'goal').length}
-            </span>
-            <span className="rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-700">
-              Cards:{' '}
-              {
-                events.filter(
-                  (e) => e.event_type === 'yellow_card' || e.event_type === 'red_card',
-                ).length
-              }
-            </span>
-            <span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">
-              Subs: {events.filter((e) => e.event_type === 'substitution').length}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-              Status: {match.status}
-            </span>
-          </div>
-
-          {events.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-500">
-              No events yet. Start the match and add the first event.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {events.map((event) => (
-                <TimelineEventCard
-                  key={event.id}
-                  event={event}
-                  match={match}
-                  homePlayers={homePlayers}
-                  awayPlayers={awayPlayers}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        <LiveTimeline
+          events={events}
+          match={match}
+          homePlayers={homePlayers}
+          awayPlayers={awayPlayers}
+        />
       </div>
 
       {/* --------------------------------------------------- */}
@@ -1804,7 +1822,13 @@ export default function LiveMatchPage() {
             ) : (
               <>
                 <Play className="h-5 w-5" />
-                <span>Resume</span>
+                <span>
+                  {match.status === 'not_started'
+                    ? 'Start'
+                    : match.status === 'halftime'
+                      ? 'Start 2nd Half'
+                      : 'Resume'}
+                </span>
               </>
             )}
           </button>
@@ -1815,252 +1839,12 @@ export default function LiveMatchPage() {
 }
 
 // ---------------------------------------------------
-// LINEUP SELECTION CARD
-// ---------------------------------------------------
-
-function LineupSelectionCard({
-  title,
-  subtitle,
-  rows,
-  selectedStarterIds,
-  onToggleStarter,
-  onSave,
-  saving,
-  loading,
-  accent,
-  disabled,
-  open,
-  onToggleOpen,
-}: {
-  title: string;
-  subtitle: string;
-  rows: { row: MatchLineup; player: Player | undefined }[];
-  selectedStarterIds: string[];
-  onToggleStarter: (playerId: string) => void;
-  onSave: () => void;
-  saving: boolean;
-  loading: boolean;
-  accent: 'home' | 'away';
-  disabled: boolean;
-  open: boolean;
-  onToggleOpen: () => void;
-}) {
-  const selectedRows = rows.filter(({ row }) => selectedStarterIds.includes(row.player_id));
-  const benchRows = rows.filter(({ row }) => !selectedStarterIds.includes(row.player_id));
-  const isValid = validateStartingLineupCount(selectedStarterIds);
-
-  const persistedStarterIds = rows
-    .filter(({ row }) => row.is_starter)
-    .map(({ row }) => row.player_id)
-    .sort();
-
-  const currentStarterIds = [...selectedStarterIds].sort();
-
-  const isDirty =
-    JSON.stringify(persistedStarterIds) !== JSON.stringify(currentStarterIds);
-
-  const accentBadgeClass =
-    accent === 'home' ? 'bg-blue-50 text-blue-700' : 'bg-rose-50 text-rose-700';
-
-  const accentActiveClass =
-    accent === 'home'
-      ? 'border-blue-300 bg-blue-50'
-      : 'border-rose-300 bg-rose-50';
-
-  return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <button
-          type="button"
-          onClick={onToggleOpen}
-          className="flex min-w-0 items-start gap-2 text-left"
-        >
-          <Users className="mt-0.5 h-5 w-5 shrink-0 text-slate-700" />
-          <div>
-            <h2 className="text-xl font-bold">{title} Starting 11</h2>
-            <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
-          </div>
-        </button>
-
-        <div className="flex items-center gap-2">
-          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${accentBadgeClass}`}>
-            {selectedStarterIds.length}/11
-          </span>
-
-          <button
-            type="button"
-            onClick={onToggleOpen}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
-          >
-            {open ? (
-              <>
-                <ChevronUp className="h-4 w-4" />
-                Hide
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4" />
-                Show
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {open ? (
-        loading ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
-            Loading lineup...
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
-            No lineup snapshot is available for this side yet.
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm font-semibold text-slate-900">Selected starters</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Tap a selected starter to remove them. Tap an available player below to add them.
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedRows.length === 0 ? (
-                  <span className="text-sm text-slate-400">No starters selected yet.</span>
-                ) : (
-                  selectedRows.map(({ row, player }) => (
-                    <button
-                      key={row.player_id}
-                      type="button"
-                      onClick={() => onToggleStarter(row.player_id)}
-                      disabled={disabled}
-                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition disabled:opacity-40 ${accentActiveClass}`}
-                    >
-                      <Check className="h-4 w-4" />
-                      <span>{playerDisplayName(player)}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="mb-3 text-sm font-semibold text-slate-700">
-                Available players (tap to add)
-              </h3>
-              <div className="space-y-2">
-                {benchRows.map(({ row, player }) => {
-                  const selected = selectedStarterIds.includes(row.player_id);
-
-                  return (
-                    <button
-                      key={row.player_id}
-                      type="button"
-                      onClick={() => onToggleStarter(row.player_id)}
-                      disabled={disabled}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition disabled:opacity-40 ${
-                        selected
-                          ? accentActiveClass
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {playerDisplayName(player) ||
-                            row.player_name_snapshot ||
-                            'Unnamed player'}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {selected ? 'Starter' : 'Available'}
-                        </p>
-                      </div>
-
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          selected ? accentBadgeClass : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {selected ? 'Selected' : 'Tap to start'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-between gap-3">
-              <p
-                className={`text-sm font-medium ${
-                  !isValid
-                    ? 'text-amber-700'
-                    : isDirty
-                      ? 'text-sky-700'
-                      : 'text-emerald-700'
-                }`}
-              >
-                {!isValid
-                  ? 'Select exactly 11 starters before saving.'
-                  : isDirty
-                    ? 'Starting 11 is ready to save.'
-                    : 'Starting 11 is saved.'}
-              </p>
-
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={!isValid || saving || disabled || !isDirty}
-                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : isDirty ? 'Save Starting 11' : 'Starting 11 Saved'}
-              </button>
-            </div>
-          </>
-        )
-      ) : null}
-    </section>
-  );
-}
-
-// ---------------------------------------------------
-// COLLAPSE PILL
-// ---------------------------------------------------
-
-function CollapsePill({
-  open,
-  onClick,
-}: {
-  open: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
-    >
-      {open ? (
-        <>
-          <ChevronUp className="h-4 w-4" />
-          <span>Hide</span>
-        </>
-      ) : (
-        <>
-          <ChevronDown className="h-4 w-4" />
-          <span>Show</span>
-        </>
-      )}
-    </button>
-  );
-}
-
-// ---------------------------------------------------
 // FALLBACK LINEUP ROW BUILDER
 // ---------------------------------------------------
 
 function buildFallbackLineupRows(
   matchId: string,
   teamId: string | null | undefined,
-  _teamSide: 'home' | 'away',
   players: Player[],
 ): MatchLineup[] {
   if (!teamId) return [];
@@ -2149,200 +1933,6 @@ function getEventTypeButtonClasses(
       ? 'bg-slate-900 text-white ring-2 ring-slate-300'
       : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200'
   }`;
-}
-
-// ---------------------------------------------------
-// EVENT CLASSIFICATION
-// ---------------------------------------------------
-
-function isSystemEvent(eventType: MatchEvent['event_type']) {
-  return (
-    eventType === 'half_start' ||
-    eventType === 'match_resumed' ||
-    eventType === 'match_paused' ||
-    eventType === 'half_end' ||
-    eventType === 'full_time'
-  );
-}
-
-// ---------------------------------------------------
-// EVENT CARD STYLES
-// ---------------------------------------------------
-
-function getEventCardClasses(event: MatchEvent) {
-  if (event.event_type === 'goal') {
-    return {
-      shell: 'border-sky-300 bg-sky-50',
-      icon: 'bg-sky-100 text-sky-800 ring-sky-300',
-    };
-  }
-
-  if (event.event_type === 'yellow_card') {
-    return {
-      shell: 'border-yellow-300 bg-yellow-50',
-      icon: 'bg-yellow-100 text-yellow-900 ring-yellow-300',
-    };
-  }
-
-  if (event.event_type === 'red_card') {
-    return {
-      shell: 'border-red-300 bg-red-50',
-      icon: 'bg-red-100 text-red-900 ring-red-300',
-    };
-  }
-
-  if (event.event_type === 'substitution') {
-    return {
-      shell: 'border-violet-200 bg-violet-50',
-      icon: 'bg-violet-100 text-violet-800 ring-violet-300',
-    };
-  }
-
-  return {
-    shell: 'border-slate-200 bg-slate-50',
-    icon: 'bg-slate-100 text-slate-700 ring-slate-200',
-  };
-}
-
-// ---------------------------------------------------
-// TIMELINE LABEL BUILDER
-// ---------------------------------------------------
-
-function buildPrettyTimelineText(
-  event: MatchEvent,
-  matchRow: MatchRow,
-  homePlayers: Player[],
-  awayPlayers: Player[],
-) {
-  const roster = event.team_side === 'home' ? homePlayers : awayPlayers;
-  const primary = roster.find((p) => p.id === event.player_id);
-  const secondary = roster.find((p) => p.id === event.secondary_player_id);
-
-  const teamName =
-    event.team_side === 'home'
-      ? matchRow.home_team?.name || 'Home'
-      : matchRow.away_team?.name || 'Away';
-
-  const primaryName = event.player_name_override || playerDisplayName(primary) || teamName;
-  const secondaryName = event.secondary_player_name_override || playerDisplayName(secondary);
-
-  if (event.event_type === 'goal') {
-    return secondaryName
-      ? `Goal — ${primaryName} (Assist: ${secondaryName})`
-      : `Goal — ${primaryName}`;
-  }
-
-  if (event.event_type === 'yellow_card') {
-    return `Yellow Card — ${primaryName}`;
-  }
-
-  if (event.event_type === 'red_card') {
-    return `Red Card — ${primaryName}`;
-  }
-
-  if (event.event_type === 'substitution') {
-    return secondaryName
-      ? `Substitution — ${primaryName || 'Player Out'} for ${secondaryName}`
-      : `Substitution — ${primaryName}`;
-  }
-
-  if (event.event_type === 'half_start') return 'Half Started';
-  if (event.event_type === 'match_resumed') return 'Match Resumed';
-  if (event.event_type === 'match_paused') return 'Match Paused';
-  if (event.event_type === 'half_end') return 'Halftime';
-  if (event.event_type === 'full_time') return 'Full Time';
-
-  return eventLabels[event.event_type] || event.event_type;
-}
-
-// ---------------------------------------------------
-// TIMELINE EVENT CARD
-// ---------------------------------------------------
-
-function TimelineEventCard({
-  event,
-  match,
-  homePlayers,
-  awayPlayers,
-}: {
-  event: MatchEvent;
-  match: MatchRow;
-  homePlayers: Player[];
-  awayPlayers: Player[];
-}) {
-  const systemEvent = isSystemEvent(event.event_type);
-  const styles = getEventCardClasses(event);
-  const label = buildPrettyTimelineText(event, match, homePlayers, awayPlayers);
-
-  if (systemEvent) {
-    return (
-      <div className="relative overflow-hidden pl-14">
-        <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
-
-        <div className="absolute left-0 top-4 flex w-8 justify-center">
-          <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
-          >
-            <EventGlyph eventType={event.event_type} size="timeline" />
-          </div>
-        </div>
-
-        <div className={`rounded-2xl border px-4 py-3 ${styles.shell}`}>
-          <div className="flex items-center gap-3">
-            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
-            </span>
-
-            <p className="text-sm font-semibold text-slate-900">{label}</p>
-          </div>
-
-          {event.notes ? <p className="mt-2 text-xs text-slate-500">{event.notes}</p> : null}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative overflow-hidden pl-14">
-      <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
-
-      <div className="absolute left-0 top-4 flex w-8 justify-center">
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
-        >
-          <EventGlyph eventType={event.event_type} size="timeline" />
-        </div>
-      </div>
-
-      <div className={`rounded-2xl border p-4 transition-shadow hover:shadow-md ${styles.shell}`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex items-start gap-3">
-            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
-            </span>
-
-            <p className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-6 text-slate-900">
-              {label}
-            </p>
-          </div>
-
-          <span
-            className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-              event.team_side === 'home'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-rose-100 text-rose-700'
-            }`}
-          >
-            {event.team_side}
-          </span>
-        </div>
-
-        {event.notes ? (
-          <p className="mt-2 break-words text-xs text-slate-500">{event.notes}</p>
-        ) : null}
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------
