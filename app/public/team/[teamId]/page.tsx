@@ -1,19 +1,11 @@
 'use client';
 
-// ---------------------------------------------------
-// IMPORTS
-// ---------------------------------------------------
-
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
-
-// ---------------------------------------------------
-// TYPES
-// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -30,11 +22,6 @@ type TeamSummary = {
   goalDifference: number;
   cleanSheets: number;
 };
-
-// ---------------------------------------------------
-// PAGE
-// FILE: app/public/team/[teamId]/page.tsx
-// ---------------------------------------------------
 
 export default function PublicTeamPage() {
   // ---------------------------------------------------
@@ -303,15 +290,27 @@ export default function PublicTeamPage() {
   }, [matches, teamId]);
 
   // ---------------------------------------------------
-  // FEATURED LIVE MATCH
-  // Push live or halftime match to the top on mobile.
+  // MOBILE FEATURED MATCH STATE
+  // - live / halftime stays full hero at top
+  // - within 30 min of kickoff uses compact "soon" card
   // ---------------------------------------------------
 
-  const featuredLiveMatch = useMemo(() => {
+  const featuredMobileMatch = useMemo(() => {
     if (!nextMatch) return null;
 
     if (nextMatch.status === 'live' || nextMatch.status === 'halftime') {
-      return nextMatch;
+      return { match: nextMatch, type: 'live' as const };
+    }
+
+    if (
+      (nextMatch.status === 'scheduled' || nextMatch.status === 'not_started') &&
+      nextMatch.match_date
+    ) {
+      const diff = (new Date(nextMatch.match_date).getTime() - Date.now()) / (1000 * 60);
+
+      if (diff <= 30 && diff >= -5) {
+        return { match: nextMatch, type: 'soon' as const };
+      }
     }
 
     return null;
@@ -349,79 +348,58 @@ export default function PublicTeamPage() {
     );
   }
 
-  // ---------------------------------------------------
-  // PAGE
-  // ---------------------------------------------------
-
   return (
     <PublicTeamPageShell team={team} teamId={teamId}>
       {/* --------------------------------------------------- */}
-      {/* MOBILE FEATURED LIVE MATCH */}
-      {/* --------------------------------------------------- */}
+      {/* MOBILE STARTING SOON BANNER
+      Show only for the pregame "soon" state.
+      --------------------------------------------------- */}
 
-      {featuredLiveMatch ? (
+      {featuredMobileMatch && featuredMobileMatch.type === 'soon' ? (
         <section className="mb-6 block lg:hidden">
-          <div
-            className="overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10"
-            style={nextMatchHeroStyle}
+          <Link
+            href={
+              featuredMobileMatch.match.public_slug
+                ? `/public/${featuredMobileMatch.match.public_slug}`
+                : `/public/team/${team.id}/schedule`
+            }
+            className="block rounded-3xl bg-amber-50 p-4 shadow-sm ring-1 ring-amber-200"
           >
-            <div className="bg-black/25 p-5 backdrop-blur-[2px]">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/80">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                    </span>
-                    {featuredLiveMatch.status === 'halftime' ? 'Halftime Match' : 'Live Match'}
-                  </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                  Starting Soon
+                </p>
 
-                  <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
-                    {featuredLiveMatch.home_team?.name || 'Home Team'} vs{' '}
-                    {featuredLiveMatch.away_team?.name || 'Away Team'}
-                  </h2>
-                </div>
+                <p className="mt-1 truncate font-semibold text-slate-900">
+                  {featuredMobileMatch.match.home_team?.name || 'Home Team'} vs{' '}
+                  {featuredMobileMatch.match.away_team?.name || 'Away Team'}
+                </p>
 
-                <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
-                  {featuredLiveMatch.status === 'halftime' ? 'Halftime' : 'Live'}
-                </span>
+                <p className="mt-1 text-sm text-slate-600">
+                  {featuredMobileMatch.match.match_date
+                    ? new Intl.DateTimeFormat('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      }).format(new Date(featuredMobileMatch.match.match_date))
+                    : 'Kickoff soon'}
+                </p>
               </div>
 
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center ring-1 ring-white/15">
-                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                  Score
-                </div>
-
-                <div className="mt-1 text-3xl font-black text-white">
-                  {featuredLiveMatch.home_score} - {featuredLiveMatch.away_score}
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                {featuredLiveMatch.public_slug ? (
-                  <Link
-                    href={`/public/${featuredLiveMatch.public_slug}`}
-                    className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
-                  >
-                    Open Live Match
-                  </Link>
-                ) : null}
-
-                <Link
-                  href={`/public/team/${team.id}/schedule`}
-                  className="inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white"
-                >
-                  Full Schedule
-                </Link>
-              </div>
+              <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
+                Soon
+              </span>
             </div>
-          </div>
+          </Link>
         </section>
       ) : null}
 
       {/* --------------------------------------------------- */}
-      {/* SUMMARY CARDS */}
-      {/* --------------------------------------------------- */}
+      {/* SUMMARY CARDS
+      Always stay visible below the top banner / hero.
+      --------------------------------------------------- */}
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
@@ -440,13 +418,14 @@ export default function PublicTeamPage() {
         <section className="space-y-6">
           {/* --------------------------------------------------- */}
           {/* NEXT MATCH HERO
-          Hide on mobile when there is already a featured live match.
+          Hide on mobile only during "soon" state.
+          For live / halftime it stays visible at the top.
           --------------------------------------------------- */}
 
           {nextMatch ? (
             <div
               className={`overflow-hidden rounded-3xl shadow-md ring-1 ring-black/10 ${
-                featuredLiveMatch ? 'hidden lg:block' : 'block'
+                featuredMobileMatch?.type === 'soon' ? 'hidden lg:block' : 'block'
               }`}
               style={nextMatchHeroStyle}
             >
@@ -454,12 +433,18 @@ export default function PublicTeamPage() {
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-wide text-white/75">
-                      Next Match
+                      {nextMatch.status === 'live'
+                        ? 'Live Match'
+                        : nextMatch.status === 'halftime'
+                          ? 'Halftime'
+                          : 'Next Match'}
                     </p>
+
                     <h2 className="mt-1 text-2xl font-black tracking-tight text-white">
                       {nextMatch.home_team?.name || 'Home Team'} vs{' '}
                       {nextMatch.away_team?.name || 'Away Team'}
                     </h2>
+
                     <p className="mt-2 text-white/80">
                       {nextMatch.match_date
                         ? new Intl.DateTimeFormat('en-US', {
@@ -508,6 +493,7 @@ export default function PublicTeamPage() {
                         ? 'Live'
                         : 'Upcoming'}
                     </div>
+
                     <div className="mt-1 text-lg font-bold text-white">
                       {nextMatch.status === 'live' || nextMatch.status === 'halftime'
                         ? `${nextMatch.home_score} - ${nextMatch.away_score}`
