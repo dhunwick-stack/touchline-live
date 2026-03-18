@@ -4,10 +4,6 @@
 
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Live Timeline</h2>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-              {events.length} events
-            </span>
           </div>
 
           <div className="mb-4 flex flex-wrap gap-3">
