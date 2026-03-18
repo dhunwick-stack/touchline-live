@@ -217,9 +217,9 @@ export default function PublicTeamLeadersPage() {
   const leaderRows = useMemo<PlayerLeaderRow[]>(() => {
     const statsMap = new Map<string, PlayerLeaderRow>();
 
-    // -----------------------------------------------
-    // Seed every player with zeroed stats
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // SEED PLAYERS WITH ZEROED STATS
+    // -------------------------------------------------
 
     for (const player of players) {
       const playerName =
@@ -239,9 +239,9 @@ export default function PublicTeamLeadersPage() {
       });
     }
 
-    // -----------------------------------------------
-    // Apply match events to stat totals
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // APPLY MATCH EVENTS TO PLAYER TOTALS
+    // -------------------------------------------------
 
     for (const event of events) {
       if (event.team_id !== teamId) continue;
@@ -380,6 +380,7 @@ export default function PublicTeamLeadersPage() {
       {/* --------------------------------------------- */}
       {/* PAGE INTRO / FILTER */}
       {/* --------------------------------------------- */}
+
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -412,6 +413,7 @@ export default function PublicTeamLeadersPage() {
       {/* --------------------------------------------- */}
       {/* SUMMARY CARDS */}
       {/* --------------------------------------------- */}
+
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <SummaryCard label="Final Matches Counted" value={matches.length} />
         <SummaryCard label="Players With Stats" value={playersWithStats} />
@@ -421,6 +423,7 @@ export default function PublicTeamLeadersPage() {
       {/* --------------------------------------------- */}
       {/* LEADERBOARDS */}
       {/* --------------------------------------------- */}
+
       {loadingLeaders ? (
         <div className="rounded-3xl bg-white p-8 text-slate-600 shadow-md ring-1 ring-slate-200">
           Loading leaderboard data...
@@ -515,6 +518,13 @@ function LeaderboardTable({
   const gradientClass = gradientMap[valueKey];
   const statPillClass = pillMap[valueKey];
 
+  // ---------------------------------------------------
+  // NORMALIZED DISPLAY ROWS
+  // ---------------------------------------------------
+
+  const displayRows = rows.slice(0, 5);
+  const fillerCount = Math.max(0, 5 - displayRows.length);
+
   return (
     <section
       className={`rounded-3xl bg-gradient-to-b ${gradientClass} p-6 shadow-md ring-1 ring-slate-200`}
@@ -522,10 +532,13 @@ function LeaderboardTable({
       {/* ------------------------------------------- */}
       {/* TABLE HEADER */}
       {/* ------------------------------------------- */}
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl font-black tracking-tight text-slate-900">{title}</h2>
 
-        <span className="rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-3xl font-black tracking-tight text-slate-900">{title}</h2>
+        </div>
+
+        <span className="shrink-0 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
           {rows.length} players
         </span>
       </div>
@@ -533,6 +546,7 @@ function LeaderboardTable({
       {/* ------------------------------------------- */}
       {/* TABLE BODY */}
       {/* ------------------------------------------- */}
+
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90">
         <div className="grid grid-cols-[90px_1fr_120px] bg-slate-50 px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
           <div>Rank</div>
@@ -541,31 +555,60 @@ function LeaderboardTable({
         </div>
 
         {rows.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-slate-500">{emptyText}</div>
+          <div className="flex h-[164px] items-center px-6 text-sm text-slate-500">
+            {emptyText}
+          </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {rows.map((row, index) => (
+            {displayRows.map((row, index) => (
               <div
                 key={row.playerId}
-                className="grid grid-cols-[90px_1fr_120px] items-center px-6 py-6"
+                className="grid min-h-[72px] grid-cols-[90px_1fr_120px] items-center px-6 py-4"
               >
                 <div className="text-sm font-black text-slate-900">#{index + 1}</div>
 
                 <div className="min-w-0">
-                  <div className="flex items-center gap-4">
-                    <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-600">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
                       {row.jerseyNumber || '—'}
                     </span>
 
-                    <p className="truncate text-xl font-bold text-slate-900">{row.playerName}</p>
+                    <p className="truncate text-lg font-bold text-slate-900">{row.playerName}</p>
                   </div>
                 </div>
 
                 <div className="flex justify-end">
                   <span
-                    className={`inline-flex min-w-[74px] items-center justify-center rounded-2xl px-4 py-3 text-2xl font-black shadow-sm ${statPillClass}`}
+                    className={`inline-flex min-w-[56px] items-center justify-center rounded-xl px-3 py-2 text-xl font-black shadow-sm ${statPillClass}`}
                   >
                     {row[valueKey]}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {Array.from({ length: fillerCount }).map((_, index) => (
+              <div
+                key={`filler-${title}-${index}`}
+                className="grid min-h-[72px] grid-cols-[90px_1fr_120px] items-center px-6 py-4"
+              >
+                <div className="text-sm font-black text-slate-300">—</div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-300">
+                      —
+                    </span>
+
+                    <p className="truncate text-lg font-bold text-slate-300">
+                      No additional player
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <span className="inline-flex min-w-[56px] items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-xl font-black text-slate-300">
+                    —
                   </span>
                 </div>
               </div>

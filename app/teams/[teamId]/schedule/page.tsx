@@ -28,6 +28,7 @@ type GroupedMatches = {
 
 // ---------------------------------------------------
 // PAGE
+// FILE: app/teams/[teamId]/schedule/page.tsx
 // ---------------------------------------------------
 
 export default function TeamSchedulePage() {
@@ -419,25 +420,38 @@ export default function TeamSchedulePage() {
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href={`/live/${nextUpcomingMatch.id}`}
-                className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold shadow-sm hover:bg-slate-100"
-                style={{ color: '#0f172a' }}
-              >
-                Open Match
-              </Link>
+            {/* ------------------------------------------------- */}
+            {/* NEXT MATCH ACTIONS */}
+            {/* ------------------------------------------------- */}
 
-              {nextUpcomingMatch.public_slug ? (
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <div className="flex flex-wrap justify-end gap-3">
                 <Link
-                  href={`/public/${nextUpcomingMatch.public_slug}`}
-                  target="_blank"
-                  className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold hover:bg-emerald-600"
-                  style={{ color: '#ffffff' }}
+                  href={`/live/${nextUpcomingMatch.id}`}
+                  className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold shadow-sm hover:bg-slate-100"
+                  style={{ color: '#0f172a' }}
                 >
-                  Public Scoreboard
+                  Manage Match
                 </Link>
-              ) : null}
+
+                <Link
+                  href={`/matches/${nextUpcomingMatch.id}/edit`}
+                  className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15"
+                >
+                  Edit Match
+                </Link>
+
+                {nextUpcomingMatch.public_slug ? (
+                  <Link
+                    href={`/public/${nextUpcomingMatch.public_slug}`}
+                    target="_blank"
+                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold hover:bg-emerald-600"
+                    style={{ color: '#ffffff' }}
+                  >
+                    Public Scoreboard
+                  </Link>
+                ) : null}
+              </div>
             </div>
           </section>
         ) : null}
@@ -550,107 +564,114 @@ export default function TeamSchedulePage() {
 function ScheduleMatchCard({ match }: { match: MatchRow }) {
   return (
     <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        {/* ------------------------------------------------- */}
-        {/* MATCH DETAILS */}
-        {/* ------------------------------------------------- */}
+      {/* ------------------------------------------------- */}
+      {/* MATCH DETAILS */}
+      {/* ------------------------------------------------- */}
 
-        <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <StatusBadge status={match.status} />
+      <div className="min-w-0">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <StatusBadge status={match.status} />
 
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+          </span>
+
+          {match.venue ? (
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-              {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
+              {match.venue}
             </span>
-
-            {match.venue ? (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                {match.venue}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            {/* ------------------------------------------------- */}
-            {/* HOME TEAM */}
-            {/* ------------------------------------------------- */}
-
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Home
-              </p>
-
-              <div className="mt-1 flex items-center gap-3">
-                {match.home_team?.logo_url ? (
-                  <img
-                    src={match.home_team.logo_url}
-                    alt={`${match.home_team.name} logo`}
-                    className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                ) : null}
-
-                <h3 className="truncate text-xl font-black text-slate-900">
-                  {match.home_team?.name || 'Home Team'}
-                </h3>
-              </div>
-            </div>
-
-            {/* ------------------------------------------------- */}
-            {/* SCORE / VS */}
-            {/* ------------------------------------------------- */}
-
-            <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
-              {match.status === 'final' || match.status === 'live' || match.status === 'halftime' ? (
-                <div className="text-3xl font-black">
-                  {match.home_score} - {match.away_score}
-                </div>
-              ) : (
-                <div className="text-lg font-bold uppercase tracking-wide">vs</div>
-              )}
-            </div>
-
-            {/* ------------------------------------------------- */}
-            {/* AWAY TEAM */}
-            {/* ------------------------------------------------- */}
-
-            <div className="min-w-0 md:text-right">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Away
-              </p>
-
-              <div className="mt-1 flex items-center justify-end gap-3">
-                <h3 className="truncate text-xl font-black text-slate-900">
-                  {match.away_team?.name || 'Away Team'}
-                </h3>
-
-                {match.away_team?.logo_url ? (
-                  <img
-                    src={match.away_team.logo_url}
-                    alt={`${match.away_team.name} logo`}
-                    className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          {match.status_note ? (
-            <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-              <span className="font-semibold text-slate-800">Note:</span> {match.status_note}
-            </div>
           ) : null}
         </div>
 
-        {/* ------------------------------------------------- */}
-        {/* ACTIONS */}
-        {/* ------------------------------------------------- */}
+        <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          {/* ------------------------------------------------- */}
+          {/* HOME TEAM */}
+          {/* ------------------------------------------------- */}
 
-        <div className="flex flex-wrap gap-3 lg:justify-end">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Home
+            </p>
+
+            <div className="mt-1 flex items-center gap-3">
+              {match.home_team?.logo_url ? (
+                <img
+                  src={match.home_team.logo_url}
+                  alt={`${match.home_team.name} logo`}
+                  className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                />
+              ) : null}
+
+              <h3 className="truncate text-xl font-black text-slate-900">
+                {match.home_team?.name || 'Home Team'}
+              </h3>
+            </div>
+          </div>
+
+          {/* ------------------------------------------------- */}
+          {/* SCORE / VS */}
+          {/* ------------------------------------------------- */}
+
+          <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
+            {match.status === 'final' || match.status === 'live' || match.status === 'halftime' ? (
+              <div className="text-3xl font-black">
+                {match.home_score} - {match.away_score}
+              </div>
+            ) : (
+              <div className="text-lg font-bold uppercase tracking-wide">vs</div>
+            )}
+          </div>
+
+          {/* ------------------------------------------------- */}
+          {/* AWAY TEAM */}
+          {/* ------------------------------------------------- */}
+
+          <div className="min-w-0 md:text-right">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Away
+            </p>
+
+            <div className="mt-1 flex items-center justify-end gap-3">
+              <h3 className="truncate text-xl font-black text-slate-900">
+                {match.away_team?.name || 'Away Team'}
+              </h3>
+
+              {match.away_team?.logo_url ? (
+                <img
+                  src={match.away_team.logo_url}
+                  alt={`${match.away_team.name} logo`}
+                  className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {match.status_note ? (
+          <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+            <span className="font-semibold text-slate-800">Note:</span> {match.status_note}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ------------------------------------------------- */}
+      {/* ACTIONS BELOW MATCH INFO */}
+      {/* ------------------------------------------------- */}
+
+      <div className="mt-5 border-t border-slate-200 pt-4">
+        <div className="flex flex-wrap justify-end gap-3">
           <Link
             href={`/live/${match.id}`}
             className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
           >
-            Open Match
+            Manage Match
+          </Link>
+
+          <Link
+            href={`/matches/${match.id}/edit`}
+            className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
+          >
+            Edit Match
           </Link>
 
           {match.public_slug ? (

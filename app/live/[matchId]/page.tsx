@@ -414,11 +414,7 @@ export default function LiveMatchPage() {
           fallbackAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
         );
 
-               setLineupNotice(
-          homeNeedsLineups || awayNeedsLineups
-            ? 'Lineup snapshot could not be loaded, but players are still available.'
-            : null,
-        );
+               setLineupNotice(null);
       } finally {
         setLoadingLineups(false);
       }
@@ -1151,7 +1147,9 @@ export default function LiveMatchPage() {
         theme="team"
         actions={
           <>
-            {(match.status === 'not_started' || match.status === 'halftime') && (
+            {(match.status === 'not_started' ||
+  match.status === 'scheduled' ||
+  match.status === 'halftime') && (
   <button
     onClick={startLivePeriod}
     disabled={editingDisabled}
