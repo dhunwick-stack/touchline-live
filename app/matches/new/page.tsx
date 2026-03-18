@@ -1,24 +1,12 @@
 'use client';
 
-// ---------------------------------------------------
-// IMPORTS
-// ---------------------------------------------------
-
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { slugifyMatch } from '@/lib/utils';
 import type { Season, Team, TrackingMode } from '@/lib/types';
 
-// ---------------------------------------------------
-// LOCAL TYPES
-// ---------------------------------------------------
-
 type TeamOptionMode = 'saved' | 'new';
-
-// ---------------------------------------------------
-// DATETIME HELPER
-// ---------------------------------------------------
 
 function getDateTimeLocalValue(date: Date) {
   const year = date.getFullYear();
@@ -30,36 +18,14 @@ function getDateTimeLocalValue(date: Date) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-// ---------------------------------------------------
-// PAGE
-// FILE: app/matches/new/page.tsx
-// ---------------------------------------------------
-
 export default function NewMatchPage() {
   const router = useRouter();
-
-  // ---------------------------------------------------
-  // ACCESS STATE
-  // ---------------------------------------------------
-
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [teamId, setTeamId] = useState('');
-  const [accessMessage, setAccessMessage] = useState('');
-
-  // ---------------------------------------------------
-  // PAGE STATE
-  // ---------------------------------------------------
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-
-  // ---------------------------------------------------
-  // MATCH FORM STATE
-  // ---------------------------------------------------
 
   const [seasonId, setSeasonId] = useState('');
   const [venue, setVenue] = useState('');
@@ -79,56 +45,8 @@ export default function NewMatchPage() {
   const [homeTrackingMode, setHomeTrackingMode] = useState<TrackingMode>('full');
   const [awayTrackingMode, setAwayTrackingMode] = useState<TrackingMode>('basic');
 
-  // ---------------------------------------------------
-  // ACCESS CHECK
-  // ---------------------------------------------------
-
   useEffect(() => {
-    try {
-      const rawSession = localStorage.getItem('teamAdminSession');
-      const storedTeamId = localStorage.getItem('teamId') || '';
-
-      if (!rawSession || !storedTeamId) {
-        setAccessMessage('You must be signed in as a team admin to create a match.');
-        setHasAccess(false);
-        setAccessChecked(true);
-        return;
-      }
-
-      const session = JSON.parse(rawSession);
-
-      if (session.teamId !== storedTeamId || session.expires <= Date.now()) {
-        localStorage.removeItem('teamAdminSession');
-        localStorage.removeItem('teamId');
-        setAccessMessage('Your team admin session has expired. Please sign in again.');
-        setHasAccess(false);
-        setAccessChecked(true);
-        return;
-      }
-
-      setTeamId(storedTeamId);
-      setHasAccess(true);
-      setAccessChecked(true);
-    } catch {
-      localStorage.removeItem('teamAdminSession');
-      localStorage.removeItem('teamId');
-      setAccessMessage('Could not verify team admin access.');
-      setHasAccess(false);
-      setAccessChecked(true);
-    }
-  }, []);
-
-  // ---------------------------------------------------
-  // LOAD TEAMS + SEASONS
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    if (!accessChecked || !hasAccess) return;
-
     async function loadData() {
-      setLoading(true);
-      setMessage('');
-
       const [{ data: teamsData, error: teamsError }, { data: seasonsData, error: seasonsError }] =
         await Promise.all([
           supabase.from('teams').select('*').order('name', { ascending: true }),
@@ -153,11 +71,7 @@ export default function NewMatchPage() {
     }
 
     loadData();
-  }, [accessChecked, hasAccess]);
-
-  // ---------------------------------------------------
-  // CREATE NEW TEAM IF NEEDED
-  // ---------------------------------------------------
+  }, []);
 
   async function createTeamIfNeeded(name: string, isReusable: boolean) {
     const cleanName = name.trim();
@@ -169,53 +83,28 @@ export default function NewMatchPage() {
       .select()
       .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
+    if (error) throw new Error(error.message);
     return data as Team;
   }
-
-  // ---------------------------------------------------
-  // CREATE MATCH
-  // ---------------------------------------------------
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMessage('');
 
-    if (!hasAccess || !teamId) {
-      setMessage('You do not have permission to create a match.');
-      setSaving(false);
-      return;
-    }
-
     try {
       let resolvedHomeTeamId = homeTeamId;
       let resolvedAwayTeamId = awayTeamId;
-
-      // ---------------------------------------------------
-      // CREATE HOME TEAM IF NEEDED
-      // ---------------------------------------------------
 
       if (homeMode === 'new') {
         const createdHome = await createTeamIfNeeded(homeNewTeamName, homeSaveReusable);
         resolvedHomeTeamId = createdHome?.id || '';
       }
 
-      // ---------------------------------------------------
-      // CREATE AWAY TEAM IF NEEDED
-      // ---------------------------------------------------
-
       if (awayMode === 'new') {
         const createdAway = await createTeamIfNeeded(awayNewTeamName, awaySaveReusable);
         resolvedAwayTeamId = createdAway?.id || '';
       }
-
-      // ---------------------------------------------------
-      // VALIDATION
-      // ---------------------------------------------------
 
       if (!resolvedHomeTeamId || !resolvedAwayTeamId) {
         throw new Error('Both home and away teams are required.');
@@ -224,10 +113,6 @@ export default function NewMatchPage() {
       if (resolvedHomeTeamId === resolvedAwayTeamId) {
         throw new Error('Home and away teams must be different.');
       }
-
-      // ---------------------------------------------------
-      // INSERT MATCH
-      // ---------------------------------------------------
 
       const { data, error } = await supabase
         .from('matches')
@@ -259,50 +144,21 @@ export default function NewMatchPage() {
     setSaving(false);
   }
 
-  // ---------------------------------------------------
-  // LOADING / ACCESS STATES
-  // ---------------------------------------------------
-
-  if (!accessChecked) {
-    return <main className="mx-auto max-w-5xl px-6 py-8">Checking access...</main>;
-  }
-
-  if (!hasAccess) {
-    return (
-      <main className="mx-auto max-w-5xl px-6 py-8 text-red-600">
-        {accessMessage || 'You do not have access to create a match.'}
-      </main>
-    );
-  }
-
   if (loading) {
     return <main className="mx-auto max-w-5xl px-6 py-8">Loading match setup...</main>;
   }
 
-  // ---------------------------------------------------
-  // PAGE
-  // ---------------------------------------------------
-
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      {/* --------------------------------------------------- */}
-      {/* PAGE HEADER */}
-      {/* --------------------------------------------------- */}
-
       <div className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Touchline Live
         </p>
         <h1 className="text-3xl font-black tracking-tight">New Match</h1>
         <p className="mt-2 text-slate-600">
-          Choose saved teams or create one-off opponents, then set the tracking depth for each
-          side.
+          Choose saved teams or create one-off opponents, then set the tracking depth for each side.
         </p>
       </div>
-
-      {/* --------------------------------------------------- */}
-      {/* MATCH FORM */}
-      {/* --------------------------------------------------- */}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -392,10 +248,6 @@ export default function NewMatchPage() {
   );
 }
 
-// ---------------------------------------------------
-// TEAM SETUP CARD
-// ---------------------------------------------------
-
 function TeamSetupCard({
   title,
   accent,
@@ -448,7 +300,6 @@ function TeamSetupCard({
             >
               Saved Team
             </button>
-
             <button
               type="button"
               onClick={() => onModeChange('new')}
@@ -467,7 +318,6 @@ function TeamSetupCard({
               hint="Best for returning teams"
               active={mode === 'saved'}
             />
-
             <DescriptorCard
               title="New Team"
               body="Create a one-off or brand new opponent during setup. You can optionally save it for later."
@@ -515,18 +365,20 @@ function TeamSetupCard({
           </>
         )}
 
-        <Field label="Tracking Mode">
+                <Field label="Tracking Mode">
           <select
             value={trackingMode}
             onChange={(e) => onTrackingModeChange(e.target.value as TrackingMode)}
             className="w-full rounded-2xl border border-slate-200 px-4 py-3"
           >
+            {/* Tracking mode options */}
             <option value="full">Full tracking</option>
             <option value="lineups">Lineups</option>
             <option value="basic">Basic tracking</option>
           </select>
 
           <div className="mt-3 grid gap-3">
+            {/* Full tracking descriptor */}
             <DescriptorCard
               title="Full Tracking"
               body="Track player-based match events like goals, cards, and substitutions with the most detail."
@@ -534,6 +386,7 @@ function TeamSetupCard({
               active={trackingMode === 'full'}
             />
 
+             {/* Lineups tracking descriptor */}
             <DescriptorCard
               title="Lineups"
               body="Track score and match flow with lineup support when you want to manage player availability or starters without full stat detail."
@@ -541,22 +394,21 @@ function TeamSetupCard({
               active={trackingMode === 'lineups'}
             />
 
+            {/* Basic tracking descriptor */}
             <DescriptorCard
               title="Basic Tracking"
               body="Track the score and key match events with lighter setup and less player-level detail."
               hint="Best for quick but useful coverage"
               active={trackingMode === 'basic'}
             />
+
+           
           </div>
         </Field>
       </div>
     </section>
   );
 }
-
-// ---------------------------------------------------
-// DESCRIPTOR CARD
-// ---------------------------------------------------
 
 function DescriptorCard({
   title,
@@ -572,19 +424,19 @@ function DescriptorCard({
   return (
     <div
       className={`rounded-2xl border px-4 py-4 ${
-        active ? 'border-slate-900 bg-slate-50' : 'border-slate-200 bg-white'
+        active
+          ? 'border-slate-900 bg-slate-50'
+          : 'border-slate-200 bg-white'
       }`}
     >
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{hint}</p>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {hint}
+      </p>
     </div>
   );
 }
-
-// ---------------------------------------------------
-// FIELD WRAPPER
-// ---------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

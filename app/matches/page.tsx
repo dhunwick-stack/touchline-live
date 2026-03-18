@@ -1,19 +1,36 @@
 'use client';
 
+// ---------------------------------------------------
+// IMPORTS
+// ---------------------------------------------------
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Match, Team } from '@/lib/types';
+
+// ---------------------------------------------------
+// TYPES
+// ---------------------------------------------------
 
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
 };
 
+// ---------------------------------------------------
+// PAGE
+// FILE: app/matches/page.tsx
+// ---------------------------------------------------
+
 export default function MatchesPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+
+  // ---------------------------------------------------
+  // LOAD MATCHES
+  // ---------------------------------------------------
 
   async function loadMatches() {
     setLoading(true);
@@ -43,6 +60,10 @@ export default function MatchesPage() {
     loadMatches();
   }, []);
 
+  // ---------------------------------------------------
+  // DERIVED MATCH GROUPS
+  // ---------------------------------------------------
+
   const liveMatches = useMemo(
     () =>
       matches
@@ -56,16 +77,16 @@ export default function MatchesPage() {
   );
 
   const upcomingMatches = useMemo(
-  () =>
-    matches
-      .filter((match) => ['not_started', 'scheduled'].includes(match.status))
-      .sort((a, b) => {
-        const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-        const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-        return aTime - bTime;
-      }),
-  [matches],
-);
+    () =>
+      matches
+        .filter((match) => ['not_started', 'scheduled'].includes(match.status))
+        .sort((a, b) => {
+          const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+          const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+          return aTime - bTime;
+        }),
+    [matches],
+  );
 
   const recentResults = useMemo(
     () =>
@@ -78,6 +99,10 @@ export default function MatchesPage() {
         }),
     [matches],
   );
+
+  // ---------------------------------------------------
+  // PAGE
+  // ---------------------------------------------------
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -99,6 +124,7 @@ export default function MatchesPage() {
           >
             New Match
           </Link>
+
           <Link
             href="/teams"
             className="rounded-2xl bg-white px-4 py-3 font-semibold text-slate-900 ring-1 ring-slate-200"
@@ -124,6 +150,7 @@ export default function MatchesPage() {
           <p className="mt-2 text-slate-600">
             Create your first match to start scoring live.
           </p>
+
           <Link
             href="/matches/new"
             className="mt-5 inline-flex rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
@@ -162,6 +189,10 @@ export default function MatchesPage() {
     </main>
   );
 }
+
+// ---------------------------------------------------
+// MATCH SECTION
+// ---------------------------------------------------
 
 function MatchSection({
   title,
@@ -231,6 +262,10 @@ function MatchSection({
   );
 }
 
+// ---------------------------------------------------
+// MATCH CARD
+// ---------------------------------------------------
+
 function MatchCard({
   match,
   highlight = false,
@@ -241,13 +276,16 @@ function MatchCard({
   return (
     <div
       className={`rounded-3xl p-5 ring-1 ${
-        highlight ? 'border-l-4 border-red-500 bg-white ring-red-100' : 'bg-slate-50 ring-slate-200'
+        highlight
+          ? 'border-l-4 border-red-500 bg-white ring-red-100'
+          : 'bg-slate-50 ring-slate-200'
       }`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <StatusBadge status={match.status} />
+
             {match.match_date ? (
               <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                 {formatMatchDate(match.match_date)}
@@ -257,6 +295,7 @@ function MatchCard({
                 Date TBD
               </span>
             )}
+
             {match.venue ? (
               <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                 {match.venue}
@@ -267,24 +306,25 @@ function MatchCard({
           <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
             <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
-              <div className="mt-1 flex items-center gap-3">
-  {match.home_team?.logo_url ? (
-    <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
-      <img
-        src={match.home_team.logo_url}
-        alt={`${match.home_team.name} logo`}
-        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-      />
-    </Link>
-  ) : null}
 
-  <Link
-    href={`/teams/${match.home_team_id}`}
-    className="text-2xl font-black transition hover:opacity-80 hover:underline"
-  >
-    {match.home_team?.name || 'Home Team'}
-  </Link>
-</div>
+              <div className="mt-1 flex items-center gap-3">
+                {match.home_team?.logo_url ? (
+                  <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
+                    <img
+                      src={match.home_team.logo_url}
+                      alt={`${match.home_team.name} logo`}
+                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+                    />
+                  </Link>
+                ) : null}
+
+                <Link
+                  href={`/teams/${match.home_team_id}`}
+                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
+                >
+                  {match.home_team?.name || 'Home Team'}
+                </Link>
+              </div>
             </div>
 
             <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
@@ -295,24 +335,25 @@ function MatchCard({
 
             <div className="min-w-0 md:text-right">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
-              <div className="mt-1 flex items-center justify-end gap-3">
-  <Link
-    href={`/teams/${match.away_team_id}`}
-    className="text-2xl font-black transition hover:opacity-80 hover:underline"
-  >
-    {match.away_team?.name || 'Away Team'}
-  </Link>
 
-  {match.away_team?.logo_url ? (
-    <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
-      <img
-        src={match.away_team.logo_url}
-        alt={`${match.away_team.name} logo`}
-        className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-      />
-    </Link>
-  ) : null}
-</div>
+              <div className="mt-1 flex items-center justify-end gap-3">
+                <Link
+                  href={`/teams/${match.away_team_id}`}
+                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
+                >
+                  {match.away_team?.name || 'Away Team'}
+                </Link>
+
+                {match.away_team?.logo_url ? (
+                  <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
+                    <img
+                      src={match.away_team.logo_url}
+                      alt={`${match.away_team.name} logo`}
+                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
+                    />
+                  </Link>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -346,6 +387,10 @@ function MatchCard({
     </div>
   );
 }
+
+// ---------------------------------------------------
+// STATUS BADGE
+// ---------------------------------------------------
 
 function StatusBadge({ status }: { status: Match['status'] }) {
   if (status === 'live') {
@@ -395,11 +440,19 @@ function StatusBadge({ status }: { status: Match['status'] }) {
   );
 }
 
+// ---------------------------------------------------
+// TRACKING MODE LABEL
+// ---------------------------------------------------
+
 function prettyTrackingMode(mode: Match['home_tracking_mode']) {
   if (mode === 'full') return 'Full';
   if (mode === 'basic') return 'Basic';
   return mode;
 }
+
+// ---------------------------------------------------
+// DATE FORMATTER
+// ---------------------------------------------------
 
 function formatMatchDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {
