@@ -1152,34 +1152,34 @@ export default function LiveMatchPage() {
         actions={
           <>
             {(match.status === 'not_started' || match.status === 'halftime') && (
-              <button
-                onClick={startLivePeriod}
-                disabled={editingDisabled}
-                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
-              </button>
-            )}
+  <button
+    onClick={startLivePeriod}
+    disabled={editingDisabled}
+    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+  >
+    {match.status === 'halftime' ? 'Start 2nd Half' : 'Start Match'}
+  </button>
+)}
 
-            {match.status === 'live' && match.clock_running && (
-              <button
-                onClick={pauseClock}
-                disabled={editingDisabled}
-                className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                Pause
-              </button>
-            )}
+{match.status === 'live' && match.clock_running && (
+  <button
+    onClick={pauseClock}
+    disabled={editingDisabled}
+    className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+  >
+    Pause
+  </button>
+)}
 
-            {match.status === 'live' && !match.clock_running && (
-              <button
-                onClick={startLivePeriod}
-                disabled={editingDisabled}
-                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                Resume
-              </button>
-            )}
+{match.status === 'live' && !match.clock_running && (
+  <button
+    onClick={startLivePeriod}
+    disabled={editingDisabled}
+    className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+  >
+    Resume
+  </button>
+)}
 
             <button
               onClick={undoLastEvent}
