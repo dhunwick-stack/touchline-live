@@ -8,6 +8,14 @@ import { supabase } from '@/lib/supabase';
 import type { Player, Team } from '@/lib/types';
 
 const POSITION_OPTIONS = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'];
+const SCHOOL_YEAR_OPTIONS = [
+  'Freshman',
+  'Sophomore',
+  'Junior',
+  'Senior',
+  'Graduate',
+  'Postgrad',
+] as const;
 
 type EditingPlayerState = Record<
   string,
@@ -16,6 +24,7 @@ type EditingPlayerState = Record<
     last_name: string;
     jersey_number: string;
     position: string;
+    school_year: string;
     active: boolean;
   }
 >;
@@ -61,6 +70,7 @@ export default function TeamRosterPage() {
   const [newLastName, setNewLastName] = useState('');
   const [newJerseyNumber, setNewJerseyNumber] = useState('');
   const [newPosition, setNewPosition] = useState('');
+  const [newSchoolYear, setNewSchoolYear] = useState('');
   const [newActive, setNewActive] = useState(true);
 
   // ---------------------------------------------------
@@ -119,6 +129,7 @@ export default function TeamRosterPage() {
             ? String(player.jersey_number)
             : '',
         position: player.position || '',
+        school_year: player.school_year || '',
         active: player.active !== false,
       };
     }
@@ -154,6 +165,7 @@ export default function TeamRosterPage() {
       last_name: last || null,
       jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
       position: newPosition || null,
+      school_year: newSchoolYear || null,
       active: newActive,
     });
 
@@ -167,6 +179,7 @@ export default function TeamRosterPage() {
     setNewLastName('');
     setNewJerseyNumber('');
     setNewPosition('');
+    setNewSchoolYear('');
     setNewActive(true);
 
     await loadRoster();
@@ -189,6 +202,7 @@ export default function TeamRosterPage() {
             ? String(player.jersey_number)
             : '',
         position: player.position || '',
+        school_year: player.school_year || '',
         active: player.active !== false,
       },
     }));
@@ -209,6 +223,7 @@ export default function TeamRosterPage() {
             ? String(player.jersey_number)
             : '',
         position: player.position || '',
+        school_year: player.school_year || '',
         active: player.active !== false,
       },
     }));
@@ -231,6 +246,7 @@ export default function TeamRosterPage() {
         last_name: draft.last_name.trim() || null,
         jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
         position: draft.position || null,
+        school_year: draft.school_year || null,
         active: draft.active,
       })
       .eq('id', playerId);
@@ -269,6 +285,23 @@ export default function TeamRosterPage() {
       ),
     [players],
   );
+
+  const isHighSchoolTeam = useMemo(() => {
+    if (!team) return false;
+
+    const combined = [team.team_level, team.age_group, team.name]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      combined.includes('varsity') ||
+      combined.includes('jv') ||
+      combined.includes('junior varsity') ||
+      combined.includes('freshman') ||
+      combined.includes('sophomore')
+    );
+  }, [team]);
 
   // ---------------------------------------------------
   // LOADING / ERROR STATES
@@ -345,7 +378,7 @@ if ((accessError || error) && !team) {
                   return (
                     <div
                       key={player.id}
-                      className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-5"
                     >
                       {!isEditing ? (
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -360,7 +393,9 @@ if ((accessError || error) && !team) {
                                   'Unnamed Player'}
                               </p>
                               <p className="text-sm text-slate-500">
-                                {player.position || 'No position'}
+                                {[player.position, isHighSchoolTeam ? player.school_year : null]
+                                  .filter(Boolean)
+                                  .join(' • ') || 'No position'}
                               </p>
                             </div>
                           </div>
@@ -461,6 +496,31 @@ if ((accessError || error) && !team) {
                                 ))}
                               </select>
                             </Field>
+
+                            {isHighSchoolTeam ? (
+                              <Field label="School Year">
+                                <select
+                                  value={draft?.school_year || ''}
+                                  onChange={(e) =>
+                                    setEditingPlayers((prev) => ({
+                                      ...prev,
+                                      [player.id]: {
+                                        ...prev[player.id],
+                                        school_year: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                                >
+                                  <option value="">Select school year</option>
+                                  {SCHOOL_YEAR_OPTIONS.map((schoolYear) => (
+                                    <option key={schoolYear} value={schoolYear}>
+                                      {schoolYear}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                            ) : null}
 
                             <div className="md:col-span-2">
                               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -573,6 +633,23 @@ if ((accessError || error) && !team) {
                   </select>
                 </Field>
 
+                {isHighSchoolTeam ? (
+                  <Field label="School Year">
+                    <select
+                      value={newSchoolYear}
+                      onChange={(e) => setNewSchoolYear(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    >
+                      <option value="">Select school year</option>
+                      {SCHOOL_YEAR_OPTIONS.map((schoolYear) => (
+                        <option key={schoolYear} value={schoolYear}>
+                          {schoolYear}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : null}
+
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <span className="text-sm font-semibold text-slate-700">Active</span>
                   <input
@@ -623,7 +700,7 @@ if ((accessError || error) && !team) {
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
+    <div className="w-full rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
       <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">{value}</p>
     </div>

@@ -23,7 +23,7 @@ export default function TeamPageIntro({
   rightSlot,
 }: TeamPageIntroProps) {
   return (
-    <>
+    <div className="mx-auto max-w-7xl px-6">
       {/* --------------------------------------------------- */}
       {/* TEAM SUB-PAGE INTRO */}
       {/* --------------------------------------------------- */}
@@ -61,6 +61,6 @@ export default function TeamPageIntro({
           ) : null}
         </div>
       </section>
-    </>
+    </div>
   );
 }
