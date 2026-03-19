@@ -259,10 +259,10 @@ function buildPrettyTimelineText(
   }
 
   if (event.event_type === 'substitution') {
-    return secondaryName
-      ? `Substitution — ${primaryName || 'Player Out'} for ${secondaryName}`
-      : `Substitution — ${primaryName}`;
-  }
+  return secondaryName
+    ? `Substitution — ${secondaryName} for ${primaryName || 'Player Out'}`
+    : `Substitution — ${primaryName || teamName}`;
+}
 
   if (event.event_type === 'half_start') return 'Half Started';
   if (event.event_type === 'match_resumed') return 'Match Resumed';
