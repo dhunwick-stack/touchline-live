@@ -381,8 +381,8 @@ if ((accessError || error) || !team) {
       {/* MAIN CONTENT GRID */}
       {/* --------------------------------------------------- */}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="space-y-6">
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="flex flex-col gap-6 self-start">
           {/* ------------------------------------------------- */}
           {/* NEXT MATCH HERO */}
           {/* ------------------------------------------------- */}
@@ -612,9 +612,9 @@ if ((accessError || error) || !team) {
               </div>
             )}
           </GlowCard>
-        </section>
+        </div>
 
-        <section className="space-y-6">
+        <div className="flex flex-col gap-6 self-start">
           {/* ------------------------------------------------- */}
           {/* TEAM SNAPSHOT */}
           {/* ------------------------------------------------- */}
@@ -699,7 +699,7 @@ if ((accessError || error) || !team) {
               </Link>
             </div>
           </GlowCard>
-        </section>
+        </div>
       </div>
     </>
   );

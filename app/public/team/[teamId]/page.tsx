@@ -414,8 +414,8 @@ export default function PublicTeamPage() {
         <SummaryCard label="Clean Sheets" value={summary.cleanSheets} />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="space-y-6">
+      <div className="grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="flex flex-col gap-6 self-start">
           {/* --------------------------------------------------- */}
           {/* NEXT MATCH HERO
           Hide on mobile only during "soon" state.
@@ -658,9 +658,9 @@ export default function PublicTeamPage() {
               </div>
             )}
           </div>
-        </section>
+        </div>
 
-        <section className="space-y-6">
+        <div className="flex flex-col gap-6 self-start">
           {/* --------------------------------------------------- */}
           {/* TEAM SNAPSHOT */}
           {/* --------------------------------------------------- */}
@@ -745,7 +745,7 @@ export default function PublicTeamPage() {
               </Link>
             </div>
           </div>
-        </section>
+        </div>
       </div>
     </PublicTeamPageShell>
   );

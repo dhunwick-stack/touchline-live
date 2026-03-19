@@ -425,42 +425,46 @@ export default function PublicTeamLeadersPage() {
       {/* --------------------------------------------- */}
 
       {loadingLeaders ? (
-        <div className="rounded-3xl bg-white p-8 text-slate-600 shadow-md ring-1 ring-slate-200">
+        <div className="mb-6 rounded-3xl bg-white p-8 text-slate-600 shadow-md ring-1 ring-slate-200">
           Loading leaderboard data...
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <LeaderboardTable
-            title="Goals Leaders"
-            statLabel="Goals"
-            rows={goalsLeaders}
-            valueKey="goals"
-            emptyText="No goals recorded yet."
-          />
+        <div className="grid items-start gap-6 pb-6 xl:grid-cols-2">
+          <div className="flex flex-col gap-6 self-start">
+            <LeaderboardTable
+              title="Goals Leaders"
+              statLabel="Goals"
+              rows={goalsLeaders}
+              valueKey="goals"
+              emptyText="No goals recorded yet."
+            />
 
-          <LeaderboardTable
-            title="Assist Leaders"
-            statLabel="Assists"
-            rows={assistsLeaders}
-            valueKey="assists"
-            emptyText="No assists recorded yet."
-          />
+            <LeaderboardTable
+              title="Yellow Card Leaders"
+              statLabel="Yellow Cards"
+              rows={yellowCardLeaders}
+              valueKey="yellowCards"
+              emptyText="No yellow cards recorded yet."
+            />
+          </div>
 
-          <LeaderboardTable
-            title="Yellow Card Leaders"
-            statLabel="Yellow Cards"
-            rows={yellowCardLeaders}
-            valueKey="yellowCards"
-            emptyText="No yellow cards recorded yet."
-          />
+          <div className="flex flex-col gap-6 self-start">
+            <LeaderboardTable
+              title="Assists Leaders"
+              statLabel="Assists"
+              rows={assistsLeaders}
+              valueKey="assists"
+              emptyText="No assists recorded yet."
+            />
 
-          <LeaderboardTable
-            title="Red Card Leaders"
-            statLabel="Red Cards"
-            rows={redCardLeaders}
-            valueKey="redCards"
-            emptyText="No red cards recorded yet."
-          />
+            <LeaderboardTable
+              title="Red Card Leaders"
+              statLabel="Red Cards"
+              rows={redCardLeaders}
+              valueKey="redCards"
+              emptyText="No red cards recorded yet."
+            />
+          </div>
         </div>
       )}
     </PublicTeamPageShell>
@@ -517,6 +521,7 @@ function LeaderboardTable({
 
   const gradientClass = gradientMap[valueKey];
   const statPillClass = pillMap[valueKey];
+  const tableColumnClass = 'grid-cols-[88px_minmax(0,1fr)_112px]';
 
   // ---------------------------------------------------
   // NORMALIZED DISPLAY ROWS
@@ -527,18 +532,20 @@ function LeaderboardTable({
 
   return (
     <section
-      className={`rounded-3xl bg-gradient-to-b ${gradientClass} p-6 shadow-md ring-1 ring-slate-200`}
+      className={`flex h-full flex-col rounded-3xl bg-gradient-to-b ${gradientClass} p-6 shadow-md ring-1 ring-slate-200`}
     >
       {/* ------------------------------------------- */}
       {/* TABLE HEADER */}
       {/* ------------------------------------------- */}
 
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900">{title}</h2>
+      <div className="flex h-16 items-start justify-between gap-4 pb-4">
+        <div className="min-w-0 self-start">
+          <h2 className="text-3xl font-black leading-none tracking-tight text-slate-900">
+            {title}
+          </h2>
         </div>
 
-        <span className="shrink-0 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+        <span className="shrink-0 self-start rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
           {rows.length} players
         </span>
       </div>
@@ -548,7 +555,9 @@ function LeaderboardTable({
       {/* ------------------------------------------- */}
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90">
-        <div className="grid grid-cols-[90px_1fr_120px] bg-slate-50 px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <div
+          className={`grid ${tableColumnClass} bg-slate-50 px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500`}
+        >
           <div>Rank</div>
           <div>Player</div>
           <div className="text-right">{statLabel}</div>
@@ -563,7 +572,7 @@ function LeaderboardTable({
             {displayRows.map((row, index) => (
               <div
                 key={row.playerId}
-                className="grid min-h-[72px] grid-cols-[90px_1fr_120px] items-center px-6 py-4"
+                className={`grid min-h-[72px] ${tableColumnClass} items-center px-6 py-4`}
               >
                 <div className="text-sm font-black text-slate-900">#{index + 1}</div>
 
@@ -590,7 +599,7 @@ function LeaderboardTable({
             {Array.from({ length: fillerCount }).map((_, index) => (
               <div
                 key={`filler-${title}-${index}`}
-                className="grid min-h-[72px] grid-cols-[90px_1fr_120px] items-center px-6 py-4"
+                className={`grid min-h-[72px] ${tableColumnClass} items-center px-6 py-4`}
               >
                 <div className="text-sm font-black text-slate-300">—</div>
 

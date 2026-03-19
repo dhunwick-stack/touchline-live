@@ -200,7 +200,7 @@ export default function PublicMatchPage() {
         </div>
 
         <div className="grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section className="space-y-6 self-start">
+        <div className="flex flex-col gap-6 self-start">
           {/* ----------------------------------------------- */}
           {/* FINAL RECAP SUMMARY */}
           {/* ----------------------------------------------- */}
@@ -355,14 +355,14 @@ export default function PublicMatchPage() {
               </div>
             )}
           </div>
-        </section>
+        </div>
 
-        <section className="space-y-6 self-start">
+        <div className="flex flex-col gap-6 self-start">
           {/* ----------------------------------------------- */}
           {/* EXPLORE MORE */}
           {/* ----------------------------------------------- */}
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 lg:-mt-6">
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
             <p className="mt-2 text-sm text-slate-600">
               View public team pages and season leaders for both sides.
@@ -686,7 +686,7 @@ export default function PublicMatchPage() {
               </p>
             )}
           </div>
-        </section>
+        </div>
       </div>
       </div>
     </main>
