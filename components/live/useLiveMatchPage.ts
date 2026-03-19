@@ -17,22 +17,12 @@ import {
   playerDisplayName,
   supportsLineups,
 } from '@/components/live/liveMatchPageShared';
+import useLiveMatchPageActions from '@/components/live/useLiveMatchPageActions';
 import useLiveMatchPageDerived from '@/components/live/useLiveMatchPageDerived';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type {
-  EventType,
-  MatchEvent,
-  MatchLineup,
-  Player,
-  TeamSide,
-  TrackingMode,
-} from '@/lib/types';
-import type {
-  EventFormState,
-  MatchRow,
-  SnapshotStatusRow,
-} from '@/components/live/liveMatchPageShared';
+import type { MatchEvent, MatchLineup, Player } from '@/lib/types';
+import type { EventFormState, MatchRow } from '@/components/live/liveMatchPageShared';
 
 // ---------------------------------------------------
 // HOOK
@@ -429,492 +419,47 @@ export default function useLiveMatchPage() {
     nowMs,
   });
 
-  function resetForm(nextSide?: TeamSide) {
-    setForm((prev) => ({
-      ...prev,
-      side: nextSide || prev.side,
-      playerId: '',
-      secondaryPlayerId: '',
-      playerNameOverride: '',
-      secondaryPlayerNameOverride: '',
-      notes: '',
-    }));
-  }
-
-  function openPauseModal() {
-    if (!match || !match.clock_running || editingDisabled) return;
-
-    setPauseNote('');
-    setShowPauseModal(true);
-    setError(null);
-  }
-
-  function closePauseModal() {
-    setShowPauseModal(false);
-    setPauseNote('');
-  }
-
-  function applyPauseReason(reason: string) {
-    setPauseNote(reason);
-  }
-
-  function validateEvent() {
-    if (!match) return 'Match not loaded.';
-    if (editingDisabled) return 'This match is not editable in its current state.';
-    if (form.type === 'half_end' || form.type === 'full_time') return null;
-
-    if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
-      return 'Lineups mode does not support substitutions yet.';
-    }
-
-    if (selectedTrackingMode === 'full') {
-      if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card' ||
-          form.type === 'substitution') &&
-        !form.playerId
-      ) {
-        return 'Choose a player for this event.';
-      }
-
-      if (form.type === 'substitution' && !form.secondaryPlayerId) {
-        return 'Choose the incoming player for substitution.';
-      }
-
-      if (
-        form.type === 'substitution' &&
-        form.playerId &&
-        form.secondaryPlayerId &&
-        form.playerId === form.secondaryPlayerId
-      ) {
-        return 'Outgoing and incoming players must be different.';
-      }
-
-      if (form.type === 'substitution') {
-        const outgoingOnField = selectedOnFieldPlayers.some(
-          (player) => player.id === form.playerId,
-        );
-
-        const incomingOnBench = selectedBenchPlayers.some(
-          (player) => player.id === form.secondaryPlayerId,
-        );
-
-        if (!outgoingOnField) {
-          return 'Outgoing player must currently be on the field.';
-        }
-
-        if (!incomingOnBench) {
-          return 'Incoming player must currently be off the field.';
-        }
-      }
-
-      return null;
-    }
-
-    if (selectedTrackingMode === 'lineups') {
-      if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card') &&
-        !form.playerId &&
-        !form.playerNameOverride.trim()
-      ) {
-        return 'Choose a player or type a quick player label.';
-      }
-
-      if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
-        return 'Add a quick player or note for this substitution.';
-      }
-
-      return null;
-    }
-
-    if (selectedTrackingMode === 'basic') {
-      return null;
-    }
-
-    return null;
-  }
-
-  function toggleHomeStarter(playerId: string) {
-    setSelectedHomeStarterIds((current) => {
-      if (current.includes(playerId)) {
-        return current.filter((id) => id !== playerId);
-      }
-
-      if (current.length >= 11) {
-        return current;
-      }
-
-      return [...current, playerId];
-    });
-  }
-
-  function toggleAwayStarter(playerId: string) {
-    setSelectedAwayStarterIds((current) => {
-      if (current.includes(playerId)) {
-        return current.filter((id) => id !== playerId);
-      }
-
-      if (current.length >= 11) {
-        return current;
-      }
-
-      return [...current, playerId];
-    });
-  }
-
-  async function handleSaveHomeLineup() {
-    if (!match?.home_team_id) return;
-
-    if (!validateStartingLineupCount(selectedHomeStarterIds)) {
-      setError('Home lineup must contain exactly 11 starters.');
-      return;
-    }
-
-    setSavingHomeLineup(true);
-    setError(null);
-
-    try {
-      await saveStartingLineup(match.id, match.home_team_id, selectedHomeStarterIds);
-
-      const refreshed = await createMatchLineupSnapshot(match.id, match.home_team_id);
-      setHomeLineups(refreshed);
-      setSelectedHomeStarterIds(
-        refreshed.filter((row) => row.is_starter).map((row) => row.player_id),
-      );
-      setLineupNotice(null);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save home lineup.');
-    } finally {
-      setSavingHomeLineup(false);
-    }
-  }
-
-  async function handleSaveAwayLineup() {
-    if (!match?.away_team_id) return;
-
-    if (!validateStartingLineupCount(selectedAwayStarterIds)) {
-      setError('Away lineup must contain exactly 11 starters.');
-      return;
-    }
-
-    setSavingAwayLineup(true);
-    setError(null);
-
-    try {
-      await saveStartingLineup(match.id, match.away_team_id, selectedAwayStarterIds);
-
-      const refreshed = await createMatchLineupSnapshot(match.id, match.away_team_id);
-      setAwayLineups(refreshed);
-      setSelectedAwayStarterIds(
-        refreshed.filter((row) => row.is_starter).map((row) => row.player_id),
-      );
-      setLineupNotice(null);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save away lineup.');
-    } finally {
-      setSavingAwayLineup(false);
-    }
-  }
-
-  async function addEvent() {
-    if (!match) return;
-
-    const validationError = validateEvent();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    const minute = Math.floor(secondsElapsed / 60);
-    const eventTeamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
-
-    const insertPayload = {
-      match_id: match.id,
-      minute,
-      event_type: form.type,
-      team_side: form.side,
-      team_id: eventTeamId,
-      player_id: form.playerId || null,
-      secondary_player_id: form.secondaryPlayerId || null,
-      player_name_override: form.playerNameOverride.trim() || null,
-      secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
-      notes: form.notes.trim() || null,
-    };
-
-    const { data, error: insertError } = await supabase
-      .from('match_events')
-      .insert(insertPayload)
-      .select('*')
-      .single();
-
-    if (insertError) {
-      setSaving(false);
-      setError(insertError.message);
-      return;
-    }
-
-    let nextHomeScore = match.home_score;
-    let nextAwayScore = match.away_score;
-    let nextStatus = match.status;
-    let nextClockRunning = match.clock_running;
-    let nextElapsedSeconds = match.elapsed_seconds;
-
-    if (form.type === 'goal') {
-      if (form.side === 'home') nextHomeScore += 1;
-      if (form.side === 'away') nextAwayScore += 1;
-    }
-
-    if (form.type === 'half_end') {
-      nextStatus = 'halftime';
-      nextClockRunning = false;
-      nextElapsedSeconds = secondsElapsed;
-    }
-
-    if (form.type === 'full_time') {
-      nextStatus = 'final';
-      nextClockRunning = false;
-      nextElapsedSeconds = secondsElapsed;
-    }
-
-    const updatePayload: Record<string, unknown> = {
-      home_score: nextHomeScore,
-      away_score: nextAwayScore,
-      status: nextStatus,
-      current_minute: minute,
-    };
-
-    if (!nextClockRunning) {
-      updatePayload.elapsed_seconds = nextElapsedSeconds;
-      updatePayload.clock_running = false;
-      updatePayload.period_started_at = null;
-    }
-
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update(updatePayload)
-      .eq('id', match.id);
-
-    if (updateError) {
-      setSaving(false);
-      setError(updateError.message);
-      return;
-    }
-
-    setEvents((prev) => [data as MatchEvent, ...prev].filter(Boolean));
-    setMatch((prev) =>
-      prev
-        ? {
-            ...prev,
-            home_score: nextHomeScore,
-            away_score: nextAwayScore,
-            status: nextStatus,
-            current_minute: minute,
-            elapsed_seconds: !nextClockRunning ? nextElapsedSeconds : prev.elapsed_seconds,
-            clock_running: nextClockRunning,
-            period_started_at: nextClockRunning ? prev.period_started_at : null,
-          }
-        : prev,
-    );
-
-    setSaving(false);
-    resetForm(form.side);
-  }
-
-  async function startLivePeriod() {
-    if (!match || editingDisabled) return;
-
-    setError(null);
-
-    const startedAt = new Date().toISOString();
-    const minute = Math.floor(secondsElapsed / 60);
-    const wasPausedLive = match.status === 'live' && !match.clock_running;
-
-    const { error: statusError } = await supabase
-      .from('matches')
-      .update({
-        status: 'live',
-        current_minute: minute,
-        clock_running: true,
-        period_started_at: startedAt,
-      })
-      .eq('id', match.id);
-
-    if (statusError) {
-      setError(statusError.message);
-      return;
-    }
-
-    setNowMs(Date.now());
-    setMatch({
-      ...match,
-      status: 'live',
-      current_minute: minute,
-      clock_running: true,
-      period_started_at: startedAt,
-    });
-
-    const eventType: EventType = wasPausedLive ? 'match_resumed' : 'half_start';
-
-    const { error: eventInsertError } = await supabase.from('match_events').insert({
-      match_id: match.id,
-      minute,
-      event_type: eventType,
-      team_side: 'home',
-      team_id: match.home_team_id,
-    });
-
-    if (eventInsertError) {
-      setError(eventInsertError.message);
-      return;
-    }
-
-    const { data: refreshedEvents, error: refreshError } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('match_id', match.id)
-      .order('created_at', { ascending: false });
-
-    if (refreshError) {
-      setError(refreshError.message);
-      return;
-    }
-
-    setEvents(((refreshedEvents as MatchEvent[]) ?? []).filter(Boolean));
-  }
-
-  async function pauseClock(note?: string) {
-    if (!match || !match.clock_running || editingDisabled) return;
-
-    setError(null);
-
-    const pausedElapsed = secondsElapsed;
-    const minute = Math.floor(pausedElapsed / 60);
-    const cleanPauseNote = note?.trim() || null;
-
-    const { error: matchUpdateError } = await supabase
-      .from('matches')
-      .update({
-        clock_running: false,
-        period_started_at: null,
-        elapsed_seconds: pausedElapsed,
-        current_minute: minute,
-      })
-      .eq('id', match.id);
-
-    if (matchUpdateError) {
-      setError(matchUpdateError.message);
-      return;
-    }
-
-    setMatch({
-      ...match,
-      clock_running: false,
-      period_started_at: null,
-      elapsed_seconds: pausedElapsed,
-      current_minute: minute,
-    });
-
-    const { error: eventInsertError } = await supabase.from('match_events').insert({
-      match_id: match.id,
-      minute,
-      event_type: 'match_paused',
-      team_side: 'home',
-      team_id: match.home_team_id,
-      notes: cleanPauseNote,
-    });
-
-    if (eventInsertError) {
-      setError(`Clock paused, but timeline event failed: ${eventInsertError.message}`);
-      return;
-    }
-
-    const { data: refreshedEvents, error: refreshError } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('match_id', match.id)
-      .order('created_at', { ascending: false });
-
-    if (refreshError) {
-      setError(`Clock paused, but event refresh failed: ${refreshError.message}`);
-      return;
-    }
-
-    setEvents(((refreshedEvents as MatchEvent[]) ?? []).filter(Boolean));
-    closePauseModal();
-  }
-
-  async function undoLastEvent() {
-    if (!match || safeEvents.length === 0 || editingDisabled) return;
-
-    const latest = safeEvents[0];
-
-    setUndoing(true);
-    setError(null);
-
-    const { error: deleteError } = await supabase
-      .from('match_events')
-      .delete()
-      .eq('id', latest.id);
-
-    if (deleteError) {
-      setUndoing(false);
-      setError(deleteError.message);
-      return;
-    }
-
-    let nextHomeScore = match.home_score;
-    let nextAwayScore = match.away_score;
-    let nextStatus = match.status;
-
-    if (latest.event_type === 'goal') {
-      if (latest.team_side === 'home') nextHomeScore = Math.max(0, nextHomeScore - 1);
-      if (latest.team_side === 'away') nextAwayScore = Math.max(0, nextAwayScore - 1);
-    }
-
-    if (latest.event_type === 'full_time' || latest.event_type === 'half_end') {
-      nextStatus = 'live';
-    }
-
-    const remainingEvents = safeEvents.slice(1);
-    const fallbackMinute = remainingEvents.length > 0 ? remainingEvents[0].minute : 0;
-
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({
-        home_score: nextHomeScore,
-        away_score: nextAwayScore,
-        status: nextStatus,
-        current_minute: fallbackMinute,
-      })
-      .eq('id', match.id);
-
-    if (updateError) {
-      setUndoing(false);
-      setError(updateError.message);
-      return;
-    }
-
-    setEvents(remainingEvents);
-    setMatch((prev) =>
-      prev
-        ? {
-            ...prev,
-            home_score: nextHomeScore,
-            away_score: nextAwayScore,
-            status: nextStatus,
-            current_minute: fallbackMinute,
-          }
-        : prev,
-    );
-
-    setUndoing(false);
-  }
+  const {
+    resetForm,
+    openPauseModal,
+    closePauseModal,
+    applyPauseReason,
+    toggleHomeStarter,
+    toggleAwayStarter,
+    handleSaveHomeLineup,
+    handleSaveAwayLineup,
+    addEvent,
+    startLivePeriod,
+    pauseClock,
+    undoLastEvent,
+  } = useLiveMatchPageActions({
+    match,
+    setMatch,
+    form,
+    setForm,
+    selectedTrackingMode,
+    editingDisabled,
+    selectedOnFieldPlayers,
+    selectedBenchPlayers,
+    selectedHomeStarterIds,
+    selectedAwayStarterIds,
+    setSelectedHomeStarterIds,
+    setSelectedAwayStarterIds,
+    setHomeLineups,
+    setAwayLineups,
+    setEvents,
+    safeEvents,
+    secondsElapsed,
+    setSaving,
+    setSavingHomeLineup,
+    setSavingAwayLineup,
+    setUndoing,
+    setError,
+    setLineupNotice,
+    setNowMs,
+    setPauseNote,
+    setShowPauseModal,
+  });
 
   return {
     match,
