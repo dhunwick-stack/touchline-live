@@ -75,7 +75,7 @@ export default function TeamBanner({
               <img
                 src={team.logo_url}
                 alt={`${team.name} logo`}
-                className="h-20 w-20 rounded-3xl object-cover ring-1 ring-white/20"
+                className="h-20 w-20 rounded-3xl object-cover"
               />
             ) : (
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/20 text-xs font-bold">
@@ -155,12 +155,12 @@ export default function TeamBanner({
     </Link>
 
               {setEditing && (
-                <button
-                  onClick={() => setEditing(!editing)}
+                <Link
+                  href={`${basePath}?edit=1#team-edit-form`}
                   className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
                 >
                   {editing ? 'Close Edit' : 'Edit Team'}
-                </button>
+                </Link>
               )}
 
               <button

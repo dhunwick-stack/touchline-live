@@ -9,7 +9,7 @@ import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
 import LiveMatchHero from '@/components/LiveMatchHero';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Player, Team } from '@/lib/types';
@@ -35,6 +35,7 @@ export default function TeamDetailPage() {
 
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const teamId =
     typeof params?.teamId === 'string'
@@ -99,6 +100,19 @@ const editSectionRef = useRef<HTMLElement | null>(null);
     if (!teamId || !authChecked || !hasTeamAccess) return;
     loadTeamData();
   }, [teamId, authChecked, hasTeamAccess]);
+
+  useEffect(() => {
+    if (!team || searchParams.get('edit') !== '1') return;
+
+    setEditing(true);
+
+    window.setTimeout(() => {
+      editSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 50);
+  }, [team, searchParams]);
 
   // ---------------------------------------------------
   // LOAD TEAM DATA
@@ -354,6 +368,10 @@ const editSectionRef = useRef<HTMLElement | null>(null);
 
       return next;
     });
+
+    if (searchParams.get('edit') === '1') {
+      router.replace(`/teams/${teamId}`, { scroll: false });
+    }
   }
 
   // ---------------------------------------------------
@@ -676,6 +694,7 @@ if ((accessError || error) && !team) {
 
         {editing ? (
           <section
+            id="team-edit-form"
             ref={editSectionRef}
             className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
           >
