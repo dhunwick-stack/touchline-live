@@ -47,6 +47,11 @@ type UseLiveMatchPageActionsParams = {
   setShowPauseModal: Dispatch<SetStateAction<boolean>>;
 };
 
+type AddEventOptions = {
+  overrides?: Partial<EventFormState>;
+  allowGoalWithoutPlayer?: boolean;
+};
+
 // ---------------------------------------------------
 // HOOK
 // FILE: components/live/useLiveMatchPageActions.ts
@@ -109,46 +114,49 @@ export default function useLiveMatchPageActions({
     setPauseNote(reason);
   }
 
-  function validateEvent() {
+  function validateEvent(
+    eventForm: EventFormState,
+    options?: { allowGoalWithoutPlayer?: boolean },
+  ) {
     if (!match) return 'Match not loaded.';
     if (editingDisabled) return 'This match is not editable in its current state.';
-    if (form.type === 'half_end' || form.type === 'full_time') return null;
+    if (eventForm.type === 'half_end' || eventForm.type === 'full_time') return null;
 
-    if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
+    if (selectedTrackingMode === 'lineups' && eventForm.type === 'substitution') {
       return 'Lineups mode does not support substitutions yet.';
     }
 
     if (selectedTrackingMode === 'full') {
       if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card' ||
-          form.type === 'substitution') &&
-        !form.playerId
+        (eventForm.type === 'yellow_card' ||
+          eventForm.type === 'red_card' ||
+          eventForm.type === 'substitution' ||
+          (eventForm.type === 'goal' && !options?.allowGoalWithoutPlayer)) &&
+        !eventForm.playerId
       ) {
         return 'Choose a player for this event.';
       }
 
-      if (form.type === 'substitution' && !form.secondaryPlayerId) {
+      if (eventForm.type === 'substitution' && !eventForm.secondaryPlayerId) {
         return 'Choose the incoming player for substitution.';
       }
 
       if (
-        form.type === 'substitution' &&
-        form.playerId &&
-        form.secondaryPlayerId &&
-        form.playerId === form.secondaryPlayerId
+        eventForm.type === 'substitution' &&
+        eventForm.playerId &&
+        eventForm.secondaryPlayerId &&
+        eventForm.playerId === eventForm.secondaryPlayerId
       ) {
         return 'Outgoing and incoming players must be different.';
       }
 
-      if (form.type === 'substitution') {
+      if (eventForm.type === 'substitution') {
         const outgoingOnField = selectedOnFieldPlayers.some(
-          (player) => player.id === form.playerId,
+          (player) => player.id === eventForm.playerId,
         );
 
         const incomingOnBench = selectedBenchPlayers.some(
-          (player) => player.id === form.secondaryPlayerId,
+          (player) => player.id === eventForm.secondaryPlayerId,
         );
 
         if (!outgoingOnField) {
@@ -165,16 +173,20 @@ export default function useLiveMatchPageActions({
 
     if (selectedTrackingMode === 'lineups') {
       if (
-        (form.type === 'goal' ||
-          form.type === 'yellow_card' ||
-          form.type === 'red_card') &&
-        !form.playerId &&
-        !form.playerNameOverride.trim()
+        (eventForm.type === 'goal' ||
+          eventForm.type === 'yellow_card' ||
+          eventForm.type === 'red_card') &&
+        !eventForm.playerId &&
+        !eventForm.playerNameOverride.trim()
       ) {
         return 'Choose a player or type a quick player label.';
       }
 
-      if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
+      if (
+        eventForm.type === 'substitution' &&
+        !eventForm.playerNameOverride.trim() &&
+        !eventForm.playerId
+      ) {
         return 'Add a quick player or note for this substitution.';
       }
 
@@ -270,10 +282,17 @@ export default function useLiveMatchPageActions({
     }
   }
 
-  async function addEvent() {
+  async function addEvent(options?: AddEventOptions) {
     if (!match) return;
 
-    const validationError = validateEvent();
+    const effectiveForm: EventFormState = {
+      ...form,
+      ...options?.overrides,
+    };
+
+    const validationError = validateEvent(effectiveForm, {
+      allowGoalWithoutPlayer: options?.allowGoalWithoutPlayer,
+    });
     if (validationError) {
       setError(validationError);
       return;
@@ -283,19 +302,21 @@ export default function useLiveMatchPageActions({
     setError(null);
 
     const minute = Math.floor(secondsElapsed / 60);
-    const eventTeamId = form.side === 'home' ? match.home_team_id : match.away_team_id;
+    const eventTeamId =
+      effectiveForm.side === 'home' ? match.home_team_id : match.away_team_id;
 
     const insertPayload = {
       match_id: match.id,
       minute,
-      event_type: form.type,
-      team_side: form.side,
+      event_type: effectiveForm.type,
+      team_side: effectiveForm.side,
       team_id: eventTeamId,
-      player_id: form.playerId || null,
-      secondary_player_id: form.secondaryPlayerId || null,
-      player_name_override: form.playerNameOverride.trim() || null,
-      secondary_player_name_override: form.secondaryPlayerNameOverride.trim() || null,
-      notes: form.notes.trim() || null,
+      player_id: effectiveForm.playerId || null,
+      secondary_player_id: effectiveForm.secondaryPlayerId || null,
+      player_name_override: effectiveForm.playerNameOverride.trim() || null,
+      secondary_player_name_override:
+        effectiveForm.secondaryPlayerNameOverride.trim() || null,
+      notes: effectiveForm.notes.trim() || null,
     };
 
     const { data, error: insertError } = await supabase
@@ -316,18 +337,18 @@ export default function useLiveMatchPageActions({
     let nextClockRunning = match.clock_running;
     let nextElapsedSeconds = match.elapsed_seconds;
 
-    if (form.type === 'goal') {
-      if (form.side === 'home') nextHomeScore += 1;
-      if (form.side === 'away') nextAwayScore += 1;
+    if (effectiveForm.type === 'goal') {
+      if (effectiveForm.side === 'home') nextHomeScore += 1;
+      if (effectiveForm.side === 'away') nextAwayScore += 1;
     }
 
-    if (form.type === 'half_end') {
+    if (effectiveForm.type === 'half_end') {
       nextStatus = 'halftime';
       nextClockRunning = false;
       nextElapsedSeconds = secondsElapsed;
     }
 
-    if (form.type === 'full_time') {
+    if (effectiveForm.type === 'full_time') {
       nextStatus = 'final';
       nextClockRunning = false;
       nextElapsedSeconds = secondsElapsed;
@@ -374,7 +395,7 @@ export default function useLiveMatchPageActions({
     );
 
     setSaving(false);
-    resetForm(form.side);
+    resetForm(effectiveForm.side);
   }
 
   async function startLivePeriod() {
