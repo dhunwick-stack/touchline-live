@@ -19,6 +19,14 @@ import type {
   PublicMatchRow,
 } from '@/components/public/publicMatchPageShared';
 
+type PageData = {
+  match: PublicMatchRow;
+  events: MatchEvent[];
+  homePlayers: Player[];
+  awayPlayers: Player[];
+  lineups: MatchLineupRow[];
+};
+
 // ---------------------------------------------------
 // HOOK
 // FILE: components/public/usePublicMatchPage.ts
@@ -46,8 +54,8 @@ export default function usePublicMatchPage() {
   const [showStartingLineups, setShowStartingLineups] = useState(true);
   const [showOnFieldNow, setShowOnFieldNow] = useState(true);
 
-  async function loadPageData(currentSlug: string) {
-    const { data: matchData, error: matchError } = await supabase
+  async function fetchMatchBySlug(currentSlug: string) {
+    const { data, error } = await supabase
       .from('matches')
       .select(`
         *,
@@ -57,38 +65,44 @@ export default function usePublicMatchPage() {
       .eq('public_slug', currentSlug)
       .single();
 
-    if (matchError || !matchData) {
-      throw new Error(matchError?.message || 'Match not found.');
+    if (error || !data) {
+      throw new Error(error?.message || 'Match not found.');
     }
 
-    const loadedMatch = matchData as PublicMatchRow;
+    return data as PublicMatchRow;
+  }
 
-    const { data: eventsData, error: eventsError } = await supabase
+  async function fetchEvents(matchId: string) {
+    const { data, error } = await supabase
       .from('match_events')
       .select('*')
-      .eq('match_id', loadedMatch.id)
+      .eq('match_id', matchId)
       .order('created_at', { ascending: false });
 
-    if (eventsError) {
-      throw new Error(eventsError.message);
+    if (error) {
+      throw new Error(error.message);
     }
 
+    return (data as MatchEvent[]) ?? [];
+  }
+
+  async function fetchPlayers(matchRow: PublicMatchRow) {
     const homePlayersResult =
-      loadedMatch.home_team_id && loadedMatch.home_team_id !== 'undefined'
+      matchRow.home_team_id && matchRow.home_team_id !== 'undefined'
         ? await supabase
             .from('players')
             .select('*')
-            .eq('team_id', loadedMatch.home_team_id)
+            .eq('team_id', matchRow.home_team_id)
             .order('jersey_number', { ascending: true, nullsFirst: false })
             .order('first_name', { ascending: true })
         : { data: [], error: null };
 
     const awayPlayersResult =
-      loadedMatch.away_team_id && loadedMatch.away_team_id !== 'undefined'
+      matchRow.away_team_id && matchRow.away_team_id !== 'undefined'
         ? await supabase
             .from('players')
             .select('*')
-            .eq('team_id', loadedMatch.away_team_id)
+            .eq('team_id', matchRow.away_team_id)
             .order('jersey_number', { ascending: true, nullsFirst: false })
             .order('first_name', { ascending: true })
         : { data: [], error: null };
@@ -101,21 +115,47 @@ export default function usePublicMatchPage() {
       );
     }
 
-    const { data: lineupsData } = await supabase
+    return {
+      homePlayers: (homePlayersResult.data as Player[]) ?? [],
+      awayPlayers: (awayPlayersResult.data as Player[]) ?? [],
+    };
+  }
+
+  async function fetchLineups(matchId: string) {
+    const { data } = await supabase
       .from('match_lineups')
       .select(`
         *,
         player:player_id (*)
       `)
-      .eq('match_id', loadedMatch.id);
+      .eq('match_id', matchId);
+
+    return (data as MatchLineupRow[]) ?? [];
+  }
+
+  async function loadPageData(currentSlug: string): Promise<PageData> {
+    const match = await fetchMatchBySlug(currentSlug);
+    const [events, players, lineups] = await Promise.all([
+      fetchEvents(match.id),
+      fetchPlayers(match),
+      fetchLineups(match.id),
+    ]);
 
     return {
-      match: loadedMatch,
-      events: (eventsData as MatchEvent[]) ?? [],
-      homePlayers: (homePlayersResult.data as Player[]) ?? [],
-      awayPlayers: (awayPlayersResult.data as Player[]) ?? [],
-      lineups: (lineupsData as MatchLineupRow[]) ?? [],
+      match,
+      events,
+      homePlayers: players.homePlayers,
+      awayPlayers: players.awayPlayers,
+      lineups,
     };
+  }
+
+  function applyPageData(data: PageData) {
+    setMatch(data.match);
+    setEvents(data.events);
+    setHomePlayers(data.homePlayers);
+    setAwayPlayers(data.awayPlayers);
+    setLineups(data.lineups);
   }
 
   useEffect(() => {
@@ -140,11 +180,7 @@ export default function usePublicMatchPage() {
 
         if (!mounted) return;
 
-        setMatch(data.match);
-        setEvents(data.events);
-        setHomePlayers(data.homePlayers);
-        setAwayPlayers(data.awayPlayers);
-        setLineups(data.lineups);
+        applyPageData(data);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load scoreboard.');
@@ -175,12 +211,23 @@ export default function usePublicMatchPage() {
         },
         async () => {
           try {
-            const data = await loadPageData(slug);
-            setMatch(data.match);
-            setEvents(data.events);
-            setHomePlayers(data.homePlayers);
-            setAwayPlayers(data.awayPlayers);
-            setLineups(data.lineups);
+            const refreshedMatch = await fetchMatchBySlug(slug);
+            const teamsChanged =
+              refreshedMatch.home_team_id !== match.home_team_id ||
+              refreshedMatch.away_team_id !== match.away_team_id;
+
+            setMatch(refreshedMatch);
+
+            if (teamsChanged) {
+              const [players, refreshedLineups] = await Promise.all([
+                fetchPlayers(refreshedMatch),
+                fetchLineups(refreshedMatch.id),
+              ]);
+
+              setHomePlayers(players.homePlayers);
+              setAwayPlayers(players.awayPlayers);
+              setLineups(refreshedLineups);
+            }
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
@@ -196,12 +243,25 @@ export default function usePublicMatchPage() {
         },
         async () => {
           try {
-            const data = await loadPageData(slug);
-            setMatch(data.match);
-            setEvents(data.events);
-            setHomePlayers(data.homePlayers);
-            setAwayPlayers(data.awayPlayers);
-            setLineups(data.lineups);
+            const refreshedEvents = await fetchEvents(match.id);
+            setEvents(refreshedEvents);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'match_lineups',
+          filter: `match_id=eq.${match.id}`,
+        },
+        async () => {
+          try {
+            const refreshedLineups = await fetchLineups(match.id);
+            setLineups(refreshedLineups);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
