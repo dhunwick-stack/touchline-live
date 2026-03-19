@@ -243,13 +243,8 @@ export default function usePublicMatchPage() {
         },
         async () => {
           try {
-            const [refreshedMatch, refreshedEvents] = await Promise.all([
-              fetchMatchBySlug(slug),
-              fetchEvents(match.id),
-            ]);
-
-            setMatch(refreshedMatch);
-            setEvents(refreshedEvents);
+            const data = await loadPageData(slug);
+            applyPageData(data);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
