@@ -4,7 +4,7 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
@@ -60,13 +60,14 @@ export default function TeamDetailPage() {
 
 const [team, setTeam] = useState<Team | null>(null);
 const [players, setPlayers] = useState<Player[]>([]);
-const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
+const [overviewMatches, setOverviewMatches] = useState<MatchRow[]>([]);
 const [organizations, setOrganizations] = useState<Organization[]>([]);
 const [liveMatch, setLiveMatch] = useState<MatchRow | null>(null);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState('');
 const [editing, setEditing] = useState(false);
 const [saving, setSaving] = useState(false);
+const editSectionRef = useRef<HTMLElement | null>(null);
 
   // ---------------------------------------------------
   // EDIT FORM STATE
@@ -110,7 +111,8 @@ const [saving, setSaving] = useState(false);
     const [
       { data: teamData, error: teamError },
       { data: playerData, error: playerError },
-      { data: recentMatchData, error: recentMatchError },
+      { data: upcomingMatchData, error: upcomingMatchError },
+      { data: recentFinalMatchData, error: recentFinalMatchError },
       { data: organizationData, error: organizationError },
       { data: liveMatchData, error: liveMatchError },
     ] = await Promise.all([
@@ -138,8 +140,21 @@ const [saving, setSaving] = useState(false);
           away_team:away_team_id (*)
         `)
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .in('status', ['scheduled', 'not_started', 'live', 'halftime'])
+        .order('match_date', { ascending: true, nullsFirst: false })
+        .limit(3),
+
+      supabase
+        .from('matches')
+        .select(`
+          *,
+          home_team:home_team_id (*),
+          away_team:away_team_id (*)
+        `)
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .eq('status', 'final')
         .order('match_date', { ascending: false, nullsFirst: false })
-        .limit(5),
+        .limit(3),
 
       supabase
         .from('organizations')
@@ -162,14 +177,16 @@ const [saving, setSaving] = useState(false);
     if (
       teamError ||
       playerError ||
-      recentMatchError ||
+      upcomingMatchError ||
+      recentFinalMatchError ||
       organizationError ||
       liveMatchError
     ) {
       setError(
         teamError?.message ||
           playerError?.message ||
-          recentMatchError?.message ||
+          upcomingMatchError?.message ||
+          recentFinalMatchError?.message ||
           organizationError?.message ||
           liveMatchError?.message ||
           'Failed to load team.',
@@ -180,13 +197,19 @@ const [saving, setSaving] = useState(false);
 
     const loadedTeam = teamData as Team;
     const loadedPlayers = (playerData as Player[]) ?? [];
-    const loadedRecentMatches = (recentMatchData as MatchRow[]) ?? [];
+    const loadedUpcomingMatches = (upcomingMatchData as MatchRow[]) ?? [];
+    const loadedRecentFinalMatches = (recentFinalMatchData as MatchRow[]) ?? [];
     const loadedOrganizations = (organizationData as Organization[]) ?? [];
     const loadedLiveMatch = ((liveMatchData as MatchRow[]) ?? [])[0] || null;
+    const matchMap = new Map<string, MatchRow>();
+
+    for (const match of [...loadedUpcomingMatches, ...loadedRecentFinalMatches]) {
+      matchMap.set(match.id, match);
+    }
 
     setTeam(loadedTeam);
     setPlayers(loadedPlayers);
-    setRecentMatches(loadedRecentMatches);
+    setOverviewMatches(Array.from(matchMap.values()));
     setOrganizations(loadedOrganizations);
     setLiveMatch(loadedLiveMatch);
 
@@ -309,6 +332,30 @@ const [saving, setSaving] = useState(false);
     return 'D';
   }
 
+  function formatOverviewStatus(match: MatchRow) {
+    if (match.status === 'live') return 'Live';
+    if (match.status === 'halftime') return 'Halftime';
+    if (match.status === 'final') return 'Final';
+    return 'Upcoming';
+  }
+
+  function handleEditToggle() {
+    setEditing((prev) => {
+      const next = !prev;
+
+      if (next) {
+        window.setTimeout(() => {
+          editSectionRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }, 50);
+      }
+
+      return next;
+    });
+  }
+
   // ---------------------------------------------------
   // LOADING / ERROR STATES
   // ---------------------------------------------------
@@ -352,7 +399,7 @@ if ((accessError || error) && !team) {
 
             <button
               type="button"
-              onClick={() => setEditing((prev) => !prev)}
+              onClick={handleEditToggle}
               className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
             >
               {editing ? 'Close Edit' : 'Edit Team'}
@@ -442,22 +489,22 @@ if ((accessError || error) && !team) {
       </section>
 
       {/* --------------------------------------------------- */}
-      {/* RECENT MATCHES */}
+      {/* UPCOMING / RECENT MATCHES */}
       {/* --------------------------------------------------- */}
 
       <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-900">Recent Matches</h2>
+          <h2 className="text-xl font-bold text-slate-900">Upcoming / Recent Matches</h2>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-            {recentMatches.length} shown
+            {overviewMatches.length} shown
           </span>
         </div>
 
-        {recentMatches.length === 0 ? (
+        {overviewMatches.length === 0 ? (
           <p className="text-sm text-slate-500">No matches found yet.</p>
         ) : (
           <div className="space-y-3">
-            {recentMatches.map((match) => {
+            {overviewMatches.map((match) => {
               const result = resultLabel(match);
 
               return (
@@ -491,8 +538,8 @@ if ((accessError || error) && !team) {
                         Halftime
                       </span>
                     ) : (
-                      <span className="inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
-                        Scheduled
+                      <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-sky-700">
+                        Upcoming
                       </span>
                     )}
                   </div>
@@ -506,6 +553,8 @@ if ((accessError || error) && !team) {
                       vs {opponentName(match)}
                     </p>
                     <p className="text-sm text-slate-500">
+                      {formatOverviewStatus(match)}
+                      {match.match_date ? ' • ' : ''}
                       {match.match_date
                         ? new Intl.DateTimeFormat('en-US', {
                             month: 'short',
@@ -625,7 +674,10 @@ if ((accessError || error) && !team) {
       {/* --------------------------------------------------- */}
 
       {editing ? (
-        <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section
+          ref={editSectionRef}
+          className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
+        >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-slate-900">Edit Team</h2>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
