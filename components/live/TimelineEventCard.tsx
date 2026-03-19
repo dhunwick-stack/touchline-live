@@ -29,7 +29,7 @@ type MatchRow = Match & {
 };
 
 type Props = {
-  event: MatchEvent;
+  event: MatchEvent | null | undefined;
   match: MatchRow;
   homePlayers: Player[];
   awayPlayers: Player[];
@@ -61,9 +61,24 @@ export default function TimelineEventCard({
   homePlayers,
   awayPlayers,
 }: Props) {
+  // ---------------------------------------------------
+  // INVALID EVENT GUARD
+  // ---------------------------------------------------
+
+  if (!event || !event.event_type) {
+    return null;
+  }
+
   const systemEvent = isSystemEvent(event.event_type);
   const styles = getEventCardClasses(event);
   const label = buildPrettyTimelineText(event, match, homePlayers, awayPlayers);
+  const minuteLabel = Number.isFinite(event.minute) ? `${event.minute}'` : '—';
+  const teamSideClasses =
+    event.team_side === 'home'
+      ? 'bg-blue-100 text-blue-700'
+      : event.team_side === 'away'
+        ? 'bg-rose-100 text-rose-700'
+        : 'bg-slate-100 text-slate-700';
 
   if (systemEvent) {
     return (
@@ -93,7 +108,7 @@ export default function TimelineEventCard({
         <div className={`rounded-2xl border px-4 py-3 ${styles.shell}`}>
           <div className="flex items-center gap-3">
             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
+              {minuteLabel}
             </span>
 
             <p className="text-sm font-semibold text-slate-900">{label}</p>
@@ -135,7 +150,7 @@ export default function TimelineEventCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex items-start gap-3">
             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
+              {minuteLabel}
             </span>
 
             <p className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-6 text-slate-900">
@@ -144,13 +159,9 @@ export default function TimelineEventCard({
           </div>
 
           <span
-            className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-              event.team_side === 'home'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-rose-100 text-rose-700'
-            }`}
+            className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${teamSideClasses}`}
           >
-            {event.team_side}
+            {event.team_side || 'system'}
           </span>
         </div>
 
@@ -265,8 +276,8 @@ function buildPrettyTimelineText(
 
   if (event.event_type === 'substitution') {
     return secondaryName
-      ? `Substitution — ${primaryName || 'Player Out'} for ${secondaryName}`
-      : `Substitution — ${primaryName}`;
+      ? `Substitution — ${secondaryName} for ${primaryName || 'Player Out'}`
+      : `Substitution — ${primaryName || teamName}`;
   }
 
   if (event.event_type === 'half_start') return 'Half Started';

@@ -7,15 +7,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import {
-  ArrowLeftRight,
-  ChevronDown,
-  ChevronUp,
-  CircleDot,
-  Pause,
-  Play,
-  Square,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import TimelineEventCard from '@/components/live/TimelineEventCard';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 
@@ -305,23 +298,31 @@ export default function PublicMatchPage() {
   }, [secondsElapsed]);
 
   // ---------------------------------------------------
+  // SAFE EVENTS
+  // ---------------------------------------------------
+
+  const safeEvents = useMemo(() => {
+    return events.filter(isRenderableMatchEvent);
+  }, [events]);
+
+  // ---------------------------------------------------
   // DERIVED EVENT GROUPS
   // ---------------------------------------------------
 
   const goalEvents = useMemo(
-    () => events.filter((event) => event.event_type === 'goal').slice().reverse(),
-    [events],
+    () => safeEvents.filter((event) => event.event_type === 'goal').slice().reverse(),
+    [safeEvents],
   );
 
   const cardEvents = useMemo(
     () =>
-      events
+      safeEvents
         .filter(
           (event) => event.event_type === 'yellow_card' || event.event_type === 'red_card',
         )
         .slice()
         .reverse(),
-    [events],
+    [safeEvents],
   );
 
   // ---------------------------------------------------
@@ -355,19 +356,19 @@ export default function PublicMatchPage() {
       home: deriveCurrentOnField({
         side: 'home',
         lineups,
-        events,
+        events: safeEvents,
         roster: homePlayers,
         match,
       }),
       away: deriveCurrentOnField({
         side: 'away',
         lineups,
-        events,
+        events: safeEvents,
         roster: awayPlayers,
         match,
       }),
     };
-  }, [lineups, events, homePlayers, awayPlayers, match]);
+  }, [lineups, safeEvents, homePlayers, awayPlayers, match]);
 
   const hasOnFieldView =
     currentOnField.home.length > 0 || currentOnField.away.length > 0;
@@ -383,7 +384,7 @@ export default function PublicMatchPage() {
 
       if (!team || !teamId) return null;
 
-      const teamGoalEvents = events.filter(
+      const teamGoalEvents = safeEvents.filter(
         (event) => event.team_id === teamId && event.event_type === 'goal',
       );
 
@@ -425,7 +426,7 @@ export default function PublicMatchPage() {
       home: buildSnapshot('home'),
       away: buildSnapshot('away'),
     };
-  }, [match, events, homePlayers, awayPlayers]);
+  }, [match, safeEvents, homePlayers, awayPlayers]);
 
   // ---------------------------------------------------
   // LOADING / ERROR STATES
@@ -606,19 +607,19 @@ export default function PublicMatchPage() {
                 {isFinal ? 'Full Match Timeline' : 'Match Timeline'}
               </h3>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                {events.length} events
+                {safeEvents.length} events
               </span>
             </div>
 
-            {events.length === 0 ? (
+            {safeEvents.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-500">
                 No match events yet.
               </div>
             ) : (
               <div className="space-y-4">
-                {events.map((event) => (
+                {safeEvents.map((event, index) => (
                   <TimelineEventCard
-                    key={event.id}
+                    key={event.id || `public-timeline-event-${index}`}
                     event={event}
                     match={match}
                     homePlayers={homePlayers}
@@ -1194,99 +1195,6 @@ function LineupListCard({
 }
 
 // ---------------------------------------------------
-// TIMELINE EVENT CARD
-// ---------------------------------------------------
-
-function TimelineEventCard({
-  event,
-  match,
-  homePlayers,
-  awayPlayers,
-}: {
-  event: MatchEvent;
-  match: PublicMatchRow;
-  homePlayers: Player[];
-  awayPlayers: Player[];
-}) {
-  const systemEvent = isSystemEvent(event.event_type);
-  const styles = getEventCardClasses(event);
-
-  if (systemEvent) {
-    return (
-      <div className="relative overflow-hidden pl-14">
-        <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
-
-        <div className="absolute left-0 top-4 flex w-8 justify-center">
-          <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
-          >
-            <EventGlyph eventType={event.event_type} size="timeline" />
-          </div>
-        </div>
-
-        <div className={`rounded-2xl border px-4 py-3 ${styles.shell}`}>
-          <div className="flex items-center gap-3">
-            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
-            </span>
-
-            <p className="text-sm font-semibold text-slate-900">
-              {prettyEventText(event, match, homePlayers, awayPlayers)}
-            </p>
-          </div>
-
-          {event.notes ? (
-            <p className="mt-2 break-words text-xs text-slate-600">{event.notes}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative overflow-hidden pl-14">
-      <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
-
-      <div className="absolute left-0 top-4 flex w-8 justify-center">
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
-        >
-          <EventGlyph eventType={event.event_type} size="timeline" />
-        </div>
-      </div>
-
-      <div className={`rounded-2xl border p-4 transition-shadow hover:shadow-md ${styles.shell}`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex items-start gap-3">
-            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
-              {event.minute}'
-            </span>
-
-            <p className="min-w-0 whitespace-normal break-words text-sm font-semibold leading-6 text-slate-900">
-              {prettyEventText(event, match, homePlayers, awayPlayers)}
-            </p>
-          </div>
-
-          <span
-            className={`shrink-0 self-start rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-              event.team_side === 'home'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-rose-100 text-rose-700'
-            }`}
-          >
-            {event.team_side}
-          </span>
-        </div>
-
-        {event.notes ? (
-          <p className="mt-2 break-words text-xs text-slate-600">{event.notes}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------
 // STATUS PILL
 // ---------------------------------------------------
 
@@ -1371,95 +1279,6 @@ function PeriodPill({
 }
 
 // ---------------------------------------------------
-// EVENT HELPERS
-// ---------------------------------------------------
-
-function isSystemEvent(eventType: MatchEvent['event_type']) {
-  return (
-    eventType === 'half_start' ||
-    eventType === 'match_resumed' ||
-    eventType === 'match_paused' ||
-    eventType === 'half_end' ||
-    eventType === 'full_time'
-  );
-}
-
-function getEventCardClasses(event: MatchEvent) {
-  if (event.event_type === 'goal') {
-    return {
-      shell: 'border-sky-300 bg-sky-50',
-      icon: 'bg-sky-100 text-sky-800 ring-sky-300',
-    };
-  }
-
-  if (event.event_type === 'yellow_card') {
-    return {
-      shell: 'border-yellow-300 bg-yellow-50',
-      icon: 'bg-yellow-100 text-yellow-900 ring-yellow-300',
-    };
-  }
-
-  if (event.event_type === 'red_card') {
-    return {
-      shell: 'border-red-300 bg-red-50',
-      icon: 'bg-red-100 text-red-900 ring-red-300',
-    };
-  }
-
-  if (event.event_type === 'substitution') {
-    return {
-      shell: 'border-violet-200 bg-violet-50',
-      icon: 'bg-violet-100 text-violet-800 ring-violet-300',
-    };
-  }
-
-  return {
-  shell: 'border-slate-200 bg-slate-50',
-  icon: 'bg-slate-100 text-slate-700 ring-slate-200',
-};
-}
-
-function EventGlyph({
-  eventType,
-  size = 'timeline',
-}: {
-  eventType: MatchEvent['event_type'];
-  size?: 'timeline' | 'button';
-}) {
-  const iconSize = size === 'button' ? 'h-4 w-4' : 'h-4 w-4';
-
-  if (eventType === 'goal') {
-    return <CircleDot className={iconSize} strokeWidth={2.5} />;
-  }
-
-  if (eventType === 'substitution') {
-    return <ArrowLeftRight className={iconSize} strokeWidth={2.5} />;
-  }
-
-  if (eventType === 'half_start' || eventType === 'match_resumed') {
-    return <Play className={iconSize} strokeWidth={2.5} />;
-  }
-
-  if (eventType === 'match_paused' || eventType === 'half_end') {
-    return <Pause className={iconSize} strokeWidth={2.5} />;
-  }
-
-  if (eventType === 'full_time') {
-    return <Square className={iconSize} strokeWidth={2.5} />;
-  }
-
-  if (eventType === 'yellow_card') {
-    return <span className="h-4 w-3 rounded-[2px] bg-yellow-400 ring-1 ring-yellow-500/60" />;
-  }
-
-  if (eventType === 'red_card') {
-    return <span className="h-4 w-3 rounded-[2px] bg-red-500 ring-1 ring-red-600/60" />;
-  }
-
-  return <CircleDot className={iconSize} strokeWidth={2.5} />;
-}
-
-// ---------------------------------------------------
 // MATCH / VENUE HELPERS
 // ---------------------------------------------------
 
@@ -1484,60 +1303,17 @@ function prettyStatus(status: Match['status']) {
 }
 
 // ---------------------------------------------------
-// PLAYER / EVENT TEXT HELPERS
+// PLAYER / EVENT HELPERS
 // ---------------------------------------------------
+
+function isRenderableMatchEvent(event: MatchEvent | null | undefined): event is MatchEvent {
+  return Boolean(event && typeof event.event_type === 'string');
+}
 
 function playerDisplayName(player: Player | undefined) {
   if (!player) return '';
   const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
   return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
-}
-
-function prettyEventText(
-  event: MatchEvent,
-  match: PublicMatchRow,
-  homePlayers: Player[],
-  awayPlayers: Player[],
-) {
-  const roster = event.team_side === 'home' ? homePlayers : awayPlayers;
-  const primary = roster.find((p) => p.id === event.player_id);
-  const secondary = roster.find((p) => p.id === event.secondary_player_id);
-
-  const teamName =
-    event.team_side === 'home'
-      ? match.home_team?.name || 'Home Team'
-      : match.away_team?.name || 'Away Team';
-
-  const primaryName = event.player_name_override || playerDisplayName(primary);
-  const secondaryName = event.secondary_player_name_override || playerDisplayName(secondary);
-
-  if (event.event_type === 'goal') {
-    return secondaryName
-      ? `Goal — ${primaryName || teamName} (Assist: ${secondaryName})`
-      : `Goal — ${primaryName || teamName}`;
-  }
-
-  if (event.event_type === 'yellow_card') {
-    return `Yellow Card — ${primaryName || teamName}`;
-  }
-
-  if (event.event_type === 'red_card') {
-    return `Red Card — ${primaryName || teamName}`;
-  }
-
-  if (event.event_type === 'substitution') {
-  return secondaryName
-    ? `Substitution — ${secondaryName} for ${primaryName || 'Player Out'}`
-    : `Substitution — ${primaryName || teamName}`;
-}
-
-  if (event.event_type === 'half_start') return 'Half Started';
-  if (event.event_type === 'match_resumed') return 'Match Resumed';
-  if (event.event_type === 'match_paused') return 'Match Paused';
-  if (event.event_type === 'half_end') return 'Halftime';
-  if (event.event_type === 'full_time') return 'Full Time';
-
-  return event.event_type;
 }
 
 // ---------------------------------------------------

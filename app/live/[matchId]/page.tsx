@@ -29,6 +29,7 @@ import type {
   MatchEvent,
   MatchLineup,
   Player,
+  Team,
   TeamSide,
   TrackingMode,
 } from '@/lib/types';
