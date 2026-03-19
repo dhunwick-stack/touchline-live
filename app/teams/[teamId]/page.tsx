@@ -415,84 +415,85 @@ if ((accessError || error) && !team) {
         }
       />
 
-      {/* --------------------------------------------------- */}
-      {/* LIVE MATCH ADMIN HERO */}
-      {/* --------------------------------------------------- */}
+      <main className="mx-auto max-w-7xl px-6 pb-8">
+        {/* --------------------------------------------------- */}
+        {/* LIVE MATCH ADMIN HERO */}
+        {/* --------------------------------------------------- */}
 
-      {liveMatch ? (
-        <LiveMatchHero
-          match={liveMatch}
-          primaryColor={team.primary_color}
-          secondaryColor={team.secondary_color}
-          mode="admin"
-          className="mb-6"
-        />
-      ) : null}
+        {liveMatch ? (
+          <LiveMatchHero
+            match={liveMatch}
+            primaryColor={team.primary_color}
+            secondaryColor={team.secondary_color}
+            mode="admin"
+            className="mb-6"
+          />
+        ) : null}
 
-      {/* --------------------------------------------------- */}
-      {/* ADMIN MATCH CONTROL CARD */}
-      {/* --------------------------------------------------- */}
+        {/* --------------------------------------------------- */}
+        {/* ADMIN MATCH CONTROL CARD */}
+        {/* --------------------------------------------------- */}
 
-      {liveMatch ? (
-        <section className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Match Control
-              </p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
-                Live match tools
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Jump straight into live scoring, open the public scoreboard, or
-                review the live match record.
-              </p>
-            </div>
+        {liveMatch ? (
+          <section className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Match Control
+                </p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+                  Live match tools
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Jump straight into live scoring, open the public scoreboard, or
+                  review the live match record.
+                </p>
+              </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/live/${liveMatch.id}`}
-                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-              >
-                Update Match
-              </Link>
-
-              {liveMatch.public_slug ? (
+              <div className="flex flex-wrap gap-3">
                 <Link
-                  href={`/public/${liveMatch.public_slug}`}
-                  target="_blank"
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+                  href={`/live/${liveMatch.id}`}
+                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
                 >
-                  Public Page
+                  Update Match
                 </Link>
-              ) : null}
 
-              <Link
-                href="/matches"
-                className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700"
-              >
-                All Matches
-              </Link>
+                {liveMatch.public_slug ? (
+                  <Link
+                    href={`/public/${liveMatch.public_slug}`}
+                    target="_blank"
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+                  >
+                    Public Page
+                  </Link>
+                ) : null}
+
+                <Link
+                  href="/matches"
+                  className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700"
+                >
+                  All Matches
+                </Link>
+              </div>
             </div>
-          </div>
+          </section>
+        ) : null}
+
+        {/* --------------------------------------------------- */}
+        {/* SUMMARY CARDS */}
+        {/* --------------------------------------------------- */}
+
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          <SummaryCard label="Active Players" value={activePlayers.length} />
+          <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
+          <SummaryCard label="Home Field" value={team.home_field_name || 'Not set'} />
         </section>
-      ) : null}
 
-      {/* --------------------------------------------------- */}
-      {/* SUMMARY CARDS */}
-      {/* --------------------------------------------------- */}
+        {/* --------------------------------------------------- */}
+        {/* UPCOMING / RECENT MATCHES */}
+        {/* --------------------------------------------------- */}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-3">
-        <SummaryCard label="Active Players" value={activePlayers.length} />
-        <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
-        <SummaryCard label="Home Field" value={team.home_field_name || 'Not set'} />
-      </section>
-
-      {/* --------------------------------------------------- */}
-      {/* UPCOMING / RECENT MATCHES */}
-      {/* --------------------------------------------------- */}
-
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">Upcoming / Recent Matches</h2>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
@@ -608,13 +609,13 @@ if ((accessError || error) && !team) {
             })}
           </div>
         )}
-      </section>
+        </section>
 
-      {/* --------------------------------------------------- */}
-      {/* ROSTER + FIELD */}
-      {/* --------------------------------------------------- */}
+        {/* --------------------------------------------------- */}
+        {/* ROSTER + FIELD */}
+        {/* --------------------------------------------------- */}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
         {/* ------------------------------------------------- */}
         {/* ROSTER PREVIEW */}
         {/* ------------------------------------------------- */}
@@ -667,17 +668,17 @@ if ((accessError || error) && !team) {
           fieldName={team.home_field_name}
           fieldAddress={team.home_field_address}
         />
-      </div>
+        </div>
 
-      {/* --------------------------------------------------- */}
-      {/* EDIT TEAM FORM */}
-      {/* --------------------------------------------------- */}
+        {/* --------------------------------------------------- */}
+        {/* EDIT TEAM FORM */}
+        {/* --------------------------------------------------- */}
 
-      {editing ? (
-        <section
-          ref={editSectionRef}
-          className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-        >
+        {editing ? (
+          <section
+            ref={editSectionRef}
+            className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
+          >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-slate-900">Edit Team</h2>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
@@ -846,8 +847,9 @@ if ((accessError || error) && !team) {
               Cancel
             </button>
           </div>
-        </section>
-      ) : null}
+          </section>
+        ) : null}
+      </main>
     </>
   );
 }
