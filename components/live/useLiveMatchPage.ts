@@ -439,6 +439,8 @@ export default function useLiveMatchPage() {
     setForm,
     selectedTrackingMode,
     editingDisabled,
+    homePlayers,
+    awayPlayers,
     selectedOnFieldPlayers,
     selectedBenchPlayers,
     selectedHomeStarterIds,

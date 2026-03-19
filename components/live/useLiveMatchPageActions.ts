@@ -25,6 +25,8 @@ type UseLiveMatchPageActionsParams = {
   setForm: Dispatch<SetStateAction<EventFormState>>;
   selectedTrackingMode: TrackingMode;
   editingDisabled: boolean;
+  homePlayers: Player[];
+  awayPlayers: Player[];
   selectedOnFieldPlayers: Player[];
   selectedBenchPlayers: Player[];
   selectedHomeStarterIds: string[];
@@ -64,6 +66,8 @@ export default function useLiveMatchPageActions({
   setForm,
   selectedTrackingMode,
   editingDisabled,
+  homePlayers,
+  awayPlayers,
   selectedOnFieldPlayers,
   selectedBenchPlayers,
   selectedHomeStarterIds,
@@ -85,6 +89,47 @@ export default function useLiveMatchPageActions({
   setPauseNote,
   setShowPauseModal,
 }: UseLiveMatchPageActionsParams) {
+  function getTrackingModeForSide(side: TeamSide): TrackingMode {
+    if (!match) return selectedTrackingMode;
+    return side === 'home' ? match.home_tracking_mode : match.away_tracking_mode;
+  }
+
+  function getOnFieldPlayersForSide(side: TeamSide) {
+    if (side === form.side) {
+      return selectedOnFieldPlayers;
+    }
+
+    const players = side === 'home' ? homePlayers : awayPlayers;
+    const starters = side === 'home' ? selectedHomeStarterIds : selectedAwayStarterIds;
+
+    if (getTrackingModeForSide(side) !== 'full') {
+      return players;
+    }
+
+    const activeIds = new Set(starters);
+
+    safeEvents
+      .filter((event) => event.team_side === side && event.event_type === 'substitution')
+      .slice()
+      .reverse()
+      .forEach((event) => {
+        if (event.player_id) activeIds.delete(event.player_id);
+        if (event.secondary_player_id) activeIds.add(event.secondary_player_id);
+      });
+
+    return players.filter((player) => activeIds.has(player.id));
+  }
+
+  function getBenchPlayersForSide(side: TeamSide) {
+    if (side === form.side) {
+      return selectedBenchPlayers;
+    }
+
+    const players = side === 'home' ? homePlayers : awayPlayers;
+    const onFieldIds = new Set(getOnFieldPlayersForSide(side).map((player) => player.id));
+    return players.filter((player) => !onFieldIds.has(player.id));
+  }
+
   function resetForm(nextSide?: TeamSide) {
     setForm((prev) => ({
       ...prev,
@@ -118,15 +163,19 @@ export default function useLiveMatchPageActions({
     eventForm: EventFormState,
     options?: { allowGoalWithoutPlayer?: boolean },
   ) {
+    const effectiveTrackingMode = getTrackingModeForSide(eventForm.side);
+    const effectiveOnFieldPlayers = getOnFieldPlayersForSide(eventForm.side);
+    const effectiveBenchPlayers = getBenchPlayersForSide(eventForm.side);
+
     if (!match) return 'Match not loaded.';
     if (editingDisabled) return 'This match is not editable in its current state.';
     if (eventForm.type === 'half_end' || eventForm.type === 'full_time') return null;
 
-    if (selectedTrackingMode === 'lineups' && eventForm.type === 'substitution') {
+    if (effectiveTrackingMode === 'lineups' && eventForm.type === 'substitution') {
       return 'Lineups mode does not support substitutions yet.';
     }
 
-    if (selectedTrackingMode === 'full') {
+    if (effectiveTrackingMode === 'full') {
       if (
         (eventForm.type === 'yellow_card' ||
           eventForm.type === 'red_card' ||
@@ -151,11 +200,11 @@ export default function useLiveMatchPageActions({
       }
 
       if (eventForm.type === 'substitution') {
-        const outgoingOnField = selectedOnFieldPlayers.some(
+        const outgoingOnField = effectiveOnFieldPlayers.some(
           (player) => player.id === eventForm.playerId,
         );
 
-        const incomingOnBench = selectedBenchPlayers.some(
+        const incomingOnBench = effectiveBenchPlayers.some(
           (player) => player.id === eventForm.secondaryPlayerId,
         );
 
@@ -171,7 +220,7 @@ export default function useLiveMatchPageActions({
       return null;
     }
 
-    if (selectedTrackingMode === 'lineups') {
+    if (effectiveTrackingMode === 'lineups') {
       if (
         (eventForm.type === 'goal' ||
           eventForm.type === 'yellow_card' ||
@@ -193,7 +242,7 @@ export default function useLiveMatchPageActions({
       return null;
     }
 
-    if (selectedTrackingMode === 'basic') {
+    if (effectiveTrackingMode === 'basic') {
       return null;
     }
 

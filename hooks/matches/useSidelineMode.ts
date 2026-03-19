@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import useLiveMatchPage from '@/components/live/useLiveMatchPage';
-import type { MatchEvent, Player, TeamSide } from '@/lib/types';
+import type { MatchEvent, Player, TeamSide, TrackingMode } from '@/lib/types';
 
 export type SidelineFlowType =
   | null
@@ -43,6 +43,11 @@ export default function useSidelineMode(live: LiveMatchController) {
     return side === 'home' ? live.homePlayers : live.awayPlayers;
   }
 
+  function getTrackingModeForSide(side: TeamSide): TrackingMode {
+    if (!live.match) return 'basic';
+    return side === 'home' ? live.match.home_tracking_mode : live.match.away_tracking_mode;
+  }
+
   function getOnFieldPlayersForSide(side: TeamSide) {
     if (side === live.form.side) {
       return live.selectedOnFieldPlayers;
@@ -80,19 +85,20 @@ export default function useSidelineMode(live: LiveMatchController) {
 
   async function submitGoal(params: {
     side: TeamSide;
-    playerId: string;
+    playerId?: string;
     assistPlayerId?: string;
   }) {
     await live.addEvent({
       overrides: {
         type: 'goal',
         side: params.side,
-        playerId: params.playerId,
+        playerId: params.playerId || '',
         secondaryPlayerId: params.assistPlayerId || '',
         playerNameOverride: '',
         secondaryPlayerNameOverride: '',
         notes: '',
       },
+      allowGoalWithoutPlayer: !params.playerId,
     });
     setActiveFlow(null);
   }
@@ -100,13 +106,13 @@ export default function useSidelineMode(live: LiveMatchController) {
   async function submitCard(params: {
     type: 'yellow_card' | 'red_card';
     side: TeamSide;
-    playerId: string;
+    playerId?: string;
   }) {
     await live.addEvent({
       overrides: {
         type: params.type,
         side: params.side,
-        playerId: params.playerId,
+        playerId: params.playerId || '',
         secondaryPlayerId: '',
         playerNameOverride: '',
         secondaryPlayerNameOverride: '',
@@ -176,6 +182,7 @@ export default function useSidelineMode(live: LiveMatchController) {
     recentEvents,
     primaryClockLabel,
     getPlayersForSide,
+    getTrackingModeForSide,
     getOnFieldPlayersForSide,
     getBenchPlayersForSide,
     submitGoal,

@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import { playerDisplayName } from '@/components/live/liveMatchPageShared';
-import type { Player, TeamSide } from '@/lib/types';
+import type { Player, TeamSide, TrackingMode } from '@/lib/types';
 
 type FlowType = 'yellow_card' | 'red_card';
 
 type Props = {
   teamOptions: { side: TeamSide; label: string }[];
   getPlayersForSide: (side: TeamSide) => Player[];
+  getTrackingModeForSide: (side: TeamSide) => TrackingMode;
   onCancel: () => void;
   onConfirm: (params: {
     type: FlowType;
     side: TeamSide;
-    playerId: string;
+    playerId?: string;
   }) => Promise<void>;
   saving: boolean;
 };
@@ -22,12 +23,15 @@ export default function createCardPlayerFlow(type: FlowType, title: string) {
   return function CardPlayerFlow({
     teamOptions,
     getPlayersForSide,
+    getTrackingModeForSide,
     onCancel,
     onConfirm,
     saving,
   }: Props) {
     const [side, setSide] = useState<TeamSide | null>(null);
     const players = useMemo(() => (side ? getPlayersForSide(side) : []), [getPlayersForSide, side]);
+    const allowPlayerSkip =
+      !!side && (getTrackingModeForSide(side) === 'basic' || players.length === 0);
 
     if (!side) {
       return (
@@ -50,6 +54,16 @@ export default function createCardPlayerFlow(type: FlowType, title: string) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-slate-500">Step 2. Select player for {title.toLowerCase()}.</p>
+        {allowPlayerSkip ? (
+          <button
+            type="button"
+            onClick={() => onConfirm({ type, side })}
+            disabled={saving}
+            className="min-h-[64px] w-full rounded-3xl bg-slate-900 px-5 py-4 text-left text-base font-black text-white disabled:opacity-50"
+          >
+            Confirm {title} Without Player
+          </button>
+        ) : null}
         <div className="grid max-h-[50vh] gap-3 overflow-y-auto">
           {players.map((player) => (
             <button

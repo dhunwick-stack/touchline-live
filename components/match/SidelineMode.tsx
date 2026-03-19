@@ -92,6 +92,7 @@ export default function SidelineMode({ live }: Props) {
         <GoalFlow
           teamOptions={sideline.teamOptions}
           getPlayersForSide={sideline.getPlayersForSide}
+          getTrackingModeForSide={sideline.getTrackingModeForSide}
           onCancel={() => sideline.setActiveFlow(null)}
           onConfirm={sideline.submitGoal}
           saving={live.saving}
@@ -121,6 +122,7 @@ export default function SidelineMode({ live }: Props) {
         <YellowCardFlow
           teamOptions={sideline.teamOptions}
           getPlayersForSide={sideline.getPlayersForSide}
+          getTrackingModeForSide={sideline.getTrackingModeForSide}
           onCancel={() => sideline.setActiveFlow(null)}
           onConfirm={sideline.submitCard}
           saving={live.saving}
@@ -135,6 +137,7 @@ export default function SidelineMode({ live }: Props) {
         <RedCardFlow
           teamOptions={sideline.teamOptions}
           getPlayersForSide={sideline.getPlayersForSide}
+          getTrackingModeForSide={sideline.getTrackingModeForSide}
           onCancel={() => sideline.setActiveFlow(null)}
           onConfirm={sideline.submitCard}
           saving={live.saving}

@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { playerDisplayName } from '@/components/live/liveMatchPageShared';
-import type { Player, TeamSide } from '@/lib/types';
+import type { Player, TeamSide, TrackingMode } from '@/lib/types';
 
 type Props = {
   teamOptions: { side: TeamSide; label: string }[];
   getPlayersForSide: (side: TeamSide) => Player[];
+  getTrackingModeForSide: (side: TeamSide) => TrackingMode;
   onCancel: () => void;
   onConfirm: (params: {
     side: TeamSide;
-    playerId: string;
+    playerId?: string;
     assistPlayerId?: string;
   }) => Promise<void>;
   saving: boolean;
@@ -19,6 +20,7 @@ type Props = {
 export default function GoalFlow({
   teamOptions,
   getPlayersForSide,
+  getTrackingModeForSide,
   onCancel,
   onConfirm,
   saving,
@@ -28,6 +30,7 @@ export default function GoalFlow({
   const [assistPlayerId, setAssistPlayerId] = useState('');
 
   const players = useMemo(() => (side ? getPlayersForSide(side) : []), [getPlayersForSide, side]);
+  const allowPlayerSkip = !!side && (getTrackingModeForSide(side) === 'basic' || players.length === 0);
 
   if (!side) {
     return (
@@ -51,6 +54,16 @@ export default function GoalFlow({
     return (
       <div className="space-y-4">
         <p className="text-sm text-slate-500">Step 2. Select the scorer.</p>
+        {allowPlayerSkip ? (
+          <button
+            type="button"
+            onClick={() => onConfirm({ side })}
+            disabled={saving}
+            className="min-h-[64px] rounded-3xl bg-slate-900 px-5 py-4 text-left text-base font-black text-white disabled:opacity-50"
+          >
+            Confirm Goal Without Player
+          </button>
+        ) : null}
         <div className="grid max-h-[50vh] gap-3 overflow-y-auto">
           {players.map((player) => (
             <button
