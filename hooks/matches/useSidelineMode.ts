@@ -48,14 +48,21 @@ export default function useSidelineMode(live: LiveMatchController) {
     return side === 'home' ? live.match.home_tracking_mode : live.match.away_tracking_mode;
   }
 
-  function getOnFieldPlayersForSide(side: TeamSide) {
-    if (side === live.form.side) {
-      return live.selectedOnFieldPlayers;
+  function getEffectiveStarterIdsForSide(side: TeamSide) {
+    const players = side === 'home' ? live.homePlayers : live.awayPlayers;
+    const selectedStarterIds =
+      side === 'home' ? live.selectedHomeStarterIds : live.selectedAwayStarterIds;
+
+    if (selectedStarterIds.length > 0) {
+      return selectedStarterIds;
     }
 
+    return players.slice(0, 11).map((player) => player.id);
+  }
+
+  function getOnFieldPlayersForSide(side: TeamSide) {
     const players = side === 'home' ? live.homePlayers : live.awayPlayers;
-    const starters =
-      side === 'home' ? live.selectedHomeStarterIds : live.selectedAwayStarterIds;
+    const starters = getEffectiveStarterIdsForSide(side);
     const sideEvents = live.safeEvents.filter(
       (event) => event.team_side === side && event.event_type === 'substitution',
     );

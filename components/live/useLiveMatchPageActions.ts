@@ -94,13 +94,21 @@ export default function useLiveMatchPageActions({
     return side === 'home' ? match.home_tracking_mode : match.away_tracking_mode;
   }
 
-  function getOnFieldPlayersForSide(side: TeamSide) {
-    if (side === form.side) {
-      return selectedOnFieldPlayers;
+  function getEffectiveStarterIdsForSide(side: TeamSide) {
+    const players = side === 'home' ? homePlayers : awayPlayers;
+    const selectedStarterIds =
+      side === 'home' ? selectedHomeStarterIds : selectedAwayStarterIds;
+
+    if (selectedStarterIds.length > 0) {
+      return selectedStarterIds;
     }
 
+    return players.slice(0, 11).map((player) => player.id);
+  }
+
+  function getOnFieldPlayersForSide(side: TeamSide) {
     const players = side === 'home' ? homePlayers : awayPlayers;
-    const starters = side === 'home' ? selectedHomeStarterIds : selectedAwayStarterIds;
+    const starters = getEffectiveStarterIdsForSide(side);
 
     if (getTrackingModeForSide(side) !== 'full') {
       return players;
@@ -121,10 +129,6 @@ export default function useLiveMatchPageActions({
   }
 
   function getBenchPlayersForSide(side: TeamSide) {
-    if (side === form.side) {
-      return selectedBenchPlayers;
-    }
-
     const players = side === 'home' ? homePlayers : awayPlayers;
     const onFieldIds = new Set(getOnFieldPlayersForSide(side).map((player) => player.id));
     return players.filter((player) => !onFieldIds.has(player.id));
