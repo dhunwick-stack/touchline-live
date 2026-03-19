@@ -28,6 +28,7 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ---------------------------------------------------
   // LOAD MATCHES
@@ -127,38 +128,43 @@ export default function MatchesPage() {
   const liveMatches = useMemo(
     () =>
       matches
+        .filter((match) => matchMatchesSearch(match, searchQuery))
         .filter((match) => match.status === 'live' || match.status === 'halftime')
         .sort((a, b) => {
           const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
           const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
           return bTime - aTime;
         }),
-    [matches],
+    [matches, searchQuery],
   );
 
   const upcomingMatches = useMemo(
     () =>
       matches
+        .filter((match) => matchMatchesSearch(match, searchQuery))
         .filter((match) => ['not_started', 'scheduled'].includes(match.status))
         .sort((a, b) => {
           const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
           const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
           return aTime - bTime;
         }),
-    [matches],
+    [matches, searchQuery],
   );
 
   const recentResults = useMemo(
     () =>
       matches
+        .filter((match) => matchMatchesSearch(match, searchQuery))
         .filter((match) => match.status === 'final')
         .sort((a, b) => {
           const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
           const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
           return bTime - aTime;
         }),
-    [matches],
+    [matches, searchQuery],
   );
+
+  const filteredMatchCount = liveMatches.length + upcomingMatches.length + recentResults.length;
 
   // ---------------------------------------------------
   // PAGE
@@ -200,6 +206,35 @@ export default function MatchesPage() {
         </div>
       ) : null}
 
+      <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Search
+        </label>
+
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-100 px-4 py-3 ring-1 ring-slate-200">
+          <svg
+            className="h-4 w-4 shrink-0 text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search team, venue, status, or tracking mode"
+            className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+          />
+        </div>
+      </section>
+
       {loading ? (
         <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           Loading matches...
@@ -217,6 +252,13 @@ export default function MatchesPage() {
           >
             Create Match
           </Link>
+        </div>
+      ) : filteredMatchCount === 0 ? (
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-xl font-bold text-slate-900">No matches found</h2>
+          <p className="mt-2 text-slate-600">
+            Try a different team, venue, status, or tracking-mode search.
+          </p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -317,7 +359,7 @@ function MatchSection({
           {emptyText}
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {matches.map((match) => (
             <MatchCard key={match.id} match={match} highlight={highlight} nowMs={nowMs} />
           ))}
@@ -348,119 +390,128 @@ function MatchCard({
 
   return (
     <div
-      className={`rounded-3xl p-5 ring-1 ${
+      className={`flex h-full flex-col rounded-3xl p-6 ring-1 ${
         highlight
           ? 'border-l-4 border-red-500 bg-white ring-red-100'
           : 'bg-slate-50 ring-slate-200'
       }`}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <StatusBadge status={match.status} />
+      <div className="min-w-0 flex-1">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <StatusBadge status={match.status} />
 
-            {match.match_date ? (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                {formatMatchDate(match.match_date)}
-              </span>
-            ) : (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                Date TBD
-              </span>
-            )}
+          {match.match_date ? (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              {formatMatchDate(match.match_date)}
+            </span>
+          ) : (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              Date TBD
+            </span>
+          )}
 
-            {liveClockText ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                {liveClockText}
-              </span>
-            ) : null}
+          {liveClockText ? (
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+              {liveClockText}
+            </span>
+          ) : null}
 
-            {match.venue ? (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                {match.venue}
-              </span>
-            ) : null}
-          </div>
+          {match.venue ? (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              {match.venue}
+            </span>
+          ) : null}
+        </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
+        <div className="space-y-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
 
-              <div className="mt-1 flex items-center gap-3">
-                {match.home_team?.logo_url ? (
-                  <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
-                    <img
-                      src={match.home_team.logo_url}
-                      alt={`${match.home_team.name} logo`}
-                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-                    />
-                  </Link>
-                ) : null}
-
-                <Link
-                  href={`/teams/${match.home_team_id}`}
-                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
-                >
-                  {match.home_team?.name || 'Home Team'}
+            <div className="mt-1 flex items-center gap-3">
+              {match.home_team?.logo_url ? (
+                <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
+                  <img
+                    src={match.home_team.logo_url}
+                    alt={`${match.home_team.name} logo`}
+                    className="h-14 w-14 rounded-2xl object-cover transition hover:opacity-80"
+                  />
                 </Link>
-              </div>
-            </div>
+              ) : null}
 
-            <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
-              <div className="text-3xl font-black">
-                {match.home_score} - {match.away_score}
-              </div>
-            </div>
-
-            <div className="min-w-0 md:text-right">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
-
-              <div className="mt-1 flex items-center justify-end gap-3">
-                <Link
-                  href={`/teams/${match.away_team_id}`}
-                  className="text-2xl font-black transition hover:opacity-80 hover:underline"
-                >
-                  {match.away_team?.name || 'Away Team'}
-                </Link>
-
-                {match.away_team?.logo_url ? (
-                  <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
-                    <img
-                      src={match.away_team.logo_url}
-                      alt={`${match.away_team.name} logo`}
-                      className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/20 transition hover:opacity-80"
-                    />
-                  </Link>
-                ) : null}
-              </div>
+              <Link
+                href={`/teams/${match.home_team_id}`}
+                className="text-2xl font-black transition hover:opacity-80 hover:underline"
+              >
+                {match.home_team?.name || 'Home Team'}
+              </Link>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-              Home: {prettyTrackingMode(match.home_tracking_mode)}
-            </span>
-            <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">
-              Away: {prettyTrackingMode(match.away_tracking_mode)}
-            </span>
+          <div className="rounded-2xl bg-slate-900 px-5 py-4 text-center text-white shadow-sm">
+            <div className="text-3xl font-black">
+              {match.home_score} - {match.away_score}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Away</p>
+
+            <div className="mt-1 flex items-center gap-3">
+              {match.away_team?.logo_url ? (
+                <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
+                  <img
+                    src={match.away_team.logo_url}
+                    alt={`${match.away_team.name} logo`}
+                    className="h-14 w-14 rounded-2xl object-cover transition hover:opacity-80"
+                  />
+                </Link>
+              ) : null}
+
+              <Link
+                href={`/teams/${match.away_team_id}`}
+                className="text-2xl font-black transition hover:opacity-80 hover:underline"
+              >
+                {match.away_team?.name || 'Away Team'}
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 lg:justify-end">
-          <Link
-            href={`/live/${match.id}`}
-            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-          >
-            Open Match
-          </Link>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+            Home: {prettyTrackingMode(match.home_tracking_mode)}
+          </span>
+          <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">
+            Away: {prettyTrackingMode(match.away_tracking_mode)}
+          </span>
+        </div>
 
-          <Link
-            href={`/public/${match.public_slug}`}
-            target="_blank"
-            className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
-          >
-            Public Scoreboard
-          </Link>
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <div className="flex flex-wrap gap-3 md:flex-nowrap">
+            <Link
+              href={`/matches/${match.id}/edit`}
+              className="flex-1 rounded-2xl bg-white px-4 py-3 text-center text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
+            >
+              Edit
+            </Link>
+
+            <Link
+              href={`/live/${match.id}`}
+              className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-semibold text-white"
+            >
+              Open Match
+            </Link>
+
+            {match.public_slug ? (
+              <Link
+                href={`/public/${match.public_slug}`}
+                target="_blank"
+                className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
+              >
+                Public
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -570,4 +621,26 @@ function formatMatchDate(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function matchMatchesSearch(match: MatchRow, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) return true;
+
+  const haystack = [
+    match.home_team?.name,
+    match.away_team?.name,
+    match.home_team?.club_name,
+    match.away_team?.club_name,
+    match.venue,
+    match.status,
+    prettyTrackingMode(match.home_tracking_mode),
+    prettyTrackingMode(match.away_tracking_mode),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return haystack.includes(normalizedQuery);
 }
