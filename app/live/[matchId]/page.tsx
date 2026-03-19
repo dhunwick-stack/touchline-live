@@ -4,7 +4,9 @@
 // IMPORTS
 // ---------------------------------------------------
 
+import { calculateMinutesPlayed } from '@/lib/matchStats';
 import { useEffect, useMemo, useState } from 'react';
+import MinutesPlayedCard from '@/components/live/MinutesPlayedCard';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import StartingLineupSelector from '@/components/live/StartingLineupSelector';
@@ -123,6 +125,8 @@ export default function LiveMatchPage() {
 
   const [showOnFieldState, setShowOnFieldState] = useState(true);
   const [showLineupSnapshotStatus, setShowLineupSnapshotStatus] = useState(true);
+  const [showHomeMinutesCard, setShowHomeMinutesCard] = useState(true);
+const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
   const [showHomeLineupCard, setShowHomeLineupCard] = useState(true);
   const [showAwayLineupCard, setShowAwayLineupCard] = useState(true);
 
@@ -687,6 +691,67 @@ export default function LiveMatchPage() {
     selectedOnFieldPlayers,
     selectedRosterPlayers,
   ]);
+
+// DERIVED MINUTES PLAYED
+// ---------------------------------------------------
+//
+  const homeMinutesPlayedRows = useMemo(() => {
+    if (!match || match.home_tracking_mode !== 'full') {
+      return [];
+    }
+
+    return homePlayers
+      .map((player) => ({
+        player,
+        minutes: calculateMinutesPlayed({
+          match,
+          events,
+          playerId: player.id,
+          teamSide: 'home',
+          startingPlayerIds: selectedHomeStarterIds,
+        }),
+      }))
+      .filter((row) => row.minutes > 0)
+      .sort((a, b) => {
+        if (b.minutes !== a.minutes) return b.minutes - a.minutes;
+
+        const aNumber = a.player.jersey_number ?? 999;
+        const bNumber = b.player.jersey_number ?? 999;
+
+        if (aNumber !== bNumber) return aNumber - bNumber;
+
+        return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
+      });
+  }, [events, homePlayers, match, selectedHomeStarterIds]);
+
+  const awayMinutesPlayedRows = useMemo(() => {
+    if (!match || match.away_tracking_mode !== 'full') {
+      return [];
+    }
+
+    return awayPlayers
+      .map((player) => ({
+        player,
+        minutes: calculateMinutesPlayed({
+          match,
+          events,
+          playerId: player.id,
+          teamSide: 'away',
+          startingPlayerIds: selectedAwayStarterIds,
+        }),
+      }))
+      .filter((row) => row.minutes > 0)
+      .sort((a, b) => {
+        if (b.minutes !== a.minutes) return b.minutes - a.minutes;
+
+        const aNumber = a.player.jersey_number ?? 999;
+        const bNumber = b.player.jersey_number ?? 999;
+
+        if (aNumber !== bNumber) return aNumber - bNumber;
+
+        return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
+      });
+  }, [awayPlayers, events, match, selectedAwayStarterIds]);
 
   // ---------------------------------------------------
   // FORM HELPERS
@@ -1819,6 +1884,40 @@ export default function LiveMatchPage() {
               playerDisplayName={playerDisplayName}
             />
           )}
+
+{/* --------------------------------------------------- */}
+{/* HOME MINUTES PLAYED */}
+{/* --------------------------------------------------- */}
+
+{match.home_tracking_mode === 'full' && (
+  <MinutesPlayedCard
+    title={`${match.home_team?.name || 'Home Team'} Minutes`}
+    subtitle="Estimated minutes played based on starters, substitutions, and current match state."
+    rows={homeMinutesPlayedRows}
+    accent="home"
+    emptyText="No home minutes available yet."
+    open={showHomeMinutesCard}
+    onToggleOpen={() => setShowHomeMinutesCard((prev) => !prev)}
+
+  />
+)}
+
+{/* --------------------------------------------------- */}
+{/* AWAY MINUTES PLAYED */}
+{/* --------------------------------------------------- */}
+
+{match.away_tracking_mode === 'full' && (
+  <MinutesPlayedCard
+    title={`${match.away_team?.name || 'Away Team'} Minutes`}
+    subtitle="Estimated minutes played based on starters, substitutions, and current match state."
+    rows={awayMinutesPlayedRows}
+    accent="away"
+    emptyText="No away minutes available yet."
+    open={showAwayMinutesCard}
+    onToggleOpen={() => setShowAwayMinutesCard((prev) => !prev)}
+  />
+)}
+
 
           {/* --------------------------------------------------- */}
           {/* MATCH ACTIONS */}

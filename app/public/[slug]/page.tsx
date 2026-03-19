@@ -1414,9 +1414,9 @@ function getEventCardClasses(event: MatchEvent) {
   }
 
   return {
-    shell: 'border-slate-200 bg-slate-50',
-    icon: 'bg-slate-100 text-slate-700 ring-slate-200',
-  };
+  shell: 'border-slate-200 bg-slate-50',
+  icon: 'bg-slate-100 text-slate-700 ring-slate-200',
+};
 }
 
 function EventGlyph({
@@ -1526,10 +1526,10 @@ function prettyEventText(
   }
 
   if (event.event_type === 'substitution') {
-    return secondaryName
-      ? `Substitution — ${primaryName || 'Player Out'} for ${secondaryName}`
-      : `Substitution — ${primaryName || teamName}`;
-  }
+  return secondaryName
+    ? `Substitution — ${secondaryName} for ${primaryName || 'Player Out'}`
+    : `Substitution — ${primaryName || teamName}`;
+}
 
   if (event.event_type === 'half_start') return 'Half Started';
   if (event.event_type === 'match_resumed') return 'Match Resumed';
