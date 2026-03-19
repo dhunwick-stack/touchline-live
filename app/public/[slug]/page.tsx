@@ -168,7 +168,36 @@ export default function PublicMatchPage() {
       {/* MAIN GRID */}
       {/* --------------------------------------------------- */}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+      <div className="mt-6 space-y-6">
+        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+            <InlineStat label="Status" value={prettyStatus(match.status)} />
+            <span className="text-slate-300">|</span>
+            <InlineStat label="Clock" value={formattedClock} mono />
+            <span className="text-slate-300">|</span>
+            <InlineStat
+              label="Date"
+              value={match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
+            />
+            <span className="text-slate-300">|</span>
+            <InlineStat label="Venue" value={getVenueName(match)} />
+          </div>
+
+          {getVenueAddress(match) ? (
+            <div className="mt-4">
+              <a
+                href={getAppleMapsUrl(getVenueAddress(match)!)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+              >
+                Get Directions
+              </a>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-6">
           {/* ----------------------------------------------- */}
           {/* FINAL RECAP SUMMARY */}
@@ -198,7 +227,7 @@ export default function PublicMatchPage() {
                         <div className="mt-0.5 rounded-full bg-emerald-100 p-2 text-emerald-700">
                           <Trophy className="h-4 w-4" />
                         </div>
-                        <p className="text-sm font-semibold leading-7 text-slate-900">
+                        <p className="text-base font-black leading-8 text-slate-950 md:text-lg">
                           {finalRecap.headline}
                         </p>
                       </div>
@@ -328,158 +357,6 @@ export default function PublicMatchPage() {
 
         <section className="space-y-6">
           {/* ----------------------------------------------- */}
-          {/* MATCH DETAILS */}
-          {/* ----------------------------------------------- */}
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">
-              {isFinal ? 'Recap Details' : 'Match Details'}
-            </h3>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Status</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {prettyStatus(match.status)}
-                </dd>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Clock</dt>
-                <dd className="text-right font-medium tabular-nums text-slate-900">
-                  {formattedClock}
-                </dd>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Date</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
-                </dd>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">Venue</dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {getVenueName(match)}
-                  {getVenueAddress(match) ? (
-                    <div className="mt-2">
-                      <a
-                        href={getAppleMapsUrl(getVenueAddress(match)!)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                      >
-                        Get Directions
-                      </a>
-                    </div>
-                  ) : null}
-                </dd>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <dt className="font-semibold text-slate-500">
-                  {isFinal ? 'Total Goals' : 'Updates'}
-                </dt>
-                <dd className="text-right font-medium text-slate-900">
-                  {isFinal ? goalEvents.length : 'Realtime'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          {/* ----------------------------------------------- */}
-          {/* STARTING LINEUPS */}
-          {/* ----------------------------------------------- */}
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Starting groups captured before kickoff when lineup snapshots are available.
-                </p>
-              </div>
-
-              <CollapsePill
-                open={showStartingLineups}
-                onClick={() => setShowStartingLineups((prev) => !prev)}
-              />
-            </div>
-
-            {showStartingLineups ? (
-              !hasStartingLineups ? (
-                <p className="mt-4 text-sm text-slate-500">
-                  No starting lineup snapshot has been published for this match.
-                </p>
-              ) : (
-                <div className="mt-5 space-y-4">
-                  <LineupListCard
-                    title={match.home_team?.name || 'Home Team'}
-                    subtitle="Home starters"
-                    players={homeStarters}
-                    accent="blue"
-                    emptyText="No home starters published."
-                  />
-
-                  <LineupListCard
-                    title={match.away_team?.name || 'Away Team'}
-                    subtitle="Away starters"
-                    players={awayStarters}
-                    accent="rose"
-                    emptyText="No away starters published."
-                  />
-                </div>
-              )
-            ) : null}
-          </div>
-
-          {/* ----------------------------------------------- */}
-          {/* OPTIONAL ON-FIELD SECTION */}
-          {/* ----------------------------------------------- */}
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Current on-field view based on starters and recorded substitutions.
-                </p>
-              </div>
-
-              <CollapsePill
-                open={showOnFieldNow}
-                onClick={() => setShowOnFieldNow((prev) => !prev)}
-              />
-            </div>
-
-            {showOnFieldNow ? (
-              !hasOnFieldView ? (
-                <p className="mt-4 text-sm text-slate-500">
-                  On-field view is not available yet for this match.
-                </p>
-              ) : (
-                <div className="mt-5 space-y-4">
-                  <LineupListCard
-                    title={match.home_team?.name || 'Home Team'}
-                    subtitle="Current home players"
-                    players={currentOnField.home}
-                    accent="blue"
-                    emptyText="No current home on-field data."
-                  />
-
-                  <LineupListCard
-                    title={match.away_team?.name || 'Away Team'}
-                    subtitle="Current away players"
-                    players={currentOnField.away}
-                    accent="rose"
-                    emptyText="No current away on-field data."
-                  />
-                </div>
-              )
-            ) : null}
-          </div>
-
-          {/* ----------------------------------------------- */}
           {/* EXPLORE MORE */}
           {/* ----------------------------------------------- */}
 
@@ -576,6 +453,98 @@ export default function PublicMatchPage() {
                 </div>
               ) : null}
             </div>
+          </div>
+
+          {/* ----------------------------------------------- */}
+          {/* STARTING LINEUPS */}
+          {/* ----------------------------------------------- */}
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Starting groups captured before kickoff when lineup snapshots are available.
+                </p>
+              </div>
+
+              <CollapsePill
+                open={showStartingLineups}
+                onClick={() => setShowStartingLineups((prev) => !prev)}
+              />
+            </div>
+
+            {showStartingLineups ? (
+              !hasStartingLineups ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  No starting lineup snapshot has been published for this match.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <LineupListCard
+                    title={match.home_team?.name || 'Home Team'}
+                    subtitle="Home starters"
+                    players={homeStarters}
+                    accent="blue"
+                    emptyText="No home starters published."
+                  />
+
+                  <LineupListCard
+                    title={match.away_team?.name || 'Away Team'}
+                    subtitle="Away starters"
+                    players={awayStarters}
+                    accent="rose"
+                    emptyText="No away starters published."
+                  />
+                </div>
+              )
+            ) : null}
+          </div>
+
+          {/* ----------------------------------------------- */}
+          {/* OPTIONAL ON-FIELD SECTION */}
+          {/* ----------------------------------------------- */}
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Current on-field view based on starters and recorded substitutions.
+                </p>
+              </div>
+
+              <CollapsePill
+                open={showOnFieldNow}
+                onClick={() => setShowOnFieldNow((prev) => !prev)}
+              />
+            </div>
+
+            {showOnFieldNow ? (
+              !hasOnFieldView ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  On-field view is not available yet for this match.
+                </p>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <LineupListCard
+                    title={match.home_team?.name || 'Home Team'}
+                    subtitle="Current home players"
+                    players={currentOnField.home}
+                    accent="blue"
+                    emptyText="No current home on-field data."
+                  />
+
+                  <LineupListCard
+                    title={match.away_team?.name || 'Away Team'}
+                    subtitle="Current away players"
+                    players={currentOnField.away}
+                    accent="rose"
+                    emptyText="No current away on-field data."
+                  />
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* ----------------------------------------------- */}
@@ -717,7 +686,25 @@ export default function PublicMatchPage() {
           </div>
         </section>
       </div>
+      </div>
     </main>
+  );
+}
+
+function InlineStat({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-semibold text-slate-500">{label}:</span>
+      <span className={`font-bold text-slate-900 ${mono ? 'tabular-nums' : ''}`}>{value}</span>
+    </span>
   );
 }
 

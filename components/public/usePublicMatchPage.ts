@@ -99,8 +99,8 @@ export default function usePublicMatchPage() {
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
 
-  const [showStartingLineups, setShowStartingLineups] = useState(true);
-  const [showOnFieldNow, setShowOnFieldNow] = useState(true);
+  const [showStartingLineups, setShowStartingLineups] = useState(false);
+  const [showOnFieldNow, setShowOnFieldNow] = useState(false);
 
   async function fetchMatchBySlug(currentSlug: string) {
     const { data, error } = await supabase
