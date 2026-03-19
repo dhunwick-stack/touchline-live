@@ -68,6 +68,7 @@ export default function TeamSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
 
   // ---------------------------------------------------
   // LOAD TEAM + MATCHES + SEASONS
@@ -129,6 +130,37 @@ export default function TeamSchedulePage() {
     if (!teamId || !authChecked) return;
     loadData();
   }, [teamId, authChecked]);
+
+  // ---------------------------------------------------
+  // DELETE MATCH
+  // ---------------------------------------------------
+
+  async function handleDeleteMatch(match: MatchRow) {
+    const opponentName =
+      match.home_team?.name && match.away_team?.name
+        ? `${match.home_team.name} vs ${match.away_team.name}`
+        : 'this match';
+
+    const confirmed = window.confirm(
+      `Delete ${opponentName}? This will permanently remove the match record and may also remove related live data. This cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingMatchId(match.id);
+    setMessage('');
+
+    const { error } = await supabase.from('matches').delete().eq('id', match.id);
+
+    if (error) {
+      setMessage(error.message || 'Failed to delete match.');
+      setDeletingMatchId(null);
+      return;
+    }
+
+    await loadData();
+    setDeletingMatchId(null);
+  }
 
   // ---------------------------------------------------
   // FILTERED MATCHES
@@ -513,7 +545,12 @@ export default function TeamSchedulePage() {
 
                       <div className="space-y-4">
                         {group.matches.map((match) => (
-                          <ScheduleMatchCard key={match.id} match={match} />
+                          <ScheduleMatchCard
+                            key={match.id}
+                            match={match}
+                            deleting={deletingMatchId === match.id}
+                            onDelete={handleDeleteMatch}
+                          />
                         ))}
                       </div>
                     </div>
@@ -545,7 +582,12 @@ export default function TeamSchedulePage() {
               ) : (
                 <div className="space-y-4">
                   {delayedMatches.map((match) => (
-                    <ScheduleMatchCard key={match.id} match={match} />
+                    <ScheduleMatchCard
+                      key={match.id}
+                      match={match}
+                      deleting={deletingMatchId === match.id}
+                      onDelete={handleDeleteMatch}
+                    />
                   ))}
                 </div>
               )}
@@ -561,7 +603,15 @@ export default function TeamSchedulePage() {
 // SCHEDULE MATCH CARD
 // ---------------------------------------------------
 
-function ScheduleMatchCard({ match }: { match: MatchRow }) {
+function ScheduleMatchCard({
+  match,
+  deleting,
+  onDelete,
+}: {
+  match: MatchRow;
+  deleting: boolean;
+  onDelete: (match: MatchRow) => void;
+}) {
   return (
     <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
       {/* ------------------------------------------------- */}
@@ -683,6 +733,15 @@ function ScheduleMatchCard({ match }: { match: MatchRow }) {
               Public Scoreboard
             </Link>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => onDelete(match)}
+            disabled={deleting}
+            className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleting ? 'Deleting...' : 'Delete Match'}
+          </button>
         </div>
       </div>
     </div>
