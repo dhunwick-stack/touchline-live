@@ -284,6 +284,33 @@ export default function usePublicMatchPage() {
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
 
+  useEffect(() => {
+    if (!match?.id || !slug) return;
+    if (match.status !== 'live' && match.status !== 'halftime') return;
+
+    let cancelled = false;
+
+    const poller = window.setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+
+      try {
+        const data = await loadPageData(slug);
+        if (!cancelled) {
+          applyPageData(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Polling refresh failed.');
+        }
+      }
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
+    };
+  }, [match?.id, match?.status, slug]);
+
   const secondsElapsed = useMemo(() => {
     if (!match) return 0;
 
