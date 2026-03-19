@@ -169,36 +169,38 @@ export default function PublicMatchPage() {
       {/* --------------------------------------------------- */}
 
       <div className="mt-6 space-y-6">
-        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
-            <InlineStat label="Status" value={prettyStatus(match.status)} />
-            <span className="text-slate-300">|</span>
-            <InlineStat label="Clock" value={formattedClock} mono />
-            <span className="text-slate-300">|</span>
-            <InlineStat
-              label="Date"
-              value={match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
-            />
-            <span className="text-slate-300">|</span>
-            <InlineStat label="Venue" value={getVenueName(match)} />
-          </div>
-
-          {getVenueAddress(match) ? (
-            <div className="mt-4">
-              <a
-                href={getAppleMapsUrl(getVenueAddress(match)!)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-              >
-                Get Directions
-              </a>
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-900 p-[1px] shadow-sm">
+          <div className="rounded-[calc(1.5rem-1px)] bg-gradient-to-b from-slate-50 via-white to-red-50 p-6 ring-1 ring-white/70">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+              <InlineStat label="Status" value={prettyStatus(match.status)} />
+              <span className="text-slate-300">|</span>
+              <InlineStat label="Clock" value={formattedClock} mono />
+              <span className="text-slate-300">|</span>
+              <InlineStat
+                label="Date"
+                value={match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
+              />
+              <span className="text-slate-300">|</span>
+              <InlineStat label="Venue" value={getVenueName(match)} />
+              {getVenueAddress(match) ? (
+                <>
+                  <span className="text-slate-300">|</span>
+                  <a
+                    href={getAppleMapsUrl(getVenueAddress(match)!)}
+                    target="_blank"
+                    rel="noreferrer"
+                  className="inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                  >
+                    Get Directions
+                  </a>
+                </>
+              ) : null}
             </div>
-          ) : null}
+          </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section className="space-y-6">
+        <div className="grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        <section className="space-y-6 self-start">
           {/* ----------------------------------------------- */}
           {/* FINAL RECAP SUMMARY */}
           {/* ----------------------------------------------- */}
@@ -355,12 +357,12 @@ export default function PublicMatchPage() {
           </div>
         </section>
 
-        <section className="space-y-6">
+        <section className="space-y-6 self-start">
           {/* ----------------------------------------------- */}
           {/* EXPLORE MORE */}
           {/* ----------------------------------------------- */}
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 lg:-mt-6">
             <h3 className="text-xl font-bold text-slate-900">Explore More</h3>
             <p className="mt-2 text-sm text-slate-600">
               View public team pages and season leaders for both sides.
