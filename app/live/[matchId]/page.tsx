@@ -12,8 +12,9 @@ import { useParams, useRouter } from 'next/navigation';
 import StartingLineupSelector from '@/components/live/StartingLineupSelector';
 import LiveTimeline from '@/components/live/LiveTimeline';
 import LiveEventEntryCard from '@/components/live/LiveEventEntryCard';
-import { CircleDot, Pause, Play, RotateCcw } from 'lucide-react';
 import MatchActionsCard from '@/components/MatchActionsCard';
+import QuickActionBar from '@/components/live/QuickActionBar';
+import PauseMatchModal from '@/components/live/PauseMatchModal';
 import LineupSnapshotStatusCard from '@/components/live/LineupSnapshotStatusCard';
 import MatchHeader from '@/components/match/MatchHeader';
 import {
@@ -50,6 +51,13 @@ type EventFormState = {
   playerNameOverride: string;
   secondaryPlayerNameOverride: string;
   notes: string;
+};
+
+type SnapshotStatusRow = {
+  teamName: string;
+  modeLabel: string;
+  playersSnappedLabel: string;
+  startersSelectedLabel: string | null;
 };
 
 // ---------------------------------------------------
@@ -119,7 +127,7 @@ export default function LiveMatchPage() {
   const [showOnFieldState, setShowOnFieldState] = useState(true);
   const [showLineupSnapshotStatus, setShowLineupSnapshotStatus] = useState(true);
   const [showHomeMinutesCard, setShowHomeMinutesCard] = useState(true);
-const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
+  const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
   const [showHomeLineupCard, setShowHomeLineupCard] = useState(true);
   const [showAwayLineupCard, setShowAwayLineupCard] = useState(true);
 
@@ -262,7 +270,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       return;
     }
 
-    setEvents((eventData as MatchEvent[]) ?? []);
+    setEvents(((eventData as MatchEvent[]) ?? []).filter(Boolean));
 
     // ---------------------------------------------------
     // LOAD PLAYERS
@@ -529,6 +537,14 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
   }, [secondsElapsed]);
 
   // ---------------------------------------------------
+  // SAFE EVENTS
+  // ---------------------------------------------------
+
+  const safeEvents = useMemo(() => {
+    return events.filter((event): event is MatchEvent => Boolean(event));
+  }, [events]);
+
+  // ---------------------------------------------------
   // DERIVED MATCH / MODE STATE
   // ---------------------------------------------------
 
@@ -568,27 +584,47 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
   const homeStarterCount = selectedHomeStarterIds.length;
   const awayStarterCount = selectedAwayStarterIds.length;
 
-    // ---------------------------------------------------
+  // ---------------------------------------------------
   // DERIVED SNAPSHOT STATUS ROWS
   // ---------------------------------------------------
 
-  const homeSnapshotRow = useMemo(() => {
+  const homeSnapshotRow = useMemo<SnapshotStatusRow>(() => {
     return {
       teamName: match?.home_team?.name || 'Home Team',
       modeLabel: match?.home_tracking_mode || 'basic',
-      playersSnappedLabel: homeSupportsLineups ? `${homeLineups.length} players snapped` : 'Not used',
-      startersSelectedLabel: homeSupportsLineups ? `${homeStarterCount} starters selected` : null,
+      playersSnappedLabel: homeSupportsLineups
+        ? `${homeLineups.length} players snapped`
+        : 'Not used',
+      startersSelectedLabel: homeSupportsLineups
+        ? `${homeStarterCount} starters selected`
+        : null,
     };
-  }, [homeLineups.length, homeStarterCount, homeSupportsLineups, match?.home_team?.name, match?.home_tracking_mode]);
+  }, [
+    homeLineups.length,
+    homeStarterCount,
+    homeSupportsLineups,
+    match?.home_team?.name,
+    match?.home_tracking_mode,
+  ]);
 
-  const awaySnapshotRow = useMemo(() => {
+  const awaySnapshotRow = useMemo<SnapshotStatusRow>(() => {
     return {
       teamName: match?.away_team?.name || 'Away Team',
       modeLabel: match?.away_tracking_mode || 'basic',
-      playersSnappedLabel: awaySupportsLineups ? `${awayLineups.length} players snapped` : 'Not used',
-      startersSelectedLabel: awaySupportsLineups ? `${awayStarterCount} starters selected` : null,
+      playersSnappedLabel: awaySupportsLineups
+        ? `${awayLineups.length} players snapped`
+        : 'Not used',
+      startersSelectedLabel: awaySupportsLineups
+        ? `${awayStarterCount} starters selected`
+        : null,
     };
-  }, [awayLineups.length, awayStarterCount, awaySupportsLineups, match?.away_team?.name, match?.away_tracking_mode]);
+  }, [
+    awayLineups.length,
+    awayStarterCount,
+    awaySupportsLineups,
+    match?.away_team?.name,
+    match?.away_tracking_mode,
+  ]);
 
   // ---------------------------------------------------
   // DERIVED ON-FIELD / BENCH STATE
@@ -601,7 +637,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
 
     const activeIds = new Set(selectedHomeStarterIds);
 
-    events
+    safeEvents
       .filter((event) => event.team_side === 'home' && event.event_type === 'substitution')
       .slice()
       .reverse()
@@ -616,7 +652,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       });
 
     return activeIds;
-  }, [events, homePlayers, match?.home_tracking_mode, selectedHomeStarterIds]);
+  }, [safeEvents, homePlayers, match?.home_tracking_mode, selectedHomeStarterIds]);
 
   const awayActivePlayerIds = useMemo(() => {
     if (match?.away_tracking_mode !== 'full') {
@@ -625,7 +661,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
 
     const activeIds = new Set(selectedAwayStarterIds);
 
-    events
+    safeEvents
       .filter((event) => event.team_side === 'away' && event.event_type === 'substitution')
       .slice()
       .reverse()
@@ -640,7 +676,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       });
 
     return activeIds;
-  }, [events, awayPlayers, match?.away_tracking_mode, selectedAwayStarterIds]);
+  }, [safeEvents, awayPlayers, match?.away_tracking_mode, selectedAwayStarterIds]);
 
   // ---------------------------------------------------
   // DERIVED LINEUP ROWS
@@ -707,10 +743,9 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
     selectedRosterPlayers,
   ]);
 
- 
-//---------------------------------------------------  
-//  DERIVED MINUTES PLAYED
-//---------------------------------------------------
+  // ---------------------------------------------------
+  // DERIVED MINUTES PLAYED
+  // ---------------------------------------------------
 
   const homeMinutesPlayedRows = useMemo(() => {
     if (!match || match.home_tracking_mode !== 'full') {
@@ -722,7 +757,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
         player,
         minutes: calculateMinutesPlayed({
           match,
-          events,
+          events: safeEvents,
           playerId: player.id,
           teamSide: 'home',
           startingPlayerIds: selectedHomeStarterIds,
@@ -739,7 +774,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
 
         return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
       });
-  }, [events, homePlayers, match, selectedHomeStarterIds]);
+  }, [safeEvents, homePlayers, match, selectedHomeStarterIds]);
 
   const awayMinutesPlayedRows = useMemo(() => {
     if (!match || match.away_tracking_mode !== 'full') {
@@ -751,7 +786,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
         player,
         minutes: calculateMinutesPlayed({
           match,
-          events,
+          events: safeEvents,
           playerId: player.id,
           teamSide: 'away',
           startingPlayerIds: selectedAwayStarterIds,
@@ -768,7 +803,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
 
         return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
       });
-  }, [awayPlayers, events, match, selectedAwayStarterIds]);
+  }, [awayPlayers, safeEvents, match, selectedAwayStarterIds]);
 
   // ---------------------------------------------------
   // FORM HELPERS
@@ -807,84 +842,88 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
     setPauseNote(reason);
   }
 
+  // ---------------------------------------------------
+  // EVENT VALIDATION
+  // ---------------------------------------------------
+
   function validateEvent() {
-  if (!match) return 'Match not loaded.';
-  if (editingDisabled) return 'This match is not editable in its current state.';
-  if (form.type === 'half_end' || form.type === 'full_time') return null;
+    if (!match) return 'Match not loaded.';
+    if (editingDisabled) return 'This match is not editable in its current state.';
+    if (form.type === 'half_end' || form.type === 'full_time') return null;
 
-  if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
-    return 'Lineups mode does not support substitutions yet.';
-  }
-
-  if (selectedTrackingMode === 'full') {
-    if (
-      (form.type === 'goal' ||
-        form.type === 'yellow_card' ||
-        form.type === 'red_card' ||
-        form.type === 'substitution') &&
-      !form.playerId
-    ) {
-      return 'Choose a player for this event.';
+    if (selectedTrackingMode === 'lineups' && form.type === 'substitution') {
+      return 'Lineups mode does not support substitutions yet.';
     }
 
-    if (form.type === 'substitution' && !form.secondaryPlayerId) {
-      return 'Choose the incoming player for substitution.';
-    }
-
-    if (
-      form.type === 'substitution' &&
-      form.playerId &&
-      form.secondaryPlayerId &&
-      form.playerId === form.secondaryPlayerId
-    ) {
-      return 'Outgoing and incoming players must be different.';
-    }
-
-    if (form.type === 'substitution') {
-      const outgoingOnField = selectedOnFieldPlayers.some(
-        (player) => player.id === form.playerId,
-      );
-
-      const incomingOnBench = selectedBenchPlayers.some(
-        (player) => player.id === form.secondaryPlayerId,
-      );
-
-      if (!outgoingOnField) {
-        return 'Outgoing player must currently be on the field.';
+    if (selectedTrackingMode === 'full') {
+      if (
+        (form.type === 'goal' ||
+          form.type === 'yellow_card' ||
+          form.type === 'red_card' ||
+          form.type === 'substitution') &&
+        !form.playerId
+      ) {
+        return 'Choose a player for this event.';
       }
 
-      if (!incomingOnBench) {
-        return 'Incoming player must currently be off the field.';
+      if (form.type === 'substitution' && !form.secondaryPlayerId) {
+        return 'Choose the incoming player for substitution.';
       }
+
+      if (
+        form.type === 'substitution' &&
+        form.playerId &&
+        form.secondaryPlayerId &&
+        form.playerId === form.secondaryPlayerId
+      ) {
+        return 'Outgoing and incoming players must be different.';
+      }
+
+      if (form.type === 'substitution') {
+        const outgoingOnField = selectedOnFieldPlayers.some(
+          (player) => player.id === form.playerId,
+        );
+
+        const incomingOnBench = selectedBenchPlayers.some(
+          (player) => player.id === form.secondaryPlayerId,
+        );
+
+        if (!outgoingOnField) {
+          return 'Outgoing player must currently be on the field.';
+        }
+
+        if (!incomingOnBench) {
+          return 'Incoming player must currently be off the field.';
+        }
+      }
+
+      return null;
+    }
+
+    if (selectedTrackingMode === 'lineups') {
+      if (
+        (form.type === 'goal' ||
+          form.type === 'yellow_card' ||
+          form.type === 'red_card') &&
+        !form.playerId &&
+        !form.playerNameOverride.trim()
+      ) {
+        return 'Choose a player or type a quick player label.';
+      }
+
+      if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
+        return 'Add a quick player or note for this substitution.';
+      }
+
+      return null;
+    }
+
+    if (selectedTrackingMode === 'basic') {
+      return null;
     }
 
     return null;
   }
-
-  if (selectedTrackingMode === 'lineups') {
-    if (
-      (form.type === 'goal' ||
-        form.type === 'yellow_card' ||
-        form.type === 'red_card') &&
-      !form.playerId &&
-      !form.playerNameOverride.trim()
-    ) {
-      return 'Choose a player or type a quick player label.';
-    }
-
-    if (form.type === 'substitution' && !form.playerNameOverride.trim() && !form.playerId) {
-      return 'Add a quick player or note for this substitution.';
-    }
-
-    return null;
-  }
-
-  if (selectedTrackingMode === 'basic') {
-    return null;
-  }
-
-  return null;
-}
 
   // ---------------------------------------------------
   // STARTER TOGGLE HELPERS
@@ -1067,7 +1106,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       return;
     }
 
-    setEvents((prev) => [data as MatchEvent, ...prev]);
+    setEvents((prev) => [data as MatchEvent, ...prev].filter(Boolean));
     setMatch((prev) =>
       prev
         ? {
@@ -1150,7 +1189,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       return;
     }
 
-    setEvents((refreshedEvents as MatchEvent[]) ?? []);
+    setEvents(((refreshedEvents as MatchEvent[]) ?? []).filter(Boolean));
   }
 
   // ---------------------------------------------------
@@ -1214,7 +1253,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       return;
     }
 
-    setEvents((refreshedEvents as MatchEvent[]) ?? []);
+    setEvents(((refreshedEvents as MatchEvent[]) ?? []).filter(Boolean));
     closePauseModal();
   }
 
@@ -1223,9 +1262,9 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
   // ---------------------------------------------------
 
   async function undoLastEvent() {
-    if (!match || events.length === 0 || editingDisabled) return;
+    if (!match || safeEvents.length === 0 || editingDisabled) return;
 
-    const latest = events[0];
+    const latest = safeEvents[0];
 
     setUndoing(true);
     setError(null);
@@ -1254,7 +1293,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       nextStatus = 'live';
     }
 
-    const remainingEvents = events.slice(1);
+    const remainingEvents = safeEvents.slice(1);
     const fallbackMinute = remainingEvents.length > 0 ? remainingEvents[0].minute : 0;
 
     const { error: updateError } = await supabase
@@ -1360,7 +1399,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
 
             <button
               onClick={undoLastEvent}
-              disabled={undoing || events.length === 0 || editingDisabled}
+              disabled={undoing || safeEvents.length === 0 || editingDisabled}
               className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 disabled:opacity-40"
             >
               {undoing ? 'Undoing…' : 'Undo'}
@@ -1380,40 +1419,42 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
         }
       />
 
+      {/* --------------------------------------------------- */}
+      {/* MAIN CONTENT GRID */}
+      {/* --------------------------------------------------- */}
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
         {/* --------------------------------------------------- */}
         {/* LEFT COLUMN */}
         {/* --------------------------------------------------- */}
 
         <div className="space-y-6">
+          {/* --------------------------------------------------- */}
+          {/* EVENT ENTRY CARD */}
+          {/* --------------------------------------------------- */}
 
-  {/* --------------------------------------------------- */}
-  {/* LiveEventEntryCard COMPONENT*/}
-  {/* --------------------------------------------------- */}
+          <LiveEventEntryCard
+            selectedTeamName={selectedTeamName}
+            selectedTrackingMode={selectedTrackingMode}
+            editingDisabled={editingDisabled}
+            form={form}
+            setForm={setForm}
+            resetForm={resetForm}
+            addEvent={addEvent}
+            saving={saving}
+            error={error}
+            lineupNotice={lineupNotice}
+            eventTypeOptions={eventTypeOptions}
+            eventSelectablePlayers={eventSelectablePlayers}
+            eventSelectableSecondaryPlayers={eventSelectableSecondaryPlayers}
+            selectedOnFieldPlayers={selectedOnFieldPlayers}
+            selectedBenchPlayers={selectedBenchPlayers}
+            showOnFieldState={showOnFieldState}
+            setShowOnFieldState={setShowOnFieldState}
+            playerDisplayName={playerDisplayName}
+          />
 
-<LiveEventEntryCard
-  selectedTeamName={selectedTeamName}
-  selectedTrackingMode={selectedTrackingMode}
-  editingDisabled={editingDisabled}
-  form={form}
-  setForm={setForm}
-  resetForm={resetForm}
-  addEvent={addEvent}
-  saving={saving}
-  error={error}
-  lineupNotice={lineupNotice}
-  eventTypeOptions={eventTypeOptions}
-  eventSelectablePlayers={eventSelectablePlayers}
-  eventSelectableSecondaryPlayers={eventSelectableSecondaryPlayers}
-  selectedOnFieldPlayers={selectedOnFieldPlayers}
-  selectedBenchPlayers={selectedBenchPlayers}
-  showOnFieldState={showOnFieldState}
-  setShowOnFieldState={setShowOnFieldState}
-  playerDisplayName={playerDisplayName}
-/>
-
- 
-                   {/* --------------------------------------------------- */}
+          {/* --------------------------------------------------- */}
           {/* LINEUP SNAPSHOT STATUS */}
           {/* --------------------------------------------------- */}
 
@@ -1424,6 +1465,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
             homeRow={homeSnapshotRow}
             awayRow={awaySnapshotRow}
           />
+
           {/* --------------------------------------------------- */}
           {/* HOME LINEUP CARD */}
           {/* --------------------------------------------------- */}
@@ -1468,39 +1510,37 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
             />
           )}
 
-{/* --------------------------------------------------- */}
-{/* HOME MINUTES PLAYED */}
-{/* --------------------------------------------------- */}
+          {/* --------------------------------------------------- */}
+          {/* HOME MINUTES PLAYED */}
+          {/* --------------------------------------------------- */}
 
-{match.home_tracking_mode === 'full' && (
-  <MinutesPlayedCard
-    title={`${match.home_team?.name || 'Home Team'} Minutes`}
-    subtitle="Estimated minutes played based on starters, substitutions, and current match state."
-    rows={homeMinutesPlayedRows}
-    accent="home"
-    emptyText="No home minutes available yet."
-    open={showHomeMinutesCard}
-    onToggleOpen={() => setShowHomeMinutesCard((prev) => !prev)}
+          {match.home_tracking_mode === 'full' && (
+            <MinutesPlayedCard
+              title={`${match.home_team?.name || 'Home Team'} Minutes`}
+              subtitle="Estimated minutes played based on starters, substitutions, and current match state."
+              rows={homeMinutesPlayedRows}
+              accent="home"
+              emptyText="No home minutes available yet."
+              open={showHomeMinutesCard}
+              onToggleOpen={() => setShowHomeMinutesCard((prev) => !prev)}
+            />
+          )}
 
-  />
-)}
+          {/* --------------------------------------------------- */}
+          {/* AWAY MINUTES PLAYED */}
+          {/* --------------------------------------------------- */}
 
-{/* --------------------------------------------------- */}
-{/* AWAY MINUTES PLAYED */}
-{/* --------------------------------------------------- */}
-
-{match.away_tracking_mode === 'full' && (
-  <MinutesPlayedCard
-    title={`${match.away_team?.name || 'Away Team'} Minutes`}
-    subtitle="Estimated minutes played based on starters, substitutions, and current match state."
-    rows={awayMinutesPlayedRows}
-    accent="away"
-    emptyText="No away minutes available yet."
-    open={showAwayMinutesCard}
-    onToggleOpen={() => setShowAwayMinutesCard((prev) => !prev)}
-  />
-)}
-
+          {match.away_tracking_mode === 'full' && (
+            <MinutesPlayedCard
+              title={`${match.away_team?.name || 'Away Team'} Minutes`}
+              subtitle="Estimated minutes played based on starters, substitutions, and current match state."
+              rows={awayMinutesPlayedRows}
+              accent="away"
+              emptyText="No away minutes available yet."
+              open={showAwayMinutesCard}
+              onToggleOpen={() => setShowAwayMinutesCard((prev) => !prev)}
+            />
+          )}
 
           {/* --------------------------------------------------- */}
           {/* MATCH ACTIONS */}
@@ -1526,7 +1566,7 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
         {/* --------------------------------------------------- */}
 
         <LiveTimeline
-          events={events}
+          events={safeEvents}
           match={match}
           homePlayers={homePlayers}
           awayPlayers={awayPlayers}
@@ -1537,170 +1577,29 @@ const [showAwayMinutesCard, setShowAwayMinutesCard] = useState(true);
       {/* QUICK ACTION BAR */}
       {/* --------------------------------------------------- */}
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
-        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              setForm((prev) => ({
-                ...prev,
-                side: 'home',
-                type: 'goal',
-                playerId: '',
-                secondaryPlayerId: '',
-              }))
-            }
-            disabled={editingDisabled}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
-          >
-            <CircleDot className="h-5 w-5" />
-            <span>Home Goal</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setForm((prev) => ({
-                ...prev,
-                side: 'away',
-                type: 'goal',
-                playerId: '',
-                secondaryPlayerId: '',
-              }))
-            }
-            disabled={editingDisabled}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-sky-100 py-4 text-base font-bold text-sky-800 ring-1 ring-sky-300 disabled:opacity-40"
-          >
-            <CircleDot className="h-5 w-5" />
-            <span>Away Goal</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={undoLastEvent}
-            disabled={undoing || events.length === 0 || editingDisabled}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-slate-800 py-4 text-base font-bold text-white disabled:opacity-40"
-          >
-            <RotateCcw className="h-5 w-5" />
-            <span>{undoing ? 'Undoing…' : 'Undo'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={match.clock_running ? openPauseModal : startLivePeriod}
-            disabled={editingDisabled}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-100 py-4 text-base font-bold text-amber-900 ring-1 ring-amber-300 disabled:opacity-40"
-          >
-            {match.clock_running ? (
-              <>
-                <Pause className="h-5 w-5" />
-                <span>Pause</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-5 w-5" />
-                <span>
-                  {match.status === 'not_started'
-                    ? 'Start'
-                    : match.status === 'halftime'
-                      ? 'Start 2nd Half'
-                      : 'Resume'}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+      <QuickActionBar
+        editingDisabled={editingDisabled}
+        undoing={undoing}
+        eventsCount={safeEvents.length}
+        match={match}
+        openPauseModal={openPauseModal}
+        startLivePeriod={startLivePeriod}
+        undoLastEvent={undoLastEvent}
+        setForm={setForm}
+      />
 
       {/* --------------------------------------------------- */}
       {/* PAUSE MATCH MODAL */}
       {/* --------------------------------------------------- */}
 
-      {showPauseModal ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
-            <div className="mb-5">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Pause Match
-              </p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
-                Add an optional pause note
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Save context for why the match was paused. This will appear in the timeline.
-              </p>
-            </div>
-
-            {/* --------------------------------------------------- */}
-            {/* QUICK REASON BUTTONS */}
-            {/* --------------------------------------------------- */}
-
-            <div className="mb-4 flex flex-wrap gap-2">
-              {[
-                'Injury delay',
-                'Weather delay',
-                'Official timeout',
-                'Field issue',
-                'Equipment issue',
-                'Crowd / safety issue',
-              ].map((reason) => (
-                <button
-                  key={reason}
-                  type="button"
-                  onClick={() => applyPauseReason(reason)}
-                  className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
-                >
-                  {reason}
-                </button>
-              ))}
-            </div>
-
-            {/* --------------------------------------------------- */}
-            {/* NOTE FIELD */}
-            {/* --------------------------------------------------- */}
-
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-slate-700">Pause Note</span>
-              <textarea
-                value={pauseNote}
-                onChange={(e) => setPauseNote(e.target.value)}
-                placeholder="Optional note such as injury, lightning, field repair, or referee stoppage"
-                className="min-h-28 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
-              />
-            </label>
-
-            {/* --------------------------------------------------- */}
-            {/* MODAL ACTIONS */}
-            {/* --------------------------------------------------- */}
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={closePauseModal}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={() => pauseClock()}
-                className="rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-900"
-              >
-                Pause Without Note
-              </button>
-
-              <button
-                type="button"
-                onClick={() => pauseClock(pauseNote)}
-                className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white"
-              >
-                Pause Match
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PauseMatchModal
+        open={showPauseModal}
+        pauseNote={pauseNote}
+        setPauseNote={setPauseNote}
+        closePauseModal={closePauseModal}
+        pauseClock={pauseClock}
+        applyPauseReason={applyPauseReason}
+      />
     </main>
   );
 }
@@ -1735,6 +1634,7 @@ function buildFallbackLineupRows(
     updated_at: now,
   }));
 }
+
 // ---------------------------------------------------
 // PLAYER DISPLAY NAME
 // ---------------------------------------------------
