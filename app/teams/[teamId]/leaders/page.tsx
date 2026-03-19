@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
-import StatBadge from '@/components/StatBadge';
-import Link from 'next/link';
+import {
+  TeamLeadersGrid,
+  TeamLeadersSummaryCards,
+  type PlayerLeaderRow,
+} from '@/components/team/TeamLeadersSections';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
@@ -12,16 +15,6 @@ import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
-};
-
-type PlayerLeaderRow = {
-  playerId: string;
-  playerName: string;
-  jerseyNumber: string;
-  goals: number;
-  assists: number;
-  yellowCards: number;
-  redCards: number;
 };
 
 export default function TeamLeadersPage() {
@@ -287,166 +280,57 @@ if ((accessError || error) && !team) {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
-
+    <>
       {/* --------------------------------------------------- */}
-{/* TEAM PAGE INTRO */}
-{/* --------------------------------------------------- */}
+      {/* TEAM PAGE INTRO */}
+      {/* --------------------------------------------------- */}
 
-<TeamPageIntro
-  eyebrow="Team Leaders"
-  title="Leaders"
-  description="See top scorers, assist leaders, and discipline leaders by season."
-  rightSlot={
-    <div className="min-w-[220px]">
-      <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Season
-      </label>
-      <select
-        value={selectedSeasonId}
-        onChange={(e) => setSelectedSeasonId(e.target.value)}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
-      >
-        <option value="all">All Seasons</option>
-        {seasons.map((season) => (
-          <option key={season.id} value={season.id}>
-            {season.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  }
-/>
-     
-     
-
-      <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Final Matches Counted" value={matches.length} />
-        <SummaryCard label="Players With Stats" value={leaderRows.length} />
-        <SummaryCard label="Goals Logged" value={totalGoals} />
-        <SummaryCard label="Assists Logged" value={totalAssists} />
-      </section>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <LeaderboardTable
-          title="Goals Leaders"
-          statLabel="Goals"
-          rows={goalsLeaders}
-          valueKey="goals"
-          emptyText="No goals recorded yet."
-        />
-
-        <LeaderboardTable
-          title="Assist Leaders"
-          statLabel="Assists"
-          rows={assistsLeaders}
-          valueKey="assists"
-          emptyText="No assists recorded yet."
-        />
-
-        <LeaderboardTable
-          title="Yellow Card Leaders"
-          statLabel="Yellow Cards"
-          rows={yellowCardLeaders}
-          valueKey="yellowCards"
-          emptyText="No yellow cards recorded yet."
-        />
-
-        <LeaderboardTable
-          title="Red Card Leaders"
-          statLabel="Red Cards"
-          rows={redCardLeaders}
-          valueKey="redCards"
-          emptyText="No red cards recorded yet."
-        />
-      </div>
-    </main>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function LeaderboardTable({
-  title,
-  statLabel,
-  rows,
-  valueKey,
-  emptyText,
-}: {
-  title: string;
-  statLabel: string;
-  rows: PlayerLeaderRow[];
-  valueKey: 'goals' | 'assists' | 'yellowCards' | 'redCards';
-  emptyText: string;
-}) {
-  return (
-    <section className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-          {rows.length} players
-        </span>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-sm text-slate-500">{emptyText}</p>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200">
-          <div className="grid grid-cols-[70px_1fr_110px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-            <div>Rank</div>
-            <div>Player</div>
-            <div className="text-right">{statLabel}</div>
+      <TeamPageIntro
+        eyebrow="Team Leaders"
+        title="Leaders"
+        description="See top scorers, assist leaders, and discipline leaders by season."
+        rightSlot={
+          <div className="min-w-[220px]">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Season
+            </label>
+            <select
+              value={selectedSeasonId}
+              onChange={(e) => setSelectedSeasonId(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+            >
+              <option value="all">All Seasons</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      />
 
-          <div className="divide-y divide-slate-200">
-            {rows.map((row, index) => (
-              <div
-                key={row.playerId}
-                className="grid grid-cols-[70px_1fr_110px] items-center px-4 py-4"
-              >
-                <div className="text-sm font-black text-slate-900">#{index + 1}</div>
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* --------------------------------------------------- */}
+        {/* LEADERS DASHBOARD */}
+        {/* --------------------------------------------------- */}
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                      {row.jerseyNumber || '—'}
-                    </span>
-                    <p className="truncate font-semibold text-slate-900">{row.playerName}</p>
-                  </div>
-                </div>
+        <TeamLeadersSummaryCards
+          matchesCount={matches.length}
+          playersWithStats={leaderRows.length}
+          totalGoals={totalGoals}
+          totalAssists={totalAssists}
+        />
 
-               <div className="flex justify-end">
-  <StatBadge
-    value={row[valueKey]}
-    color={
-      valueKey === 'goals'
-        ? 'green'
-        : valueKey === 'assists'
-          ? 'blue'
-          : valueKey === 'yellowCards'
-            ? 'yellow'
-            : valueKey === 'redCards'
-              ? 'red'
-              : 'slate'
-    }
-  />
-</div>
-              </div>
-            ))}
-          </div>
+        <div className="mt-6">
+          <TeamLeadersGrid
+            goalsLeaders={goalsLeaders}
+            assistsLeaders={assistsLeaders}
+            yellowCardLeaders={yellowCardLeaders}
+            redCardLeaders={redCardLeaders}
+          />
         </div>
-      )}
-    </section>
+      </main>
+    </>
   );
 }

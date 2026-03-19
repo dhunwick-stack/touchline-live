@@ -347,42 +347,46 @@ if ((accessError || error) || !team) {
         }
       />
 
-      {/* --------------------------------------------------- */}
-      {/* SUMMARY CARDS */}
-      {/* --------------------------------------------------- */}
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* --------------------------------------------------- */}
+        {/* SUMMARY CARDS */}
+        {/* --------------------------------------------------- */}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <StatGlowCard glowClass="bg-emerald-200/25">
-          <SummaryCard label="Record" value={`${summary.wins}-${summary.losses}-${summary.draws}`} />
-        </StatGlowCard>
+        <section className="grid gap-4 md:grid-cols-4">
+          <StatGlowCard glowClass="bg-emerald-200/25">
+            <SummaryCard
+              label="Record"
+              value={`${summary.wins}-${summary.losses}-${summary.draws}`}
+            />
+          </StatGlowCard>
 
-        <StatGlowCard glowClass="bg-sky-200/25">
-          <SummaryCard
-            label="Goals For / Against"
-            value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
-          />
-        </StatGlowCard>
+          <StatGlowCard glowClass="bg-sky-200/25">
+            <SummaryCard
+              label="Goals For / Against"
+              value={`${summary.goalsFor} / ${summary.goalsAgainst}`}
+            />
+          </StatGlowCard>
 
-        <StatGlowCard glowClass="bg-indigo-200/20">
-          <SummaryCard
-            label="Goal Difference"
-            value={
-              summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference
-            }
-          />
-        </StatGlowCard>
+          <StatGlowCard glowClass="bg-indigo-200/20">
+            <SummaryCard
+              label="Goal Difference"
+              value={
+                summary.goalDifference > 0 ? `+${summary.goalDifference}` : summary.goalDifference
+              }
+            />
+          </StatGlowCard>
 
-        <StatGlowCard glowClass="bg-teal-200/20">
-          <SummaryCard label="Clean Sheets" value={summary.cleanSheets} />
-        </StatGlowCard>
-      </section>
+          <StatGlowCard glowClass="bg-teal-200/20">
+            <SummaryCard label="Clean Sheets" value={summary.cleanSheets} />
+          </StatGlowCard>
+        </section>
 
-      {/* --------------------------------------------------- */}
-      {/* MAIN CONTENT GRID */}
-      {/* --------------------------------------------------- */}
+        {/* --------------------------------------------------- */}
+        {/* MAIN CONTENT GRID */}
+        {/* --------------------------------------------------- */}
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="flex flex-col gap-6 self-start">
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="flex flex-col gap-6 self-start">
           {/* ------------------------------------------------- */}
           {/* NEXT MATCH HERO */}
           {/* ------------------------------------------------- */}
@@ -614,7 +618,7 @@ if ((accessError || error) || !team) {
           </GlowCard>
         </div>
 
-        <div className="flex flex-col gap-6 self-start">
+          <div className="flex flex-col gap-6 self-start">
           {/* ------------------------------------------------- */}
           {/* TEAM SNAPSHOT */}
           {/* ------------------------------------------------- */}
@@ -699,8 +703,9 @@ if ((accessError || error) || !team) {
               </Link>
             </div>
           </GlowCard>
+          </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }
