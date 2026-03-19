@@ -6,14 +6,18 @@
 
 import { supabase } from '@/lib/supabase';
 import {
+  buildRecentForm,
+  buildTeamRecordSummary,
   deriveCurrentOnField,
+  formatEventMinute,
+  formatTeamRecord,
   getStartersForSide,
   isRenderableMatchEvent,
   playerDisplayName,
 } from '@/components/public/publicMatchPageShared';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import type { MatchEvent, Player } from '@/lib/types';
+import type { Match, MatchEvent, Player } from '@/lib/types';
 import type {
   MatchLineupRow,
   PublicMatchRow,
@@ -27,10 +31,53 @@ type PageData = {
   lineups: MatchLineupRow[];
 };
 
+type FinalRecapSection = {
+  title: string;
+  items: string[];
+};
+
+type FinalRecap = {
+  headline: string;
+  sections: FinalRecapSection[];
+};
+
 // ---------------------------------------------------
 // HOOK
 // FILE: components/public/usePublicMatchPage.ts
 // ---------------------------------------------------
+
+function ordinalWord(value: number) {
+  const map: Record<number, string> = {
+    1: 'First',
+    2: 'Second',
+    3: 'Third',
+    4: 'Fourth',
+    5: 'Fifth',
+    6: 'Sixth',
+    7: 'Seventh',
+    8: 'Eighth',
+    9: 'Ninth',
+    10: 'Tenth',
+  };
+
+  if (map[value]) return map[value];
+
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+
+  if (mod10 === 1 && mod100 !== 11) return `${value}st`;
+  if (mod10 === 2 && mod100 !== 12) return `${value}nd`;
+  if (mod10 === 3 && mod100 !== 13) return `${value}rd`;
+  return `${value}th`;
+}
+
+function buildWinHeadline(teamName: string, wins: number, opponentName: string, score: string) {
+  if (wins <= 0) {
+    return `${teamName} beat ${opponentName} ${score}.`;
+  }
+
+  return `${ordinalWord(wins)} win for ${teamName}, beating ${opponentName} ${score}.`;
+}
 
 export default function usePublicMatchPage() {
   const params = useParams();
@@ -47,6 +94,7 @@ export default function usePublicMatchPage() {
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [lineups, setLineups] = useState<MatchLineupRow[]>([]);
+  const [teamFinalMatches, setTeamFinalMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
@@ -133,6 +181,33 @@ export default function usePublicMatchPage() {
     return (data as MatchLineupRow[]) ?? [];
   }
 
+  async function fetchTeamFinalMatches(matchRow: PublicMatchRow) {
+    const teamIds = [matchRow.home_team_id, matchRow.away_team_id].filter(
+      (teamId): teamId is string => Boolean(teamId && teamId !== 'undefined'),
+    );
+
+    if (teamIds.length === 0) {
+      return [];
+    }
+
+    const orFilter = teamIds
+      .flatMap((teamId) => [`home_team_id.eq.${teamId}`, `away_team_id.eq.${teamId}`])
+      .join(',');
+
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .or(orFilter)
+      .eq('status', 'final')
+      .order('match_date', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data as Match[]) ?? [];
+  }
+
   async function loadPageData(currentSlug: string): Promise<PageData> {
     const match = await fetchMatchBySlug(currentSlug);
     const [events, players, lineups] = await Promise.all([
@@ -195,6 +270,37 @@ export default function usePublicMatchPage() {
       mounted = false;
     };
   }, [slug]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTeamFinalMatches() {
+      if (!match?.id || !match.home_team_id || !match.away_team_id) {
+        if (!cancelled) {
+          setTeamFinalMatches([]);
+        }
+        return;
+      }
+
+      try {
+        const finalMatches = await fetchTeamFinalMatches(match);
+
+        if (!cancelled) {
+          setTeamFinalMatches(finalMatches);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load team records.');
+        }
+      }
+    }
+
+    loadTeamFinalMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [match?.id, match?.home_team_id, match?.away_team_id]);
 
   useEffect(() => {
     if (!match?.id || !slug) return;
@@ -413,6 +519,8 @@ export default function usePublicMatchPage() {
 
       let topScorerName = 'No scorer yet';
       let topScorerGoals = 0;
+      const recordSummary = buildTeamRecordSummary(teamFinalMatches, teamId);
+      const recentForm = buildRecentForm(teamFinalMatches, teamId);
 
       for (const [key, count] of scorerCounts.entries()) {
         if (count > topScorerGoals) {
@@ -431,10 +539,11 @@ export default function usePublicMatchPage() {
       return {
         side,
         team,
-        record: 'Record coming next',
+        record: formatTeamRecord(recordSummary),
+        recordSummary,
         topScorerName,
         topScorerGoals,
-        recentForm: 'Form coming next',
+        recentForm: recentForm.length > 0 ? recentForm.join(' ') : 'No final matches yet',
       };
     }
 
@@ -442,7 +551,130 @@ export default function usePublicMatchPage() {
       home: buildSnapshot('home'),
       away: buildSnapshot('away'),
     };
-  }, [match, safeEvents, homePlayers, awayPlayers]);
+  }, [match, safeEvents, homePlayers, awayPlayers, teamFinalMatches]);
+
+  const finalRecap = useMemo<FinalRecap | null>(() => {
+    if (!match || match.status !== 'final') return null;
+
+    const homeTeamName = match.home_team?.name || 'Home';
+    const awayTeamName = match.away_team?.name || 'Away';
+    const homeWon = match.home_score > match.away_score;
+    const awayWon = match.away_score > match.home_score;
+    const winningSnapshot = homeWon ? teamSnapshots.home : awayWon ? teamSnapshots.away : null;
+    const summaryItems: string[] = [];
+
+    if (homeWon) {
+      summaryItems.push(`${homeTeamName} finished with a ${match.home_score}-${match.away_score} result.`);
+    } else if (awayWon) {
+      summaryItems.push(`${awayTeamName} finished with a ${match.away_score}-${match.home_score} result.`);
+    } else {
+      summaryItems.push(
+        `${homeTeamName} and ${awayTeamName} finished level at ${match.home_score}-${match.away_score}.`,
+      );
+    }
+
+    if (goalEvents.length > 0) {
+      const goalDetails = goalEvents.map((event) => {
+        const roster = event.team_side === 'home' ? homePlayers : awayPlayers;
+        const player = roster.find((candidate) => candidate.id === event.player_id);
+        const teamName = event.team_side === 'home' ? homeTeamName : awayTeamName;
+        const scorerName =
+          event.player_name_override ||
+          playerDisplayName(player) ||
+          teamName;
+
+        return `${teamName} at ${formatEventMinute(event.minute)} by ${scorerName}`;
+      });
+
+      summaryItems.push(...goalDetails);
+    } else {
+      summaryItems.push('No goals were recorded.');
+    }
+
+    if (winningSnapshot?.recordSummary) {
+      summaryItems.push(
+        `${winningSnapshot.team.name} now sits at ${formatTeamRecord(winningSnapshot.recordSummary)}.`,
+      );
+    }
+
+    const chronologicalEvents = safeEvents.slice().reverse();
+    const delayDetails: string[] = [];
+
+    for (let index = 0; index < chronologicalEvents.length; index += 1) {
+      const event = chronologicalEvents[index];
+
+      if (event.event_type !== 'match_paused') continue;
+
+      const resumedEvent = chronologicalEvents
+        .slice(index + 1)
+        .find((candidate) => candidate.event_type === 'match_resumed');
+
+      const hasDuration =
+        Number.isFinite(event.minute) && Number.isFinite(resumedEvent?.minute);
+      const duration = hasDuration ? Math.max(0, (resumedEvent?.minute || 0) - event.minute) : null;
+      const detail =
+        duration && duration > 0
+          ? `a ${duration}-minute delay at ${formatEventMinute(event.minute)}`
+          : `a delay at ${formatEventMinute(event.minute)}`;
+
+      delayDetails.push(event.notes ? `${detail} (${event.notes})` : detail);
+    }
+
+    const disciplineDetails = cardEvents.map((event) => {
+      const roster = event.team_side === 'home' ? homePlayers : awayPlayers;
+      const player = roster.find((candidate) => candidate.id === event.player_id);
+      const teamName = event.team_side === 'home' ? homeTeamName : awayTeamName;
+      const playerName =
+        event.player_name_override || playerDisplayName(player) || teamName;
+      const cardLabel = event.event_type === 'yellow_card' ? 'Yellow card' : 'Red card';
+
+      return `${cardLabel} to ${playerName} of ${teamName} at ${formatEventMinute(event.minute)}`;
+    });
+
+    let headline = `${homeTeamName} and ${awayTeamName} played to a ${match.home_score}-${match.away_score} draw.`;
+
+    if (homeWon && winningSnapshot?.recordSummary) {
+      headline = buildWinHeadline(
+        homeTeamName,
+        winningSnapshot.recordSummary.wins,
+        awayTeamName,
+        `${match.home_score}-${match.away_score}`,
+      );
+    } else if (awayWon && winningSnapshot?.recordSummary) {
+      headline = buildWinHeadline(
+        awayTeamName,
+        winningSnapshot.recordSummary.wins,
+        homeTeamName,
+        `${match.away_score}-${match.home_score}`,
+      );
+    }
+
+    const sections: FinalRecapSection[] = [
+      {
+        title: 'Score Recap',
+        items: summaryItems,
+      },
+    ];
+
+    if (delayDetails.length > 0) {
+      sections.push({
+        title: 'Delays',
+        items: delayDetails,
+      });
+    }
+
+    if (disciplineDetails.length > 0) {
+      sections.push({
+        title: 'Discipline',
+        items: disciplineDetails,
+      });
+    }
+
+    return {
+      headline,
+      sections,
+    };
+  }, [cardEvents, goalEvents, homePlayers, awayPlayers, match, safeEvents, teamSnapshots]);
 
   return {
     match,
@@ -465,5 +697,6 @@ export default function usePublicMatchPage() {
     currentOnField,
     hasOnFieldView,
     teamSnapshots,
+    finalRecap,
   };
 }

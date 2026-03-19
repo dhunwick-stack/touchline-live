@@ -6,7 +6,7 @@
 
 import Link from 'next/link';
 import usePublicMatchPage from '@/components/public/usePublicMatchPage';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleDot, Pause, Shield, Trophy } from 'lucide-react';
 import TimelineEventCard from '@/components/live/TimelineEventCard';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
 import {
@@ -46,6 +46,7 @@ export default function PublicMatchPage() {
     currentOnField,
     hasOnFieldView,
     teamSnapshots,
+    finalRecap,
   } = usePublicMatchPage();
 
   // ---------------------------------------------------
@@ -169,6 +170,80 @@ export default function PublicMatchPage() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-6">
+          {/* ----------------------------------------------- */}
+          {/* FINAL RECAP SUMMARY */}
+          {/* ----------------------------------------------- */}
+
+          {isFinal ? (
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Match Story</h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    A written recap of the result, key moments, discipline, and final record
+                    impact.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                  Final
+                </span>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                {finalRecap ? (
+                  <div className="space-y-5">
+                    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 rounded-full bg-emerald-100 p-2 text-emerald-700">
+                          <Trophy className="h-4 w-4" />
+                        </div>
+                        <p className="text-sm font-semibold leading-7 text-slate-900">
+                          {finalRecap.headline}
+                        </p>
+                      </div>
+                    </div>
+
+                    {finalRecap.sections.map((section, sectionIndex) => (
+                      <div
+                        key={section.title}
+                        className={sectionIndex === 0 ? '' : 'border-t border-slate-200 pt-5'}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-slate-200 p-2 text-slate-700">
+                            {section.title === 'Score Recap' ? (
+                              <CircleDot className="h-4 w-4" />
+                            ) : section.title === 'Delays' ? (
+                              <Pause className="h-4 w-4" />
+                            ) : (
+                              <Shield className="h-4 w-4" />
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                            {section.title}
+                          </h4>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          {section.items.map((item, index) => (
+                            <p key={`${section.title}-${index}`} className="text-sm leading-7 text-slate-700">
+                              {renderRecapItem(item)}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    This match has ended. The recap above summarizes the final score,
+                    goal events, cards, and full timeline.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {/* ----------------------------------------------- */}
           {/* GOALS / CARDS FOR FINAL */}
           {/* ----------------------------------------------- */}
@@ -628,15 +703,29 @@ export default function PublicMatchPage() {
             <h3 className="text-xl font-bold text-slate-900">
               {isFinal ? 'Final Summary' : 'Live Updates'}
             </h3>
-            <p className="mt-3 text-sm text-slate-600">
-              {isFinal
-                ? 'This match has ended. The recap above summarizes the final score, goal events, cards, and full timeline.'
-                : 'Leave this page open to follow the score, clock, and timeline as the match progresses.'}
-            </p>
+            {isFinal ? (
+              <p className="mt-3 text-sm text-slate-600">
+                The written recap now appears at the top of the post-match timeline, with
+                goals, cards, and the full event log below it.
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600">
+                Leave this page open to follow the score, clock, and timeline as the
+                match progresses.
+              </p>
+            )}
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function renderRecapItem(value: string) {
+  const parts = value.split(/(\d+'|\d+-\d+)/g).filter(Boolean);
+
+  return parts.map((part, index) =>
+    /^\d+'$|^\d+-\d+$/.test(part) ? <strong key={`${part}-${index}`}>{part}</strong> : part,
   );
 }
 
