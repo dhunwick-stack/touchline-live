@@ -322,57 +322,82 @@ if (!team) {
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
           {/* ------------------------------------------------- */}
           {/* HOME TEAM */}
           {/* ------------------------------------------------- */}
 
-          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Home Team</h2>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-800">
-                Home
-              </span>
-            </div>
+          <div className="flex self-start">
+            <section className="w-full rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-xl font-bold">Home Team</h2>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-800">
+                  Home
+                </span>
+              </div>
 
-            <div className="space-y-4">
-              <Field label="Selected Team">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="font-semibold text-slate-900">{team.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {team.club_name || 'Current authenticated team'}
-                  </p>
-                </div>
-              </Field>
+              <div className="space-y-4">
+                <Field label="Team Source">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Current Team Context</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          This page starts a match for the team you are already managing.
+                        </p>
+                      </div>
 
-              <Field label="Tracking Mode">
-                <TrackingModeChooser
-                  trackingMode={homeTrackingMode}
-                  onTrackingModeChange={setHomeTrackingMode}
-                />
-              </Field>
-            </div>
-          </section>
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-900 bg-slate-900 text-white">
+                        <span className="text-[10px] leading-none">•</span>
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Home team is fixed here
+                    </p>
+                  </div>
+                </Field>
+
+                <Field label="Selected Team">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="font-semibold text-slate-900">{team.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {team.club_name || 'Current authenticated team'}
+                    </p>
+                  </div>
+                </Field>
+
+                <Field label="Tracking Mode">
+                  <TrackingModeChooser
+                    trackingMode={homeTrackingMode}
+                    onTrackingModeChange={setHomeTrackingMode}
+                  />
+                </Field>
+              </div>
+            </section>
+          </div>
 
           {/* ------------------------------------------------- */}
           {/* AWAY TEAM */}
           {/* ------------------------------------------------- */}
 
-          <TeamSetupCard
-            title="Away Team"
-            accent="rose"
-            mode={awayMode}
-            onModeChange={setAwayMode}
-            teams={teams}
-            selectedTeamId={awayTeamId}
-            onSelectedTeamIdChange={setAwayTeamId}
-            newTeamName={awayNewTeamName}
-            onNewTeamNameChange={setAwayNewTeamName}
-            saveReusable={awaySaveReusable}
-            onSaveReusableChange={setAwaySaveReusable}
-            trackingMode={awayTrackingMode}
-            onTrackingModeChange={setAwayTrackingMode}
-          />
+          <div className="flex self-start">
+            <TeamSetupCard
+              title="Away Team"
+              accent="rose"
+              mode={awayMode}
+              onModeChange={setAwayMode}
+              teams={teams}
+              selectedTeamId={awayTeamId}
+              onSelectedTeamIdChange={setAwayTeamId}
+              newTeamName={awayNewTeamName}
+              onNewTeamNameChange={setAwayNewTeamName}
+              saveReusable={awaySaveReusable}
+              onSaveReusableChange={setAwaySaveReusable}
+              trackingMode={awayTrackingMode}
+              onTrackingModeChange={setAwayTrackingMode}
+            />
+          </div>
         </div>
 
         {message ? <p className="text-sm font-medium text-slate-600">{message}</p> : null}
@@ -456,7 +481,7 @@ function TeamSetupCard({
   const accentClass = accent === 'blue' ? 'bg-blue-50 text-blue-800' : 'bg-rose-50 text-rose-800';
 
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <section className="self-start rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-xl font-bold">{title}</h2>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${accentClass}`}>
@@ -486,6 +511,23 @@ function TeamSetupCard({
               New Team
             </button>
           </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <DescriptorCard
+              title="Saved Team"
+              body="Use a team already in Touchline with its existing roster, branding, and team settings."
+              hint="Best for returning teams"
+              active={mode === 'saved'}
+              onClick={() => onModeChange('saved')}
+            />
+            <DescriptorCard
+              title="New Team"
+              body="Create a one-off or brand new opponent during setup. You can optionally save it for later."
+              hint="Best for ad hoc opponents"
+              active={mode === 'new'}
+              onClick={() => onModeChange('new')}
+            />
+          </div>
         </Field>
 
         {mode === 'saved' ? (
@@ -514,13 +556,15 @@ function TeamSetupCard({
               />
             </Field>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+            <label className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
               <input
                 type="checkbox"
                 checked={saveReusable}
                 onChange={(e) => onSaveReusableChange(e.target.checked)}
               />
-              <span className="text-sm font-medium text-slate-700">Save this team for reuse later</span>
+              <span className="min-w-0 flex-1 text-sm font-medium text-slate-700">
+                Save this team for reuse later
+              </span>
             </label>
           </>
         )}

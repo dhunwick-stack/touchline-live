@@ -387,12 +387,14 @@ function TeamSetupCard({
               body="Use a team already in Touchline with its existing roster, branding, and team settings."
               hint="Best for returning teams"
               active={mode === 'saved'}
+              onClick={() => onModeChange('saved')}
             />
             <DescriptorCard
               title="New Team"
               body="Create a one-off or brand new opponent during setup. You can optionally save it for later."
               hint="Best for ad hoc opponents"
               active={mode === 'new'}
+              onClick={() => onModeChange('new')}
             />
           </div>
         </Field>
