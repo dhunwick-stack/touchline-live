@@ -409,7 +409,7 @@ export default function usePublicMatchPage() {
           setError(err instanceof Error ? err.message : 'Polling refresh failed.');
         }
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       cancelled = true;

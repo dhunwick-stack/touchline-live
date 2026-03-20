@@ -69,6 +69,8 @@ export default function LiveMatchPage() {
     selectedAwayStarterIds,
     toggleHomeStarter,
     toggleAwayStarter,
+    usePreviousHomeLineup,
+    usePreviousAwayLineup,
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     showHomeLineupCard,
@@ -156,6 +158,8 @@ export default function LiveMatchPage() {
     selectedAwayStarterIds,
     toggleHomeStarter,
     toggleAwayStarter,
+    usePreviousHomeLineup,
+    usePreviousAwayLineup,
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     showHomeLineupCard,
@@ -257,7 +261,6 @@ export default function LiveMatchPage() {
               addEvent={addEvent}
               saving={saving}
               error={error}
-              lineupNotice={lineupNotice}
               eventTypeOptions={eventTypeOptions}
               eventSelectablePlayers={eventSelectablePlayers}
               eventSelectableSecondaryPlayers={eventSelectableSecondaryPlayers}
@@ -279,6 +282,8 @@ export default function LiveMatchPage() {
               selectedAwayStarterIds={selectedAwayStarterIds}
               toggleHomeStarter={toggleHomeStarter}
               toggleAwayStarter={toggleAwayStarter}
+              usePreviousHomeLineup={usePreviousHomeLineup}
+              usePreviousAwayLineup={usePreviousAwayLineup}
               handleSaveHomeLineup={handleSaveHomeLineup}
               handleSaveAwayLineup={handleSaveAwayLineup}
               savingHomeLineup={savingHomeLineup}

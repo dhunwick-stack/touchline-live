@@ -32,7 +32,6 @@ type LiveMatchSidebarProps = {
   addEvent: () => void;
   saving: boolean;
   error: string | null;
-  lineupNotice: string | null;
   eventTypeOptions: EventTypeOption[];
   eventSelectablePlayers: Player[];
   eventSelectableSecondaryPlayers: Player[];
@@ -54,6 +53,8 @@ type LiveMatchSidebarProps = {
   selectedAwayStarterIds: string[];
   toggleHomeStarter: (playerId: string) => void;
   toggleAwayStarter: (playerId: string) => void;
+  usePreviousHomeLineup: () => void;
+  usePreviousAwayLineup: () => void;
   handleSaveHomeLineup: () => void;
   handleSaveAwayLineup: () => void;
   savingHomeLineup: boolean;
@@ -88,7 +89,6 @@ export default function LiveMatchSidebar({
   addEvent,
   saving,
   error,
-  lineupNotice,
   eventTypeOptions,
   eventSelectablePlayers,
   eventSelectableSecondaryPlayers,
@@ -110,6 +110,8 @@ export default function LiveMatchSidebar({
   selectedAwayStarterIds,
   toggleHomeStarter,
   toggleAwayStarter,
+  usePreviousHomeLineup,
+  usePreviousAwayLineup,
   handleSaveHomeLineup,
   handleSaveAwayLineup,
   savingHomeLineup,
@@ -142,7 +144,6 @@ export default function LiveMatchSidebar({
         addEvent={addEvent}
         saving={saving}
         error={error}
-        lineupNotice={lineupNotice}
         eventTypeOptions={eventTypeOptions}
         eventSelectablePlayers={eventSelectablePlayers}
         eventSelectableSecondaryPlayers={eventSelectableSecondaryPlayers}
@@ -176,6 +177,7 @@ export default function LiveMatchSidebar({
           rows={homeLineupRows}
           selectedStarterIds={selectedHomeStarterIds}
           onToggleStarter={toggleHomeStarter}
+          onUsePreviousLineup={usePreviousHomeLineup}
           onSave={handleSaveHomeLineup}
           saving={savingHomeLineup}
           loading={loadingLineups}
@@ -198,6 +200,7 @@ export default function LiveMatchSidebar({
           rows={awayLineupRows}
           selectedStarterIds={selectedAwayStarterIds}
           onToggleStarter={toggleAwayStarter}
+          onUsePreviousLineup={usePreviousAwayLineup}
           onSave={handleSaveAwayLineup}
           saving={savingAwayLineup}
           loading={loadingLineups}

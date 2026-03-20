@@ -12,6 +12,55 @@ export function validateStartingLineupCount(playerIds: string[]) {
 }
 
 // ---------------------------------------------------
+// LOAD PREVIOUS MATCH STARTERS FOR TEAM
+// ---------------------------------------------------
+
+export async function loadPreviousMatchStarterIds(
+  matchId: string,
+  teamId: string,
+  currentMatchDate?: string | null,
+): Promise<string[]> {
+  const matchesQuery = supabase
+    .from('matches')
+    .select('id, match_date, created_at')
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .neq('id', matchId)
+    .not('match_date', 'is', null)
+    .order('match_date', { ascending: false })
+    .limit(12);
+
+  const { data: priorMatches, error: priorMatchesError } = currentMatchDate
+    ? await matchesQuery.lt('match_date', currentMatchDate)
+    : await matchesQuery;
+
+  if (priorMatchesError) {
+    throw new Error(priorMatchesError.message || 'Failed to load previous matches.');
+  }
+
+  for (const priorMatch of priorMatches ?? []) {
+    const { data: starterRows, error: starterRowsError } = await supabase
+      .from('match_lineups')
+      .select('player_id, is_starter, lineup_order')
+      .eq('match_id', priorMatch.id)
+      .eq('team_id', teamId)
+      .eq('is_starter', true)
+      .order('lineup_order', { ascending: true });
+
+    if (starterRowsError) {
+      throw new Error(starterRowsError.message || 'Failed to load previous starters.');
+    }
+
+    const starterIds = (starterRows ?? []).map((row) => row.player_id).filter(Boolean);
+
+    if (starterIds.length > 0) {
+      return starterIds;
+    }
+  }
+
+  return [];
+}
+
+// ---------------------------------------------------
 // CREATE OR COMPLETE MATCH LINEUP SNAPSHOT
 // ---------------------------------------------------
 

@@ -18,6 +18,7 @@ type Props = {
   rows: { row: MatchLineup; player: Player | undefined }[];
   selectedStarterIds: string[];
   onToggleStarter: (playerId: string) => void;
+  onUsePreviousLineup: () => void;
   onSave: () => void;
   saving: boolean;
   loading: boolean;
@@ -38,6 +39,7 @@ export default function StartingLineupSelector({
   rows,
   selectedStarterIds,
   onToggleStarter,
+  onUsePreviousLineup,
   onSave,
   saving,
   loading,
@@ -163,9 +165,20 @@ export default function StartingLineupSelector({
             {/* --------------------------------------------------- */}
 
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-slate-700">
-                Available players (tap to add)
-              </h3>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-700">
+                  Available players (tap to add)
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={onUsePreviousLineup}
+                  disabled={disabled || rows.length === 0}
+                  className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Use Previous Starters
+                </button>
+              </div>
 
               <div className="space-y-2">
                 {benchRows.map(({ row, player }) => {
@@ -224,7 +237,7 @@ export default function StartingLineupSelector({
                 }`}
               >
                 {disabled
-                  ? 'Lineups can no longer be edited for this match state.'
+                  ? 'Lineups lock after the first recorded event or when the match is no longer editable.'
                   : !isValid
                     ? 'Select exactly 11 starters before saving.'
                     : isDirty

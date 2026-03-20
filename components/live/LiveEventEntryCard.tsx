@@ -45,7 +45,6 @@ type LiveEventEntryCardProps = {
   addEvent: () => void;
   saving: boolean;
   error: string | null;
-  lineupNotice: string | null;
   eventTypeOptions: EventTypeOption[];
   eventSelectablePlayers: Player[];
   eventSelectableSecondaryPlayers: Player[];
@@ -71,7 +70,6 @@ export default function LiveEventEntryCard({
   addEvent,
   saving,
   error,
-  lineupNotice,
   eventTypeOptions,
   eventSelectablePlayers,
   eventSelectableSecondaryPlayers,
@@ -432,10 +430,6 @@ export default function LiveEventEntryCard({
             placeholder="Sideline note, context, or detail"
           />
         </Field>
-
-        {lineupNotice ? (
-          <p className="text-sm font-medium text-amber-700">{lineupNotice}</p>
-        ) : null}
 
         {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 

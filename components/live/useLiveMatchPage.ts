@@ -83,15 +83,145 @@ export default function useLiveMatchPage() {
     notes: '',
   });
 
-  async function loadMatchPage() {
+  async function refreshLiveState(currentMatchId: string) {
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .select(`
+        *,
+        home_team:home_team_id (*),
+        away_team:away_team_id (*)
+      `)
+      .eq('id', currentMatchId)
+      .single();
+
+    if (matchError || !matchData) {
+      throw new Error(matchError?.message || 'Failed to refresh match.');
+    }
+
+    const refreshedMatch = matchData as MatchRow;
+
+    const { data: eventData, error: eventError } = await supabase
+      .from('match_events')
+      .select('*')
+      .eq('match_id', refreshedMatch.id)
+      .order('created_at', { ascending: false });
+
+    if (eventError) {
+      throw new Error(eventError.message || 'Failed to refresh events.');
+    }
+
+    const homePlayersResult = refreshedMatch.home_team_id
+      ? await supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', refreshedMatch.home_team_id)
+          .eq('active', true)
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true })
+      : { data: [], error: null };
+
+    const awayPlayersResult = refreshedMatch.away_team_id
+      ? await supabase
+          .from('players')
+          .select('*')
+          .eq('team_id', refreshedMatch.away_team_id)
+          .eq('active', true)
+          .order('jersey_number', { ascending: true, nullsFirst: false })
+          .order('first_name', { ascending: true })
+      : { data: [], error: null };
+
+    if (homePlayersResult.error || awayPlayersResult.error) {
+      throw new Error(
+        homePlayersResult.error?.message ||
+          awayPlayersResult.error?.message ||
+          'Failed to refresh players.',
+      );
+    }
+
+    const resolvedHomePlayers = (homePlayersResult.data as Player[]) ?? [];
+    const resolvedAwayPlayers = (awayPlayersResult.data as Player[]) ?? [];
+
+    const { data: lineupData, error: lineupError } = await supabase
+      .from('match_lineups')
+      .select('*')
+      .eq('match_id', refreshedMatch.id);
+
+    if (lineupError) {
+      throw new Error(lineupError.message || 'Failed to refresh lineups.');
+    }
+
+    const allLineups = (lineupData as MatchLineup[]) ?? [];
+    const homeNeedsLineups = supportsLineups(refreshedMatch.home_tracking_mode);
+    const awayNeedsLineups = supportsLineups(refreshedMatch.away_tracking_mode);
+
+    const realHomeLineups = allLineups.filter(
+      (lineup) => lineup.team_id === refreshedMatch.home_team_id,
+    );
+    const realAwayLineups = allLineups.filter(
+      (lineup) => lineup.team_id === refreshedMatch.away_team_id,
+    );
+
+    const resolvedHomeLineups = homeNeedsLineups
+      ? realHomeLineups.length > 0
+        ? realHomeLineups
+        : buildFallbackLineupRows(
+            refreshedMatch.id,
+            refreshedMatch.home_team_id,
+            resolvedHomePlayers,
+          )
+      : [];
+
+    const resolvedAwayLineups = awayNeedsLineups
+      ? realAwayLineups.length > 0
+        ? realAwayLineups
+        : buildFallbackLineupRows(
+            refreshedMatch.id,
+            refreshedMatch.away_team_id,
+            resolvedAwayPlayers,
+          )
+      : [];
+
+    setMatch(refreshedMatch);
+    setEvents(((eventData as MatchEvent[]) ?? []).filter(Boolean));
+    setHomePlayers(resolvedHomePlayers);
+    setAwayPlayers(resolvedAwayPlayers);
+    setHomeLineups(resolvedHomeLineups);
+    setAwayLineups(resolvedAwayLineups);
+    setSelectedHomeStarterIds(
+      resolvedHomeLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+    );
+    setSelectedAwayStarterIds(
+      resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
+    );
+
+    const homeIsMissingRequiredSnapshot = homeNeedsLineups && realHomeLineups.length === 0;
+    const awayIsMissingRequiredSnapshot = awayNeedsLineups && realAwayLineups.length === 0;
+
+    setLineupNotice(
+      homeIsMissingRequiredSnapshot || awayIsMissingRequiredSnapshot
+        ? 'Using roster fallback where saved lineup snapshots were not found.'
+        : null,
+    );
+  }
+
+  async function loadMatchPage(options?: {
+    preserveAccessState?: boolean;
+    backgroundRefresh?: boolean;
+  }) {
     if (!matchId) return;
 
-    setLoading(true);
+    if (!options?.backgroundRefresh) {
+      setLoading(true);
+    }
     setError(null);
     setLineupNotice(null);
-    setAuthChecked(false);
-    setHasMatchAccess(false);
-    setLoadingLineups(false);
+    if (!options?.preserveAccessState) {
+      setAuthChecked(false);
+      setHasMatchAccess(false);
+    }
+    if (!options?.backgroundRefresh) {
+      setLoadingLineups(false);
+    }
 
     const { data: matchData, error: matchError } = await supabase
       .from('matches')
@@ -105,7 +235,9 @@ export default function useLiveMatchPage() {
 
     if (matchError || !matchData) {
       setError(matchError?.message || 'Failed to load match.');
-      setLoading(false);
+      if (!options?.backgroundRefresh) {
+        setLoading(false);
+      }
       setAuthChecked(true);
       return;
     }
@@ -119,7 +251,9 @@ export default function useLiveMatchPage() {
 
     if (sessionError) {
       setError(sessionError.message || 'Failed to check sign-in status.');
-      setLoading(false);
+      if (!options?.backgroundRefresh) {
+        setLoading(false);
+      }
       setAuthChecked(true);
       return;
     }
@@ -137,7 +271,9 @@ export default function useLiveMatchPage() {
 
     if (eligibleTeamIds.length === 0) {
       setError('This match does not have valid team assignments.');
-      setLoading(false);
+      if (!options?.backgroundRefresh) {
+        setLoading(false);
+      }
       setAuthChecked(true);
       return;
     }
@@ -150,7 +286,9 @@ export default function useLiveMatchPage() {
 
     if (membershipError) {
       setError(membershipError.message || 'Failed to verify match access.');
-      setLoading(false);
+      if (!options?.backgroundRefresh) {
+        setLoading(false);
+      }
       setAuthChecked(true);
       return;
     }
@@ -173,7 +311,9 @@ export default function useLiveMatchPage() {
 
     if (eventError) {
       setError(eventError.message || 'Failed to load match events.');
-      setLoading(false);
+      if (!options?.backgroundRefresh) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -320,7 +460,9 @@ export default function useLiveMatchPage() {
       setLoadingLineups(false);
     }
 
-    setLoading(false);
+    if (!options?.backgroundRefresh) {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -342,7 +484,15 @@ export default function useLiveMatchPage() {
           filter: `id=eq.${match.id}`,
         },
         async () => {
-          await loadMatchPage();
+          try {
+            await refreshLiveState(match.id);
+          } catch (refreshError) {
+            setError(
+              refreshError instanceof Error
+                ? refreshError.message
+                : 'Realtime refresh failed.',
+            );
+          }
         },
       )
       .on(
@@ -354,7 +504,15 @@ export default function useLiveMatchPage() {
           filter: `match_id=eq.${match.id}`,
         },
         async () => {
-          await loadMatchPage();
+          try {
+            await refreshLiveState(match.id);
+          } catch (refreshError) {
+            setError(
+              refreshError instanceof Error
+                ? refreshError.message
+                : 'Realtime refresh failed.',
+            );
+          }
         },
       )
       .on(
@@ -366,7 +524,15 @@ export default function useLiveMatchPage() {
           filter: `match_id=eq.${match.id}`,
         },
         async () => {
-          await loadMatchPage();
+          try {
+            await refreshLiveState(match.id);
+          } catch (refreshError) {
+            setError(
+              refreshError instanceof Error
+                ? refreshError.message
+                : 'Realtime refresh failed.',
+            );
+          }
         },
       )
       .subscribe();
@@ -385,6 +551,32 @@ export default function useLiveMatchPage() {
 
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
+
+  useEffect(() => {
+    if (!match?.id) return;
+    if (match.status !== 'live' && match.status !== 'halftime') return;
+
+    let cancelled = false;
+
+    const poller = window.setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+
+      try {
+        await refreshLiveState(match.id);
+      } catch (pollError) {
+        if (!cancelled) {
+          setError(
+            pollError instanceof Error ? pollError.message : 'Background refresh failed.',
+          );
+        }
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
+    };
+  }, [match?.id, match?.status]);
 
   const {
     secondsElapsed,
@@ -426,6 +618,8 @@ export default function useLiveMatchPage() {
     applyPauseReason,
     toggleHomeStarter,
     toggleAwayStarter,
+    usePreviousHomeLineup,
+    usePreviousAwayLineup,
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     addEvent,
@@ -507,6 +701,8 @@ export default function useLiveMatchPage() {
     selectedAwayStarterIds,
     toggleHomeStarter,
     toggleAwayStarter,
+    usePreviousHomeLineup,
+    usePreviousAwayLineup,
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     showHomeLineupCard,

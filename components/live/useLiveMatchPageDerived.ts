@@ -102,9 +102,9 @@ export default function useLiveMatchPageDerived({
     (match.is_locked === true ||
       match.status === 'cancelled' ||
       match.status === 'postponed' ||
-      match.status === 'live' ||
       match.status === 'halftime' ||
-      match.status === 'final');
+      match.status === 'final' ||
+      (match.status === 'live' && safeEvents.length > 0));
 
   const homeStarterCount = selectedHomeStarterIds.length;
   const awayStarterCount = selectedAwayStarterIds.length;

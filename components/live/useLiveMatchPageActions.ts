@@ -6,6 +6,7 @@
 
 import {
   createMatchLineupSnapshot,
+  loadPreviousMatchStarterIds,
   saveStartingLineup,
   validateStartingLineupCount,
 } from '@/lib/matchLineups';
@@ -279,6 +280,68 @@ export default function useLiveMatchPageActions({
 
       return [...current, playerId];
     });
+  }
+
+  async function usePreviousHomeLineup() {
+    if (!match?.home_team_id) return;
+
+    try {
+      const previousStarterIds = await loadPreviousMatchStarterIds(
+        match.id,
+        match.home_team_id,
+        match.match_date,
+      );
+
+      if (previousStarterIds.length === 0) {
+        setError('No previous saved starting 11 was found for the home team.');
+        return;
+      }
+
+      const currentHomePlayerIds = new Set(homePlayers.map((player) => player.id));
+      const nextStarterIds = previousStarterIds.filter((playerId) =>
+        currentHomePlayerIds.has(playerId),
+      );
+
+      setSelectedHomeStarterIds(nextStarterIds.slice(0, 11));
+      setError(null);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Could not load previous home starters.',
+      );
+    }
+  }
+
+  async function usePreviousAwayLineup() {
+    if (!match?.away_team_id) return;
+
+    try {
+      const previousStarterIds = await loadPreviousMatchStarterIds(
+        match.id,
+        match.away_team_id,
+        match.match_date,
+      );
+
+      if (previousStarterIds.length === 0) {
+        setError('No previous saved starting 11 was found for the away team.');
+        return;
+      }
+
+      const currentAwayPlayerIds = new Set(awayPlayers.map((player) => player.id));
+      const nextStarterIds = previousStarterIds.filter((playerId) =>
+        currentAwayPlayerIds.has(playerId),
+      );
+
+      setSelectedAwayStarterIds(nextStarterIds.slice(0, 11));
+      setError(null);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Could not load previous away starters.',
+      );
+    }
   }
 
   async function handleSaveHomeLineup() {
@@ -648,6 +711,8 @@ export default function useLiveMatchPageActions({
     applyPauseReason,
     toggleHomeStarter,
     toggleAwayStarter,
+    usePreviousHomeLineup,
+    usePreviousAwayLineup,
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     addEvent,
