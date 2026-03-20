@@ -109,12 +109,11 @@ export default function PublicTeamLeadersPage() {
       }
 
       const loadedSeasons = (seasonData as Season[]) ?? [];
-      const activeSeasonId = loadedSeasons.find((season) => season.is_active)?.id ?? 'all';
 
       setTeam(teamData as Team);
       setPlayers((playerData as Player[]) ?? []);
       setSeasons(loadedSeasons);
-      setSelectedSeasonId(activeSeasonId);
+      setSelectedSeasonId('all');
       setLoadingBase(false);
     }
 

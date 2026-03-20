@@ -84,7 +84,7 @@ const {
       setTeam(teamData as Team);
       setPlayers((playerData as Player[]) ?? []);
       setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeasons.find((season) => season.is_active)?.id || 'all');
+      setSelectedSeasonId('all');
       setLoading(false);
     }
 
