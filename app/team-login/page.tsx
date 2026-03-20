@@ -251,6 +251,27 @@ if (sessionError || !session?.user) {
 const signedInUser = session.user;
 setCurrentUser(signedInUser);
 
+const { data: superAdmin, error: superAdminError } = await supabase
+  .from('super_admin_users')
+  .select('user_id')
+  .eq('user_id', signedInUser.id)
+  .maybeSingle();
+
+if (superAdminError) {
+  setAdminError(superAdminError.message || 'Failed to verify super admin access.');
+  return;
+}
+
+if (superAdmin) {
+  if (adminTarget === 'live' && liveMatch) {
+    router.push(`/live/${liveMatch.id}`);
+    return;
+  }
+
+  router.push(`/teams/${team.id}`);
+  return;
+}
+
     setCheckingAdminCode(true);
     setAdminError('');
 

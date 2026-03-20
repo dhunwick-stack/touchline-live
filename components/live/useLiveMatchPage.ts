@@ -278,14 +278,28 @@ export default function useLiveMatchPage() {
       return;
     }
 
-    const { data: memberships, error: membershipError } = await supabase
-      .from('team_users')
-      .select('team_id')
-      .eq('user_id', user.id)
-      .in('team_id', eligibleTeamIds);
+    const [
+      { data: superAdmin, error: superAdminError },
+      { data: memberships, error: membershipError },
+    ] = await Promise.all([
+      supabase
+        .from('super_admin_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('team_users')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .in('team_id', eligibleTeamIds),
+    ]);
 
-    if (membershipError) {
-      setError(membershipError.message || 'Failed to verify match access.');
+    if (superAdminError || membershipError) {
+      setError(
+        superAdminError?.message ||
+          membershipError?.message ||
+          'Failed to verify match access.',
+      );
       if (!options?.backgroundRefresh) {
         setLoading(false);
       }
@@ -293,7 +307,7 @@ export default function useLiveMatchPage() {
       return;
     }
 
-    if (!memberships || memberships.length === 0) {
+    if (!superAdmin && (!memberships || memberships.length === 0)) {
       const fallbackTeamId = loadedMatch.home_team_id || loadedMatch.away_team_id || '';
       router.replace(`/team-login?teamId=${fallbackTeamId}&mode=live`);
       return;

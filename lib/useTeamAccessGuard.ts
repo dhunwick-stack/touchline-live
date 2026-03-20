@@ -79,6 +79,26 @@ export function useTeamAccessGuard({
         return;
       }
 
+      const { data: superAdmin, error: superAdminError } = await supabase
+        .from('super_admin_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (superAdminError) {
+        setError(superAdminError.message || 'Failed to verify super admin access.');
+        setLoading(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      if (superAdmin) {
+        setHasTeamAccess(true);
+        setAuthChecked(true);
+        setLoading(false);
+        return;
+      }
+
       // ---------------------------------------------
       // VERIFY TEAM MEMBERSHIP
       // ---------------------------------------------
