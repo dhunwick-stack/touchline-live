@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Trophy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Team } from '@/lib/types';
 
@@ -24,6 +25,8 @@ export default function TeamBanner({
 
   const pathname = usePathname();
   const basePath = `/teams/${teamId}`;
+  const showNationalChampionsPill =
+    team.name === '06 Premier' && (team.club_name || '').toLowerCase().includes('jahbat');
 
   // ---------------------------------------------------
   // BANNER STYLE
@@ -89,6 +92,15 @@ export default function TeamBanner({
               <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
 
               <p className="text-white/85">{team.club_name || 'No club name'}</p>
+
+              {showNationalChampionsPill ? (
+                <div className="mt-3">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-400/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100 backdrop-blur-sm">
+                    <Trophy className="h-3.5 w-3.5" />
+                    2025 USYS National Champions
+                  </span>
+                </div>
+              ) : null}
             </div>
           </div>
 

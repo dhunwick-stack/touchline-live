@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
+import { Lock, Trophy } from 'lucide-react';
 import { getOrganizationName } from '@/lib/team-display';
 import type { Team } from '@/lib/types';
 
@@ -40,6 +40,8 @@ export default function PublicTeamHero({
 
   const organizationName = getOrganizationName(team);
   const hasOrganizationLink = !!team.organization?.slug;
+  const showNationalChampionsPill =
+    team.name === '06 Premier' && (team.club_name || '').toLowerCase().includes('jahbat');
 
   const teamMeta = [
   team.age_group,
@@ -142,6 +144,15 @@ export default function PublicTeamHero({
                   <p className="mt-2 text-lg text-white/80">
                     {secondaryLine}
                   </p>
+                ) : null}
+
+                {showNationalChampionsPill ? (
+                  <div className="mt-3">
+                    <span className="inline-flex items-center rounded-full border border-amber-300/35 bg-amber-400/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100 backdrop-blur-sm">
+                      <Trophy className="mr-2 h-3.5 w-3.5" />
+                      2025 USYS National Champions
+                    </span>
+                  </div>
                 ) : null}
 
                 {hasOrganizationLink ? (
