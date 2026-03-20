@@ -395,7 +395,7 @@ function MatchSection({
           {emptyText}
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4">
           {matches.map((match) => (
             <MatchCard
               key={match.id}
