@@ -40,6 +40,7 @@ function LoginPageInner() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,6 +87,9 @@ function LoginPageInner() {
       password,
       options: {
         emailRedirectTo: getSignupRedirectUrl(),
+        data: {
+          organization_name: organizationName.trim() || null,
+        },
       },
     });
 
@@ -124,6 +128,20 @@ function LoginPageInner() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
           />
+
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Org / Club / School"
+              value={organizationName}
+              onChange={(e) => setOrganizationName(e.target.value)}
+              className="w-full rounded-xl border px-4 py-3"
+            />
+            <p className="text-xs font-medium text-slate-500">
+              For new signups only. This helps identify which club, school, or organization is
+              requesting access.
+            </p>
+          </div>
         </div>
 
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
