@@ -10,6 +10,7 @@ export type SidelineFlowType =
   | 'substitution'
   | 'yellow_card'
   | 'red_card'
+  | 'halftime'
   | 'undo'
   | 'end';
 
@@ -163,21 +164,36 @@ export default function useSidelineMode(live: LiveMatchController) {
     setActiveFlow(null);
   }
 
+  async function confirmHalftime() {
+    await live.addEvent({
+      overrides: {
+        type: 'half_end',
+        side: 'home',
+      },
+    });
+    setActiveFlow(null);
+  }
+
   async function handlePrimaryClockAction() {
     if (!canWrite) return;
 
     if (live.match?.clock_running) {
-      await live.pauseClock();
       return;
     }
 
     await live.startLivePeriod();
   }
 
+  async function handlePauseAction() {
+    if (!canWrite || !live.match?.clock_running) return;
+    await live.pauseClock();
+  }
+
   const primaryClockLabel = useMemo(() => {
     if (!live.match) return 'Start Match';
     if (live.match.clock_running) return 'Pause Match';
-    if (live.match.status === 'live' || live.match.status === 'halftime') return 'Resume Match';
+    if (live.match.status === 'halftime') return 'Start 2nd Half';
+    if (live.match.status === 'live') return 'Resume Match';
     return 'Start Match';
   }, [live.match]);
 
@@ -195,8 +211,10 @@ export default function useSidelineMode(live: LiveMatchController) {
     submitGoal,
     submitCard,
     submitSubstitution,
+    confirmHalftime,
     confirmUndo,
     confirmEndMatch,
     handlePrimaryClockAction,
+    handlePauseAction,
   };
 }

@@ -38,6 +38,7 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
       label: 'Yellow Card',
       onClick: () => sideline.setActiveFlow('yellow_card'),
       disabled: !sideline.canWrite || live.saving,
+      tone: 'warning' as const,
     },
     {
       label: 'Red Card',
@@ -45,11 +46,33 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
       disabled: !sideline.canWrite || live.saving,
       tone: 'danger' as const,
     },
-    {
-      label: sideline.primaryClockLabel,
-      onClick: sideline.handlePrimaryClockAction,
-      disabled: !sideline.canWrite,
-    },
+    ...(!live.match?.clock_running
+      ? [
+          {
+            label: sideline.primaryClockLabel,
+            onClick: sideline.handlePrimaryClockAction,
+            disabled: !sideline.canWrite,
+          },
+        ]
+      : []),
+    ...(live.match?.status === 'live' && live.match?.clock_running
+      ? [
+          {
+            label: 'Pause Match',
+            onClick: sideline.handlePauseAction,
+            disabled: !sideline.canWrite,
+          },
+        ]
+      : []),
+    ...(live.match?.status === 'live'
+      ? [
+          {
+            label: 'Halftime',
+            onClick: () => sideline.setActiveFlow('halftime' as const),
+            disabled: !sideline.canWrite || live.saving,
+          },
+        ]
+      : []),
     {
       label: 'End Match',
       onClick: () => sideline.setActiveFlow('end'),
@@ -163,6 +186,36 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
           onConfirm={sideline.confirmUndo}
           undoing={live.undoing}
         />
+      </SidelineFlowModal>
+
+      <SidelineFlowModal
+        open={sideline.activeFlow === 'halftime'}
+        title="Halftime"
+        onClose={() => sideline.setActiveFlow(null)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500">
+            This will stop the clock and mark the match as halftime. Use this when the first half
+            has ended.
+          </p>
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => sideline.setActiveFlow(null)}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={sideline.confirmHalftime}
+              disabled={!sideline.canWrite || live.saving}
+              className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Confirm Halftime
+            </button>
+          </div>
+        </div>
       </SidelineFlowModal>
 
       <SidelineFlowModal

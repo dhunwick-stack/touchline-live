@@ -2,7 +2,7 @@
 
 type ActionItem = {
   label: string;
-  tone?: 'default' | 'danger' | 'success';
+  tone?: 'default' | 'danger' | 'success' | 'warning';
   disabled?: boolean;
   onClick: () => void;
 };
@@ -31,6 +31,8 @@ export default function SidelineActionGrid({ actions }: Props) {
             className={`min-h-[88px] rounded-3xl px-5 py-5 text-left text-lg font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
               action.tone === 'danger'
                 ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
+                : action.tone === 'warning'
+                  ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                 : action.tone === 'success'
                   ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
                   : 'bg-slate-100 text-slate-900 ring-1 ring-slate-200'
