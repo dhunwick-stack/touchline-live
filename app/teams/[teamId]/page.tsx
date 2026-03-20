@@ -433,7 +433,7 @@ if ((accessError || error) && !team) {
         }
       />
 
-      <main className="mx-auto max-w-7xl px-6 pb-8">
+      <main className={`mx-auto max-w-7xl px-6 pb-8 ${liveMatch ? 'pt-6' : ''}`}>
         {/* --------------------------------------------------- */}
         {/* LIVE MATCH ADMIN HERO */}
         {/* --------------------------------------------------- */}
