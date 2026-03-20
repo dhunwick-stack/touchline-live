@@ -98,6 +98,7 @@ export default function usePublicMatchPage() {
   const [teamFinalMatches, setTeamFinalMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [connectionNotice, setConnectionNotice] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
 
   const [showStartingLineups, setShowStartingLineups] = useState(false);
@@ -256,6 +257,7 @@ export default function usePublicMatchPage() {
         if (!mounted) return;
 
         applyPageData(data);
+        setConnectionNotice('');
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load scoreboard.');
@@ -335,6 +337,7 @@ export default function usePublicMatchPage() {
               setLineups(refreshedLineups);
             }
           } catch (err) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
         },
@@ -351,7 +354,9 @@ export default function usePublicMatchPage() {
           try {
             const data = await loadPageData(slug);
             applyPageData(data);
+            setConnectionNotice('');
           } catch (err) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
         },
@@ -368,7 +373,9 @@ export default function usePublicMatchPage() {
           try {
             const refreshedLineups = await fetchLineups(match.id);
             setLineups(refreshedLineups);
+            setConnectionNotice('');
           } catch (err) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(err instanceof Error ? err.message : 'Realtime refresh failed.');
           }
         },
@@ -403,9 +410,11 @@ export default function usePublicMatchPage() {
         const data = await loadPageData(slug);
         if (!cancelled) {
           applyPageData(data);
+          setConnectionNotice('');
         }
       } catch (err) {
         if (!cancelled) {
+          setConnectionNotice('Live updates delayed. Reconnecting...');
           setError(err instanceof Error ? err.message : 'Polling refresh failed.');
         }
       }
@@ -680,6 +689,7 @@ export default function usePublicMatchPage() {
     match,
     loading,
     error,
+    connectionNotice,
     formattedClock,
     secondsElapsed,
     safeEvents,

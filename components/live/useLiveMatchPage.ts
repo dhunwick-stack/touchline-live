@@ -59,6 +59,7 @@ export default function useLiveMatchPage() {
   const [savingAwayLineup, setSavingAwayLineup] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const [lineupNotice, setLineupNotice] = useState<string | null>(null);
 
   const [nowMs, setNowMs] = useState(Date.now());
@@ -193,6 +194,7 @@ export default function useLiveMatchPage() {
     setSelectedAwayStarterIds(
       resolvedAwayLineups.filter((row) => row.is_starter).map((row) => row.player_id),
     );
+    setConnectionNotice(null);
 
     const homeIsMissingRequiredSnapshot = homeNeedsLineups && realHomeLineups.length === 0;
     const awayIsMissingRequiredSnapshot = awayNeedsLineups && realAwayLineups.length === 0;
@@ -477,6 +479,7 @@ export default function useLiveMatchPage() {
     if (!options?.backgroundRefresh) {
       setLoading(false);
     }
+    setConnectionNotice(null);
   }
 
   useEffect(() => {
@@ -501,6 +504,7 @@ export default function useLiveMatchPage() {
           try {
             await refreshLiveState(match.id);
           } catch (refreshError) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(
               refreshError instanceof Error
                 ? refreshError.message
@@ -521,6 +525,7 @@ export default function useLiveMatchPage() {
           try {
             await refreshLiveState(match.id);
           } catch (refreshError) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(
               refreshError instanceof Error
                 ? refreshError.message
@@ -541,6 +546,7 @@ export default function useLiveMatchPage() {
           try {
             await refreshLiveState(match.id);
           } catch (refreshError) {
+            setConnectionNotice('Live updates delayed. Reconnecting...');
             setError(
               refreshError instanceof Error
                 ? refreshError.message
@@ -579,6 +585,7 @@ export default function useLiveMatchPage() {
         await refreshLiveState(match.id);
       } catch (pollError) {
         if (!cancelled) {
+          setConnectionNotice('Live updates delayed. Reconnecting...');
           setError(
             pollError instanceof Error ? pollError.message : 'Background refresh failed.',
           );
@@ -678,6 +685,7 @@ export default function useLiveMatchPage() {
     authChecked,
     hasMatchAccess,
     error,
+    connectionNotice,
     formattedClock,
     safeEvents,
     homePlayers,

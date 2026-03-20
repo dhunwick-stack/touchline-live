@@ -29,6 +29,7 @@ export default function PublicMatchPage() {
     match,
     loading,
     error,
+    connectionNotice,
     formattedClock,
     secondsElapsed,
     safeEvents,
@@ -169,6 +170,12 @@ export default function PublicMatchPage() {
       {/* --------------------------------------------------- */}
 
       <div className="mt-6 space-y-6">
+        {connectionNotice ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {connectionNotice}
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-900 p-[1px] shadow-sm">
           <div className="rounded-[calc(1.5rem-1px)] bg-gradient-to-b from-slate-50 via-white to-red-50 p-6 ring-1 ring-white/70">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">

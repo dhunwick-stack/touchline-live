@@ -32,6 +32,7 @@ export default function LiveMatchPage() {
     authChecked,
     hasMatchAccess,
     error,
+    connectionNotice,
     formattedClock,
     safeEvents,
     homePlayers,
@@ -121,6 +122,7 @@ export default function LiveMatchPage() {
     authChecked,
     hasMatchAccess,
     error,
+    connectionNotice,
     formattedClock,
     safeEvents,
     homePlayers,
@@ -239,6 +241,12 @@ export default function LiveMatchPage() {
           />
 
           <section className="mt-6">{modeSwitcher}</section>
+
+          {connectionNotice ? (
+            <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+              {connectionNotice}
+            </section>
+          ) : null}
         </>
       ) : null}
 
