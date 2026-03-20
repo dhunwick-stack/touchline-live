@@ -170,6 +170,14 @@ export default function TeamsPage() {
       organizations.find((org) => org.id === organizationId) || null;
 
     const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
+    const normalizedClubName = resolvedClubName?.trim().toLowerCase() || '';
+    const inheritedTeam =
+      !selectedOrganization && normalizedClubName
+        ? teams.find((team) => {
+            const candidateClubName = (team.club_name || '').trim().toLowerCase();
+            return candidateClubName === normalizedClubName;
+          }) || null
+        : null;
 
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),
@@ -178,7 +186,14 @@ export default function TeamsPage() {
       team_level: teamLevel.trim() || null,
       gender: gender.trim() || null,
       age_group: ageGroup.trim() || null,
-      logo_url: logoUrl.trim() || null,
+      logo_url: logoUrl.trim() || inheritedTeam?.logo_url || null,
+      banner_url: inheritedTeam?.banner_url || null,
+      primary_color: inheritedTeam?.primary_color || null,
+      secondary_color: inheritedTeam?.secondary_color || null,
+      home_field_name: inheritedTeam?.home_field_name || null,
+      home_field_address: inheritedTeam?.home_field_address || null,
+      home_field_lat: inheritedTeam?.home_field_lat || null,
+      home_field_lng: inheritedTeam?.home_field_lng || null,
       is_reusable: true,
     });
 
