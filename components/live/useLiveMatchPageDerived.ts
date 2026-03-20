@@ -109,6 +109,22 @@ export default function useLiveMatchPageDerived({
   const homeStarterCount = selectedHomeStarterIds.length;
   const awayStarterCount = selectedAwayStarterIds.length;
 
+  const effectiveHomeStarterIds = useMemo(() => {
+    if (selectedHomeStarterIds.length > 0) {
+      return selectedHomeStarterIds;
+    }
+
+    return homePlayers.slice(0, 11).map((player) => player.id);
+  }, [homePlayers, selectedHomeStarterIds]);
+
+  const effectiveAwayStarterIds = useMemo(() => {
+    if (selectedAwayStarterIds.length > 0) {
+      return selectedAwayStarterIds;
+    }
+
+    return awayPlayers.slice(0, 11).map((player) => player.id);
+  }, [awayPlayers, selectedAwayStarterIds]);
+
   const homeSnapshotRow = useMemo<SnapshotStatusRow>(() => {
     return {
       teamName: match?.home_team?.name || 'Home Team',
@@ -152,7 +168,7 @@ export default function useLiveMatchPageDerived({
       return new Set(homePlayers.map((player) => player.id));
     }
 
-    const activeIds = new Set(selectedHomeStarterIds);
+    const activeIds = new Set(effectiveHomeStarterIds);
 
     safeEvents
       .filter((event) => event.team_side === 'home' && event.event_type === 'substitution')
@@ -169,14 +185,14 @@ export default function useLiveMatchPageDerived({
       });
 
     return activeIds;
-  }, [safeEvents, homePlayers, match?.home_tracking_mode, selectedHomeStarterIds]);
+  }, [effectiveHomeStarterIds, safeEvents, homePlayers, match?.home_tracking_mode]);
 
   const awayActivePlayerIds = useMemo(() => {
     if (match?.away_tracking_mode !== 'full') {
       return new Set(awayPlayers.map((player) => player.id));
     }
 
-    const activeIds = new Set(selectedAwayStarterIds);
+    const activeIds = new Set(effectiveAwayStarterIds);
 
     safeEvents
       .filter((event) => event.team_side === 'away' && event.event_type === 'substitution')
@@ -193,7 +209,7 @@ export default function useLiveMatchPageDerived({
       });
 
     return activeIds;
-  }, [safeEvents, awayPlayers, match?.away_tracking_mode, selectedAwayStarterIds]);
+  }, [effectiveAwayStarterIds, safeEvents, awayPlayers, match?.away_tracking_mode]);
 
   const homeLineupRows = useMemo(() => {
     return homeLineups.map((row) => ({
@@ -265,7 +281,7 @@ export default function useLiveMatchPageDerived({
           events: safeEvents,
           playerId: player.id,
           teamSide: 'home',
-          startingPlayerIds: selectedHomeStarterIds,
+          startingPlayerIds: effectiveHomeStarterIds,
         }),
       }))
       .filter((row) => row.minutes > 0)
@@ -279,7 +295,7 @@ export default function useLiveMatchPageDerived({
 
         return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
       });
-  }, [safeEvents, homePlayers, match, selectedHomeStarterIds]);
+  }, [effectiveHomeStarterIds, safeEvents, homePlayers, match]);
 
   const awayMinutesPlayedRows = useMemo<MinutesPlayedRow[]>(() => {
     if (!match || match.away_tracking_mode !== 'full') {
@@ -294,7 +310,7 @@ export default function useLiveMatchPageDerived({
           events: safeEvents,
           playerId: player.id,
           teamSide: 'away',
-          startingPlayerIds: selectedAwayStarterIds,
+          startingPlayerIds: effectiveAwayStarterIds,
         }),
       }))
       .filter((row) => row.minutes > 0)
@@ -308,7 +324,7 @@ export default function useLiveMatchPageDerived({
 
         return playerDisplayName(a.player).localeCompare(playerDisplayName(b.player));
       });
-  }, [awayPlayers, safeEvents, match, selectedAwayStarterIds]);
+  }, [awayPlayers, effectiveAwayStarterIds, safeEvents, match]);
 
   return {
     secondsElapsed,
