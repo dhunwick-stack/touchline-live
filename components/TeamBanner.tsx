@@ -124,6 +124,13 @@ export default function TeamBanner({
               </Link>
 
               <Link
+                href={`${basePath}/results`}
+                className={primaryNavClass(pathname === `${basePath}/results`)}
+              >
+                Results
+              </Link>
+
+              <Link
                 href={`${basePath}/schedule`}
                 className={primaryNavClass(pathname === `${basePath}/schedule`)}
               >

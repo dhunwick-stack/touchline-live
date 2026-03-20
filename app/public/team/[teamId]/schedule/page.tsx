@@ -607,6 +607,9 @@ function PublicScheduleMatchCard({
   const isHomeTeam = match.home_team_id === teamId;
   const teamSide = isHomeTeam ? match.home_team : match.away_team;
   const opponent = isHomeTeam ? match.away_team : match.home_team;
+  const teamDisplayName = [teamSide?.club_name, teamSide?.name].filter(Boolean).join(' ') || 'Team';
+  const opponentDisplayName =
+    [opponent?.club_name, opponent?.name].filter(Boolean).join(' ') || 'Opponent';
 
   return (
     <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
@@ -644,19 +647,31 @@ function PublicScheduleMatchCard({
                 ) : null}
 
                 <h3 className="truncate text-xl font-black text-slate-900">
-                  {teamSide?.name || 'Team'}
+                  {teamDisplayName}
                 </h3>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
-              {match.status === 'final' || match.status === 'live' || match.status === 'halftime' ? (
-                <div className="text-3xl font-black">
-                  {match.home_score} - {match.away_score}
-                </div>
-              ) : (
-                <div className="text-lg font-bold uppercase tracking-wide">vs</div>
-              )}
+            <div className="space-y-3 text-center">
+              <div className="rounded-2xl bg-slate-900 px-5 py-3 text-white shadow-sm">
+                {match.status === 'final' || match.status === 'live' || match.status === 'halftime' ? (
+                  <div className="text-3xl font-black">
+                    {match.home_score} - {match.away_score}
+                  </div>
+                ) : (
+                  <div className="text-lg font-bold uppercase tracking-wide">vs</div>
+                )}
+              </div>
+
+              {match.public_slug ? (
+                <Link
+                  href={`/public/${match.public_slug}`}
+                  target="_blank"
+                  className="inline-flex rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"
+                >
+                  {match.status === 'live' || match.status === 'halftime' ? 'Watch Live' : 'View Recap'}
+                </Link>
+              ) : null}
             </div>
 
             <div className="min-w-0 md:text-right">
@@ -666,7 +681,7 @@ function PublicScheduleMatchCard({
 
               <div className="mt-1 flex items-center justify-end gap-3">
                 <h3 className="truncate text-xl font-black text-slate-900">
-                  {opponent?.name || 'Opponent'}
+                  {opponentDisplayName}
                 </h3>
 
                 {opponent?.logo_url ? (
@@ -687,21 +702,13 @@ function PublicScheduleMatchCard({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-3 lg:justify-end">
-          {match.public_slug ? (
-            <Link
-              href={`/public/${match.public_slug}`}
-              target="_blank"
-              className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
-            >
-              {match.status === 'live' || match.status === 'halftime' ? 'Watch Live' : 'View Match'}
-            </Link>
-          ) : (
+        {!match.public_slug ? (
+          <div className="flex flex-wrap gap-3 lg:justify-end">
             <span className="rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-500">
               Public link coming soon
             </span>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -730,7 +737,7 @@ function StatusBadge({ status }: { status: Match['status'] }) {
 
   if (status === 'final') {
     return (
-      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
+      <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
         Final
       </span>
     );
