@@ -82,7 +82,7 @@ function LoginPageInner() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -95,6 +95,23 @@ function LoginPageInner() {
 
     if (error) {
       setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const requestPayload = {
+      user_id: data.user?.id || null,
+      email: email.trim(),
+      organization_name: organizationName.trim() || null,
+      status: 'pending' as const,
+    };
+
+    const { error: requestError } = await supabase
+      .from('team_access_requests')
+      .insert(requestPayload);
+
+    if (requestError) {
+      setError(`Account created, but access request intake failed: ${requestError.message}`);
       setLoading(false);
       return;
     }
