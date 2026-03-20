@@ -433,6 +433,7 @@ function MatchCard({
   const liveClockText = getLiveClockText(match, nowMs);
   const homeWon = match.status === 'final' && match.home_score > match.away_score;
   const awayWon = match.status === 'final' && match.away_score > match.home_score;
+  const publicAction = getPublicAction(match, nowMs);
 
   return (
     <div
@@ -570,13 +571,19 @@ function MatchCard({
               ) : null}
 
               {match.public_slug ? (
-                <Link
-                  href={`/public/${match.public_slug}`}
-                  target="_blank"
-                  className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                >
-                  Public Scoreboard
-                </Link>
+                publicAction.disabled ? (
+                  <span className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-400 ring-1 ring-slate-200">
+                    {publicAction.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={`/public/${match.public_slug}`}
+                    target="_blank"
+                    className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                  >
+                    {publicAction.label}
+                  </Link>
+                )
               ) : null}
             </div>
           </div>
@@ -676,6 +683,25 @@ function getLiveClockText(match: MatchRow, nowMs: number) {
 
   const pausedMinute = Math.floor(baseSeconds / 60);
   return `${pausedMinute}' Paused`;
+}
+
+function getPublicAction(match: MatchRow, nowMs: number) {
+  if (match.status === 'final') {
+    return { label: 'View Recap', disabled: false };
+  }
+
+  if (match.status === 'live' || match.status === 'halftime') {
+    return { label: 'Follow Live', disabled: false };
+  }
+
+  const kickoffMs = match.match_date ? new Date(match.match_date).getTime() : null;
+  const enableWindowMs = 2 * 60 * 60 * 1000;
+  const isEnabledSoon = kickoffMs !== null && kickoffMs - nowMs <= enableWindowMs;
+
+  return {
+    label: 'Follow Live',
+    disabled: !isEnabledSoon,
+  };
 }
 
 // ---------------------------------------------------
