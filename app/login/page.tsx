@@ -43,6 +43,13 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  function getSignupRedirectUrl() {
+    if (typeof window === 'undefined') return undefined;
+
+    const safeNext = next.startsWith('/') ? next : '/';
+    return `${window.location.origin}${safeNext}`;
+  }
+
   // ---------------------------------------------------
   // SIGN IN
   // ---------------------------------------------------
@@ -77,6 +84,9 @@ function LoginPageInner() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: getSignupRedirectUrl(),
+      },
     });
 
     if (error) {
