@@ -23,6 +23,8 @@ type TeamRow = Team & {
 // ---------------------------------------------------
 
 export default function TeamsPage() {
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
+
   // ---------------------------------------------------
   // DATA STATE
   // ---------------------------------------------------
@@ -30,6 +32,7 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [search, setSearch] = useState('');
+  const [memberTeamIds, setMemberTeamIds] = useState<string[]>([]);
 
   // ---------------------------------------------------
   // ACCESS STATE
@@ -61,6 +64,13 @@ export default function TeamsPage() {
   // ---------------------------------------------------
   // ACCESS CHECK
   // ---------------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    setShowOnlyMine(params.get('mine') === '1');
+  }, []);
 
   useEffect(() => {
     try {
@@ -98,9 +108,14 @@ export default function TeamsPage() {
   // ---------------------------------------------------
 
   async function loadTeams() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     const [
       { data: teamData, error: teamError },
       { data: organizationData, error: organizationError },
+      membershipResult,
     ] = await Promise.all([
       supabase
         .from('teams')
@@ -109,15 +124,21 @@ export default function TeamsPage() {
           organization:organization_id (*)
         `),
       supabase.from('organizations').select('*').order('name', { ascending: true }),
+      session?.user
+        ? supabase.from('team_users').select('team_id').eq('user_id', session.user.id)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (teamError || organizationError) {
-      setMessage(`Load error: ${teamError?.message || organizationError?.message}`);
+    if (teamError || organizationError || membershipResult.error) {
+      setMessage(
+        `Load error: ${teamError?.message || organizationError?.message || membershipResult.error?.message}`,
+      );
       return;
     }
 
     setTeams((teamData as TeamRow[]) ?? []);
     setOrganizations((organizationData as Organization[]) ?? []);
+    setMemberTeamIds(((membershipResult.data as { team_id: string }[]) ?? []).map((row) => row.team_id));
   }
 
   // ---------------------------------------------------
@@ -192,9 +213,11 @@ export default function TeamsPage() {
   const filteredTeams = useMemo(() => {
     const q = search.toLowerCase().trim();
 
+    const sourceTeams = showOnlyMine ? teams.filter((team) => memberTeamIds.includes(team.id)) : teams;
+
     const base = !q
-      ? teams
-      : teams.filter((team) => {
+      ? sourceTeams
+      : sourceTeams.filter((team) => {
           const teamName = (team.name || '').toLowerCase();
           const club = (team.club_name || '').toLowerCase();
           const orgName = (team.organization?.name || '').toLowerCase();
@@ -215,7 +238,7 @@ export default function TeamsPage() {
     return [...base].sort((a, b) =>
       (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }),
     );
-  }, [teams, search]);
+  }, [teams, memberTeamIds, search, showOnlyMine]);
 
   // ---------------------------------------------------
   // RENDER HELPERS
@@ -252,7 +275,9 @@ export default function TeamsPage() {
         <div>
           <h1 className="text-3xl font-black">Teams</h1>
           <p className="mt-2 text-slate-600">
-            Search reusable teams or add a new one for future matches.
+            {showOnlyMine
+              ? 'Your approved team admin access.'
+              : 'Search reusable teams or add a new one for future matches.'}
           </p>
         </div>
 
@@ -274,6 +299,12 @@ export default function TeamsPage() {
       {message ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           {message}
+        </div>
+      ) : null}
+
+      {showOnlyMine ? (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          Showing only teams you have access to.
         </div>
       ) : null}
 
@@ -435,15 +466,26 @@ export default function TeamsPage() {
               {filteredTeams.length} team{filteredTeams.length === 1 ? '' : 's'}
             </p>
 
-            {search.trim() ? (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="text-sm font-medium text-slate-500 transition hover:text-slate-800"
-              >
-                Clear
-              </button>
-            ) : null}
+            <div className="flex items-center gap-3">
+              {showOnlyMine ? (
+                <Link
+                  href="/teams"
+                  className="text-sm font-medium text-slate-500 transition hover:text-slate-800"
+                >
+                  View All
+                </Link>
+              ) : null}
+
+              {search.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="text-sm font-medium text-slate-500 transition hover:text-slate-800"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

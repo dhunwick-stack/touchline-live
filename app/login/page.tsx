@@ -55,11 +55,38 @@ function LoginPageInner() {
   // SIGN IN
   // ---------------------------------------------------
 
+  async function resolvePostLoginDestination(userId: string) {
+    if (next && next !== '/') {
+      return next;
+    }
+
+    const { data: memberships, error: membershipError } = await supabase
+      .from('team_users')
+      .select('team_id')
+      .eq('user_id', userId);
+
+    if (membershipError) {
+      return next;
+    }
+
+    const teamMemberships = memberships ?? [];
+
+    if (teamMemberships.length === 1 && teamMemberships[0]?.team_id) {
+      return `/teams/${teamMemberships[0].team_id}`;
+    }
+
+    if (teamMemberships.length > 1) {
+      return '/teams?mine=1';
+    }
+
+    return next;
+  }
+
   async function handleLogin() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -70,7 +97,9 @@ function LoginPageInner() {
       return;
     }
 
-    router.push(next);
+    const destination = await resolvePostLoginDestination(data.user.id);
+
+    router.push(destination);
     router.refresh();
   }
 
