@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { Match, Season, Team } from '@/lib/types';
+import type { Match, MatchEvent, Player, Season, Team, TeamSide } from '@/lib/types';
 
 // ---------------------------------------------------
 // LOCAL TYPES
@@ -17,6 +17,14 @@ import type { Match, Season, Team } from '@/lib/types';
 type MatchRow = Match & {
   home_team: Team | null;
   away_team: Team | null;
+};
+
+type GoalBackfillRow = {
+  id: string;
+  side: TeamSide;
+  playerId: string;
+  scorer: string;
+  minute: string;
 };
 
 // ---------------------------------------------------
@@ -104,6 +112,7 @@ export default function EditMatchPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [backfilling, setBackfilling] = useState(false);
 
   // ---------------------------------------------------
   // FORM STATE
@@ -115,6 +124,129 @@ export default function EditMatchPage() {
   const [status, setStatus] = useState<Match['status']>('scheduled');
   const [statusNote, setStatusNote] = useState('');
   const [publicSlug, setPublicSlug] = useState('');
+  const [backfillHomeScore, setBackfillHomeScore] = useState('0');
+  const [backfillAwayScore, setBackfillAwayScore] = useState('0');
+  const [goalRows, setGoalRows] = useState<GoalBackfillRow[]>([]);
+  const [playersByTeam, setPlayersByTeam] = useState<Record<string, Player[]>>({});
+
+  function getPlayerDisplayName(player: Player) {
+    const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ').trim();
+
+    if (player.jersey_number !== null && player.jersey_number !== undefined) {
+      return `#${player.jersey_number} ${fullName}`;
+    }
+
+    return fullName;
+  }
+
+  async function loadPageData() {
+    if (!matchId) return;
+
+    setLoading(true);
+    setMessage('');
+
+    const [
+      { data: matchData, error: matchError },
+      { data: seasonsData, error: seasonsError },
+      { data: eventData, error: eventError },
+    ] = await Promise.all([
+      supabase
+        .from('matches')
+        .select(`
+          *,
+          home_team:home_team_id (*),
+          away_team:away_team_id (*)
+        `)
+        .eq('id', matchId)
+        .single(),
+      supabase.from('seasons').select('*').order('start_date', { ascending: false }),
+      supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', matchId)
+        .eq('event_type', 'goal')
+        .order('minute', { ascending: true })
+        .order('created_at', { ascending: true }),
+    ]);
+
+    if (matchError || seasonsError || eventError) {
+      setMessage(
+        matchError?.message ||
+          seasonsError?.message ||
+          eventError?.message ||
+          'Failed to load match.',
+      );
+      setLoading(false);
+      return;
+    }
+
+    const loadedMatch = matchData as MatchRow;
+    const loadedSeasons = (seasonsData as Season[]) ?? [];
+    const loadedGoalEvents = (eventData as MatchEvent[]) ?? [];
+    const playerTeamIds = [loadedMatch.home_team_id, loadedMatch.away_team_id].filter(
+      Boolean,
+    ) as string[];
+    let loadedPlayers: Player[] = [];
+
+    if (playerTeamIds.length > 0) {
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .select('*')
+        .in('team_id', playerTeamIds)
+        .order('active', { ascending: false })
+        .order('jersey_number', { ascending: true })
+        .order('first_name', { ascending: true });
+
+      if (playerError) {
+        setMessage(playerError.message || 'Failed to load roster players.');
+        setLoading(false);
+        return;
+      }
+
+      loadedPlayers = (playerData as Player[]) ?? [];
+    }
+    const nextPlayersByTeam = loadedPlayers.reduce<Record<string, Player[]>>((acc, player) => {
+      if (!acc[player.team_id]) {
+        acc[player.team_id] = [];
+      }
+
+      acc[player.team_id].push(player);
+      return acc;
+    }, {});
+
+    setMatch(loadedMatch);
+    setSeasons(loadedSeasons);
+    setPlayersByTeam(nextPlayersByTeam);
+
+    setSeasonId(loadedMatch.season_id || '');
+    setMatchDate(toLocalInputValue(loadedMatch.match_date || null));
+    setVenue(loadedMatch.venue || '');
+    setStatus(loadedMatch.status);
+    setStatusNote(loadedMatch.status_note || '');
+    setPublicSlug(
+      loadedMatch.public_slug ||
+        buildReadableMatchSlug({
+          homeTeamName: loadedMatch.home_team?.name,
+          awayTeamName: loadedMatch.away_team?.name,
+          matchDate: loadedMatch.match_date,
+        }),
+    );
+
+    setBackfillHomeScore(String(loadedMatch.home_score ?? 0));
+    setBackfillAwayScore(String(loadedMatch.away_score ?? 0));
+    setGoalRows(
+      loadedGoalEvents.map((event, index) => ({
+        id: `${event.id || index}`,
+        side: event.team_side,
+        playerId: event.player_id || '',
+        scorer: event.player_name_override || 'Goal',
+        minute:
+          event.minute !== null && event.minute !== undefined ? String(event.minute) : '',
+      })),
+    );
+
+    setLoading(false);
+  }
 
   // ---------------------------------------------------
   // LOAD MATCH + SEASONS
@@ -122,61 +254,7 @@ export default function EditMatchPage() {
 
   useEffect(() => {
     if (!matchId) return;
-
-    async function loadPage() {
-      setLoading(true);
-      setMessage('');
-
-      const [
-        { data: matchData, error: matchError },
-        { data: seasonsData, error: seasonsError },
-      ] = await Promise.all([
-        supabase
-          .from('matches')
-          .select(`
-            *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
-          `)
-          .eq('id', matchId)
-          .single(),
-        supabase.from('seasons').select('*').order('start_date', { ascending: false }),
-      ]);
-
-      if (matchError || seasonsError) {
-        setMessage(matchError?.message || seasonsError?.message || 'Failed to load match.');
-        setLoading(false);
-        return;
-      }
-
-      const loadedMatch = matchData as MatchRow;
-      const loadedSeasons = (seasonsData as Season[]) ?? [];
-
-      setMatch(loadedMatch);
-      setSeasons(loadedSeasons);
-
-      // ---------------------------------------------------
-      // SEED FORM STATE
-      // ---------------------------------------------------
-
-      setSeasonId(loadedMatch.season_id || '');
-      setMatchDate(toLocalInputValue(loadedMatch.match_date || null));
-      setVenue(loadedMatch.venue || '');
-      setStatus(loadedMatch.status);
-      setStatusNote(loadedMatch.status_note || '');
-      setPublicSlug(
-        loadedMatch.public_slug ||
-          buildReadableMatchSlug({
-            homeTeamName: loadedMatch.home_team?.name,
-            awayTeamName: loadedMatch.away_team?.name,
-            matchDate: loadedMatch.match_date,
-          }),
-      );
-
-      setLoading(false);
-    }
-
-    loadPage();
+    loadPageData();
   }, [matchId]);
 
   // ---------------------------------------------------
@@ -229,6 +307,136 @@ export default function EditMatchPage() {
     router.push(`/live/${match.id}`);
   }
 
+  function addGoalRow(side: TeamSide) {
+    setGoalRows((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        side,
+        playerId: '',
+        scorer: '',
+        minute: '',
+      },
+    ]);
+  }
+
+  function updateGoalRow(id: string, updates: Partial<GoalBackfillRow>) {
+    setGoalRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, ...updates } : row)),
+    );
+  }
+
+  function removeGoalRow(id: string) {
+    setGoalRows((current) => current.filter((row) => row.id !== id));
+  }
+
+  async function handleApplyFinalBackfill() {
+    if (!match) return;
+
+    const homeScore = Number.parseInt(backfillHomeScore, 10);
+    const awayScore = Number.parseInt(backfillAwayScore, 10);
+
+    if (!Number.isInteger(homeScore) || homeScore < 0) {
+      setMessage('Home score must be a non-negative whole number.');
+      return;
+    }
+
+    if (!Number.isInteger(awayScore) || awayScore < 0) {
+      setMessage('Away score must be a non-negative whole number.');
+      return;
+    }
+
+    const homeGoalRows = goalRows.filter((row) => row.side === 'home');
+    const awayGoalRows = goalRows.filter((row) => row.side === 'away');
+
+    if (homeGoalRows.length !== homeScore || awayGoalRows.length !== awayScore) {
+      setMessage('Goal rows must match the final score for each side.');
+      return;
+    }
+
+    if (goalRows.some((row) => !row.scorer.trim())) {
+      setMessage('Each goal row needs a scorer name or selected roster player.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Apply quick final backfill? This will replace existing goal events for this match, update the final score, and mark the match as final.',
+    );
+
+    if (!confirmed) return;
+
+    setBackfilling(true);
+    setMessage('');
+
+    const goalInserts = goalRows.map((row) => {
+      const teamId = row.side === 'home' ? match.home_team_id : match.away_team_id;
+      const selectedPlayer =
+        teamId && row.playerId
+          ? (playersByTeam[teamId] || []).find((player) => player.id === row.playerId) || null
+          : null;
+      const scorerName = selectedPlayer
+        ? [selectedPlayer.first_name, selectedPlayer.last_name].filter(Boolean).join(' ').trim()
+        : row.scorer.trim();
+
+      return {
+        match_id: match.id,
+        minute: Number.parseInt(row.minute, 10) || 0,
+        event_type: 'goal' as const,
+        team_side: row.side,
+        team_id: teamId,
+        player_id: selectedPlayer?.id || null,
+        secondary_player_id: null,
+        player_name_override: scorerName,
+        secondary_player_name_override: null,
+        notes: 'Quick final backfill',
+      };
+    });
+
+    const { error: deleteError } = await supabase
+      .from('match_events')
+      .delete()
+      .eq('match_id', match.id)
+      .eq('event_type', 'goal');
+
+    if (deleteError) {
+      setBackfilling(false);
+      setMessage(deleteError.message || 'Failed to clear existing goal events.');
+      return;
+    }
+
+    if (goalInserts.length > 0) {
+      const { error: insertError } = await supabase.from('match_events').insert(goalInserts);
+
+      if (insertError) {
+        setBackfilling(false);
+        setMessage(insertError.message || 'Failed to save backfilled goals.');
+        return;
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({
+        home_score: homeScore,
+        away_score: awayScore,
+        status: 'final',
+        clock_running: false,
+        current_minute: 90,
+      })
+      .eq('id', match.id);
+
+    if (updateError) {
+      setBackfilling(false);
+      setMessage(updateError.message || 'Failed to update final result.');
+      return;
+    }
+
+    setStatus('final');
+    await loadPageData();
+    setBackfilling(false);
+    setMessage('Quick final backfill applied.');
+  }
+
   // ---------------------------------------------------
   // LOADING / EMPTY STATES
   // ---------------------------------------------------
@@ -244,6 +452,9 @@ export default function EditMatchPage() {
       </main>
     );
   }
+
+  const homeRosterPlayers = match.home_team_id ? playersByTeam[match.home_team_id] || [] : [];
+  const awayRosterPlayers = match.away_team_id ? playersByTeam[match.away_team_id] || [] : [];
 
   // ---------------------------------------------------
   // PAGE
@@ -449,6 +660,173 @@ export default function EditMatchPage() {
             className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save Match Changes'}
+          </button>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------- */}
+      {/* QUICK FINAL BACKFILL */}
+      {/* --------------------------------------------------- */}
+
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-5">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Quick Final Backfill
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+            Enter final score and scorers fast
+          </h2>
+          <p className="mt-2 text-slate-600">
+            Best for matches where live entry was missed. This replaces existing goal events only
+            and marks the match final.
+          </p>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label={`${match.home_team?.name || 'Home Team'} Goals`}>
+            <input
+              type="number"
+              min="0"
+              value={backfillHomeScore}
+              onChange={(e) => setBackfillHomeScore(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+
+          <Field label={`${match.away_team?.name || 'Away Team'} Goals`}>
+            <input
+              type="number"
+              min="0"
+              value={backfillAwayScore}
+              onChange={(e) => setBackfillAwayScore(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => addGoalRow('home')}
+            className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 ring-1 ring-blue-200"
+          >
+            Add Home Goal
+          </button>
+
+          <button
+            type="button"
+            onClick={() => addGoalRow('away')}
+            className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200"
+          >
+            Add Away Goal
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {goalRows.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500 ring-1 ring-slate-200">
+              No goal rows yet. Add one row for each goal in the final score.
+            </div>
+          ) : (
+            goalRows.map((row, index) => (
+              <div
+                key={row.id}
+                className="grid gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 md:grid-cols-[140px_1fr_1fr_140px_auto]"
+              >
+                <Field label={`Goal ${index + 1} Side`}>
+                  <select
+                    value={row.side}
+                    onChange={(e) =>
+                      updateGoalRow(row.id, {
+                        side: e.target.value as TeamSide,
+                        playerId: '',
+                      })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  >
+                    <option value="home">Home</option>
+                    <option value="away">Away</option>
+                  </select>
+                </Field>
+
+                <Field label="Roster Scorer (Optional)">
+                  <select
+                    value={row.playerId}
+                    onChange={(e) => {
+                      const nextPlayerId = e.target.value;
+                      const sidePlayers = row.side === 'home' ? homeRosterPlayers : awayRosterPlayers;
+                      const selectedPlayer =
+                        sidePlayers.find((player) => player.id === nextPlayerId) || null;
+
+                      updateGoalRow(row.id, {
+                        playerId: nextPlayerId,
+                        scorer: selectedPlayer
+                          ? [selectedPlayer.first_name, selectedPlayer.last_name]
+                              .filter(Boolean)
+                              .join(' ')
+                              .trim()
+                          : row.scorer,
+                      });
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  >
+                    <option value="">
+                      {(row.side === 'home' ? homeRosterPlayers : awayRosterPlayers).length > 0
+                        ? 'Choose roster player'
+                        : 'No roster available'}
+                    </option>
+                    {(row.side === 'home' ? homeRosterPlayers : awayRosterPlayers).map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {getPlayerDisplayName(player)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Scorer">
+                  <input
+                    value={row.scorer}
+                    onChange={(e) =>
+                      updateGoalRow(row.id, { scorer: e.target.value, playerId: '' })
+                    }
+                    placeholder="Player name or scorer label"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  />
+                </Field>
+
+                <Field label="Minute (Optional)">
+                  <input
+                    type="number"
+                    min="0"
+                    value={row.minute}
+                    onChange={(e) => updateGoalRow(row.id, { minute: e.target.value })}
+                    placeholder="90"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  />
+                </Field>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => removeGoalRow(row.id)}
+                    className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={handleApplyFinalBackfill}
+            disabled={backfilling}
+            className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {backfilling ? 'Applying Backfill...' : 'Apply Final Backfill'}
           </button>
         </div>
       </section>
