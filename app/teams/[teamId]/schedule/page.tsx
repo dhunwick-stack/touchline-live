@@ -460,14 +460,14 @@ export default function TeamSchedulePage() {
               <div className="flex flex-wrap justify-end gap-3">
                 <Link
                   href={`/live/${nextUpcomingMatch.id}`}
-                  className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
+                  className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm text-white ring-1 ring-amber-400 hover:bg-amber-600"
                 >
                   Manage Match
                 </Link>
 
                 <Link
                   href={`/matches/${nextUpcomingMatch.id}/edit`}
-                  className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15"
+                  className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
                 >
                   Edit Match
                 </Link>
@@ -476,8 +476,7 @@ export default function TeamSchedulePage() {
                   <Link
                     href={`/public/${nextUpcomingMatch.public_slug}`}
                     target="_blank"
-                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold hover:bg-emerald-600"
-                    style={{ color: '#ffffff' }}
+                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 text-sm text-white ring-1 ring-emerald-400 hover:bg-emerald-600"
                   >
                     Public Scoreboard
                   </Link>
@@ -711,14 +710,14 @@ function ScheduleMatchCard({
         <div className="flex flex-wrap justify-end gap-3">
           <Link
             href={`/live/${match.id}`}
-            className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600"
+            className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100"
           >
             Manage Match
           </Link>
 
           <Link
             href={`/matches/${match.id}/edit`}
-            className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
+            className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
           >
             Edit Match
           </Link>
@@ -727,7 +726,7 @@ function ScheduleMatchCard({
             <Link
               href={`/public/${match.public_slug}`}
               target="_blank"
-              className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
+              className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
             >
               Public Scoreboard
             </Link>
@@ -737,7 +736,7 @@ function ScheduleMatchCard({
             type="button"
             onClick={() => onDelete(match)}
             disabled={deleting}
-            className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {deleting ? 'Deleting...' : 'Delete Match'}
           </button>
