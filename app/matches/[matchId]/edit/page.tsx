@@ -271,9 +271,9 @@ export default function EditMatchPage() {
         <div className="flex flex-wrap gap-3">
           <Link
             href={`/live/${match.id}`}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
+            className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600"
           >
-            Back to Match
+            Manage Match
           </Link>
 
           {match.public_slug ? (

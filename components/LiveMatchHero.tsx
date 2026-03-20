@@ -127,10 +127,9 @@ export default function LiveMatchHero({
             <>
               <Link
                 href={`/live/${match.id}`}
-                className="rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm"
-                style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                className="rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
               >
-                Update Match
+                Manage Match
               </Link>
 
               {match.public_slug ? (

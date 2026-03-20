@@ -460,8 +460,7 @@ export default function TeamSchedulePage() {
               <div className="flex flex-wrap justify-end gap-3">
                 <Link
                   href={`/live/${nextUpcomingMatch.id}`}
-                  className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold shadow-sm hover:bg-slate-100"
-                  style={{ color: '#0f172a' }}
+                  className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
                 >
                   Manage Match
                 </Link>
@@ -712,7 +711,7 @@ function ScheduleMatchCard({
         <div className="flex flex-wrap justify-end gap-3">
           <Link
             href={`/live/${match.id}`}
-            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600"
           >
             Manage Match
           </Link>

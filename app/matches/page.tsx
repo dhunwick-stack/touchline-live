@@ -359,7 +359,7 @@ function MatchSection({
           {emptyText}
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           {matches.map((match) => (
             <MatchCard key={match.id} match={match} highlight={highlight} nowMs={nowMs} />
           ))}
@@ -430,11 +430,13 @@ function MatchCard({
             <div className="mt-1 flex items-center gap-3">
               {match.home_team?.logo_url ? (
                 <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
-                  <img
-                    src={match.home_team.logo_url}
-                    alt={`${match.home_team.name} logo`}
-                    className="h-14 w-14 rounded-2xl object-cover transition hover:opacity-80"
-                  />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-1 ring-1 ring-slate-200">
+                    <img
+                      src={match.home_team.logo_url}
+                      alt={`${match.home_team.name} logo`}
+                      className="h-full w-full object-contain transition hover:opacity-80"
+                    />
+                  </div>
                 </Link>
               ) : null}
 
@@ -459,11 +461,13 @@ function MatchCard({
             <div className="mt-1 flex items-center gap-3">
               {match.away_team?.logo_url ? (
                 <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
-                  <img
-                    src={match.away_team.logo_url}
-                    alt={`${match.away_team.name} logo`}
-                    className="h-14 w-14 rounded-2xl object-cover transition hover:opacity-80"
-                  />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-1 ring-1 ring-slate-200">
+                    <img
+                      src={match.away_team.logo_url}
+                      alt={`${match.away_team.name} logo`}
+                      className="h-full w-full object-contain transition hover:opacity-80"
+                    />
+                  </div>
                 </Link>
               ) : null}
 
@@ -497,9 +501,9 @@ function MatchCard({
 
             <Link
               href={`/live/${match.id}`}
-              className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-semibold text-white"
+              className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-amber-600"
             >
-              Open Match
+              Manage Match
             </Link>
 
             {match.public_slug ? (
@@ -508,7 +512,7 @@ function MatchCard({
                 target="_blank"
                 className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
               >
-                Public
+                Public Scoreboard
               </Link>
             ) : null}
           </div>

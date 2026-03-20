@@ -491,9 +491,9 @@ if ((accessError || error) || !team) {
                   {nextMatch.status === 'live' || nextMatch.status === 'halftime' ? (
                     <Link
                       href={`/live/${nextMatch.id}`}
-                      className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
+                      className="inline-flex rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600"
                     >
-                      Administer Match
+                      Manage Match
                     </Link>
                   ) : null}
                 </div>

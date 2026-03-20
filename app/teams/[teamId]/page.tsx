@@ -471,9 +471,9 @@ if ((accessError || error) && !team) {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href={`/live/${liveMatch.id}`}
-                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+                  className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600"
                 >
-                  Update Match
+                  Manage Match
                 </Link>
 
                 {liveMatch.public_slug ? (
@@ -607,9 +607,9 @@ if ((accessError || error) && !team) {
                     ) : match.status === 'live' || match.status === 'halftime' ? (
                       <Link
                         href={`/live/${match.id}`}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600"
                       >
-                        Update Match
+                        Manage Match
                       </Link>
                     ) : match.public_slug ? (
                       <Link
