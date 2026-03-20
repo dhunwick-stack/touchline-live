@@ -22,6 +22,7 @@ import type {
   MatchLineupRow,
   PublicMatchRow,
 } from '@/components/public/publicMatchPageShared';
+import { PUBLIC_MATCH_TEAM_RELATION_SELECT } from '@/lib/team-selects';
 
 type PageData = {
   match: PublicMatchRow;
@@ -107,8 +108,7 @@ export default function usePublicMatchPage() {
       .from('matches')
       .select(`
         *,
-        home_team:home_team_id (*),
-        away_team:away_team_id (*)
+        ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
       `)
       .eq('public_slug', currentSlug)
       .single();

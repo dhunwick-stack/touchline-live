@@ -6,6 +6,10 @@ import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Team } from '@/lib/types';
+import {
+  PUBLIC_MATCH_TEAM_RELATION_SELECT,
+  PUBLIC_TEAM_WITH_ORGANIZATION_SELECT,
+} from '@/lib/team-selects';
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -67,10 +71,7 @@ export default function PublicTeamPage() {
       ] = await Promise.all([
         supabase
           .from('teams')
-          .select(`
-            *,
-            organization:organization_id (*)
-          `)
+          .select(PUBLIC_TEAM_WITH_ORGANIZATION_SELECT)
           .eq('id', teamId)
           .single(),
         supabase
@@ -84,8 +85,7 @@ export default function PublicTeamPage() {
           .from('matches')
           .select(`
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .eq('status', 'final')
@@ -94,8 +94,7 @@ export default function PublicTeamPage() {
           .from('matches')
           .select(`
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .in('status', ['not_started', 'scheduled', 'live', 'halftime'])
@@ -117,7 +116,7 @@ export default function PublicTeamPage() {
 
       const loadedMatches = (matchData as MatchRow[]) ?? [];
 
-      setTeam(teamData as Team);
+      setTeam(teamData as unknown as Team);
       setPlayers((playerData as Player[]) ?? []);
       setMatches(loadedMatches);
       setNextMatch(((nextMatchData as MatchRow[]) ?? [])[0] || null);

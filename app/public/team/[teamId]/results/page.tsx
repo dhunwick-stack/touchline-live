@@ -12,6 +12,10 @@ import {
 } from '@/components/team/TeamResultsSections';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Season, Team } from '@/lib/types';
+import {
+  PUBLIC_MATCH_TEAM_RELATION_SELECT,
+  PUBLIC_TEAM_WITH_ORGANIZATION_SELECT,
+} from '@/lib/team-selects';
 
 type MatchRow = TeamResultsMatchRow;
 
@@ -58,19 +62,15 @@ export default function PublicTeamResultsPage() {
         { data: seasonData, error: seasonError },
       ] = await Promise.all([
         supabase
-  .from('teams')
-  .select(`
-    *,
-    organization:organization_id (*)
-  `)
-  .eq('id', teamId)
-  .single(),
+          .from('teams')
+          .select(PUBLIC_TEAM_WITH_ORGANIZATION_SELECT)
+          .eq('id', teamId)
+          .single(),
         supabase
           .from('matches')
           .select(`
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .eq('status', 'final')
@@ -93,7 +93,7 @@ export default function PublicTeamResultsPage() {
       const loadedMatches = (matchData as MatchRow[]) ?? [];
       const loadedSeasons = (seasonData as Season[]) ?? [];
 
-      setTeam(teamData as Team);
+      setTeam(teamData as unknown as Team);
       setMatches(loadedMatches);
       setSeasons(loadedSeasons);
       setSelectedSeasonId('all');

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicTeamHero from '@/components/PublicTeamHero';
 import PublicTeamNav from '@/components/PublicTeamNav';
+import { supabase } from '@/lib/supabase';
 import type { Team } from '@/lib/types';
 
 type PublicTeamPageShellProps = {
@@ -115,13 +116,6 @@ useEffect(() => {
     setAdminError('');
 
     const entered = adminCode.trim();
-    const expected = (team.admin_code || '').trim();
-
-    if (!expected) {
-      setAdminError('No admin code is set for this team.');
-      setCheckingAdminCode(false);
-      return;
-    }
 
     if (!entered) {
       setAdminError('Enter the admin code.');
@@ -129,7 +123,18 @@ useEffect(() => {
       return;
     }
 
-    if (entered !== expected) {
+    const { data: success, error } = await supabase.rpc('verify_team_admin_code', {
+      target_team_id: team.id,
+      entered_code: entered,
+    });
+
+    if (error) {
+      setAdminError(error.message || 'Failed to verify team code.');
+      setCheckingAdminCode(false);
+      return;
+    }
+
+    if (!success) {
       setAdminError('Incorrect team code.');
       setCheckingAdminCode(false);
       return;

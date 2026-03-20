@@ -10,6 +10,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Match, Team } from '@/lib/types';
 import type { User } from '@supabase/supabase-js';
+import {
+  PUBLIC_MATCH_TEAM_RELATION_SELECT,
+  PUBLIC_TEAM_WITH_ORGANIZATION_SELECT,
+} from '@/lib/team-selects';
 
 // ---------------------------------------------------
 // TYPES
@@ -132,13 +136,16 @@ function TeamLoginPageInner() {
         { data: teamData, error: teamError },
         { data: liveMatchData, error: liveMatchError },
       ] = await Promise.all([
-        supabase.from('teams').select('*').eq('id', teamId).single(),
+        supabase
+          .from('teams')
+          .select(PUBLIC_TEAM_WITH_ORGANIZATION_SELECT)
+          .eq('id', teamId)
+          .single(),
         supabase
           .from('matches')
           .select(`
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .in('status', ['live', 'halftime'])
@@ -156,7 +163,7 @@ function TeamLoginPageInner() {
         return;
       }
 
-      setTeam((teamData as Team) ?? null);
+      setTeam((teamData as unknown as Team) ?? null);
       setLiveMatch(((liveMatchData as MatchRow[]) ?? [])[0] || null);
       setLoading(false);
     }
@@ -280,13 +287,6 @@ if (superAdmin) {
     // -------------------------------------------------
 
     const entered = adminCode.trim();
-    const expected = (team.admin_code || '').trim();
-
-    if (!expected) {
-      setAdminError('No admin code is set for this team.');
-      setCheckingAdminCode(false);
-      return;
-    }
 
     if (!entered) {
       setAdminError('Enter the team code.');
@@ -294,31 +294,19 @@ if (superAdmin) {
       return;
     }
 
-    if (entered !== expected) {
-      setAdminError('Incorrect team code.');
+    const { data: success, error: verifyError } = await supabase.rpc('verify_team_admin_code', {
+      target_team_id: team.id,
+      entered_code: entered,
+    });
+
+    if (verifyError) {
+      setAdminError(verifyError.message || 'Failed to verify team access.');
       setCheckingAdminCode(false);
       return;
     }
 
-    // -------------------------------------------------
-    // CREATE OR REUSE TEAM MEMBERSHIP
-    // -------------------------------------------------
-
-    const { error: membershipError } = await supabase
-      .from('team_users')
-      .upsert(
-        {
-          team_id: team.id,
-          user_id: signedInUser.id,
-          role: 'team_admin',
-        },
-        {
-          onConflict: 'team_id,user_id',
-        },
-      );
-
-    if (membershipError) {
-      setAdminError(membershipError.message || 'Failed to grant team access.');
+    if (!success) {
+      setAdminError('Incorrect team code.');
       setCheckingAdminCode(false);
       return;
     }

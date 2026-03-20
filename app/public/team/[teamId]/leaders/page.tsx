@@ -10,6 +10,10 @@ import {
 } from '@/components/team/TeamLeadersSections';
 import { supabase } from '@/lib/supabase';
 import type { Match, MatchEvent, Player, Season, Team } from '@/lib/types';
+import {
+  PUBLIC_MATCH_TEAM_RELATION_SELECT,
+  PUBLIC_TEAM_WITH_ORGANIZATION_SELECT,
+} from '@/lib/team-selects';
 
 // ---------------------------------------------------
 // TYPES
@@ -77,12 +81,7 @@ export default function PublicTeamLeadersPage() {
       ] = await Promise.all([
         supabase
           .from('teams')
-          .select(
-            `
-              *,
-              organization:organization_id (*)
-            `,
-          )
+          .select(PUBLIC_TEAM_WITH_ORGANIZATION_SELECT)
           .eq('id', teamId)
           .single(),
         supabase
@@ -110,7 +109,7 @@ export default function PublicTeamLeadersPage() {
 
       const loadedSeasons = (seasonData as Season[]) ?? [];
 
-      setTeam(teamData as Team);
+      setTeam(teamData as unknown as Team);
       setPlayers((playerData as Player[]) ?? []);
       setSeasons(loadedSeasons);
       setSelectedSeasonId('all');
@@ -142,8 +141,7 @@ export default function PublicTeamLeadersPage() {
         .select(
           `
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `,
         )
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)

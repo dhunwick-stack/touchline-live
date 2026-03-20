@@ -6,6 +6,10 @@ import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
 import { supabase } from '@/lib/supabase';
 import type { Match, Season, Team } from '@/lib/types';
+import {
+  PUBLIC_MATCH_TEAM_RELATION_SELECT,
+  PUBLIC_TEAM_WITH_ORGANIZATION_SELECT,
+} from '@/lib/team-selects';
 
 type MatchRow = Match & {
   home_team: Team | null;
@@ -58,20 +62,16 @@ export default function PublicTeamSchedulePage() {
         { data: matchData, error: matchError },
         { data: seasonData, error: seasonError },
       ] = await Promise.all([
-       supabase
-  .from('teams')
-  .select(`
-    *,
-    organization:organization_id (*)
-  `)
-  .eq('id', teamId)
-  .single(),
+        supabase
+          .from('teams')
+          .select(PUBLIC_TEAM_WITH_ORGANIZATION_SELECT)
+          .eq('id', teamId)
+          .single(),
         supabase
           .from('matches')
           .select(`
             *,
-            home_team:home_team_id (*),
-            away_team:away_team_id (*)
+            ${PUBLIC_MATCH_TEAM_RELATION_SELECT}
           `)
           .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
           .order('match_date', { ascending: true, nullsFirst: false })
@@ -93,7 +93,7 @@ export default function PublicTeamSchedulePage() {
       const loadedSeasons = (seasonData as Season[]) ?? [];
       const activeSeason = loadedSeasons.find((season) => season.is_active);
 
-      setTeam(teamData as Team);
+      setTeam(teamData as unknown as Team);
       setMatches((matchData as MatchRow[]) ?? []);
       setSeasons(loadedSeasons);
       setSelectedSeasonId(activeSeason?.id || 'all');
