@@ -435,48 +435,50 @@ function TeamSetupCard({
           </>
         )}
 
-                <Field label="Tracking Mode">
-          <select
-            value={trackingMode}
-            onChange={(e) => onTrackingModeChange(e.target.value as TrackingMode)}
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-          >
-            {/* Tracking mode options */}
-            <option value="full">Full tracking</option>
-            <option value="lineups">Lineups</option>
-            <option value="basic">Basic tracking</option>
-          </select>
-
-          <div className="mt-3 grid gap-3">
-            {/* Full tracking descriptor */}
-            <DescriptorCard
-              title="Full Tracking"
-              body="Track player-based match events like goals, cards, and substitutions with the most detail."
-              hint="Best for full match coverage"
-              active={trackingMode === 'full'}
-            />
-
-             {/* Lineups tracking descriptor */}
-            <DescriptorCard
-              title="Lineups"
-              body="Track score and match flow with lineup support when you want to manage player availability or starters without full stat detail."
-              hint="Best for lineup-based coverage"
-              active={trackingMode === 'lineups'}
-            />
-
-            {/* Basic tracking descriptor */}
-            <DescriptorCard
-              title="Basic Tracking"
-              body="Track the score and key match events with lighter setup and less player-level detail."
-              hint="Best for quick but useful coverage"
-              active={trackingMode === 'basic'}
-            />
-
-           
-          </div>
-        </Field>
+        <TrackingModeChooser
+          trackingMode={trackingMode}
+          onTrackingModeChange={onTrackingModeChange}
+        />
       </div>
     </section>
+  );
+}
+
+function TrackingModeChooser({
+  trackingMode,
+  onTrackingModeChange,
+}: {
+  trackingMode: TrackingMode;
+  onTrackingModeChange: (value: TrackingMode) => void;
+}) {
+  return (
+    <Field label="Tracking Mode">
+      <div className="grid gap-3">
+        <DescriptorCard
+          title="Full Tracking"
+          body="Track player-based match events like goals, cards, and substitutions with the most detail."
+          hint="Best for full match coverage"
+          active={trackingMode === 'full'}
+          onClick={() => onTrackingModeChange('full')}
+        />
+
+        <DescriptorCard
+          title="Lineups"
+          body="Track score and match flow with lineup support when you want to manage player availability or starters without full stat detail."
+          hint="Best for lineup-based coverage"
+          active={trackingMode === 'lineups'}
+          onClick={() => onTrackingModeChange('lineups')}
+        />
+
+        <DescriptorCard
+          title="Basic Tracking"
+          body="Track the score and key match events with lighter setup and less player-level detail."
+          hint="Best for quick but useful coverage"
+          active={trackingMode === 'basic'}
+          onClick={() => onTrackingModeChange('basic')}
+        />
+      </div>
+    </Field>
   );
 }
 
@@ -485,26 +487,42 @@ function DescriptorCard({
   body,
   hint,
   active,
+  onClick,
 }: {
   title: string;
   body: string;
   hint: string;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div
-      className={`rounded-2xl border px-4 py-4 ${
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border px-4 py-4 text-left transition cursor-pointer ${
         active
-          ? 'border-slate-900 bg-slate-50'
-          : 'border-slate-200 bg-white'
+          ? 'border-slate-900 bg-slate-50 shadow-sm ring-2 ring-slate-900/10'
+          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
       }`}
     >
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-left text-sm font-semibold text-slate-900">{title}</h3>
+        <span
+          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+            active
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-300 bg-white text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <span className="text-[10px] leading-none">•</span>
+        </span>
+      </div>
       <p className="mt-1 text-sm leading-6 text-slate-600">{body}</p>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <p className="mt-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
         {hint}
       </p>
-    </div>
+    </button>
   );
 }
 
