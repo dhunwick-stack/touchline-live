@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 export default function AppChrome({
@@ -9,6 +10,7 @@ export default function AppChrome({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +38,12 @@ export default function AppChrome({
       subscription.unsubscribe();
     };
   }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push('/');
+    router.refresh();
+  }
 
   return (
     <>
@@ -81,8 +89,15 @@ export default function AppChrome({
             </Link>
 
             {userEmail ? (
-              <div className="ml-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                Signed in as {userEmail}
+              <div className="ml-2 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                <span>Signed in as {userEmail}</span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                >
+                  Log Out
+                </button>
               </div>
             ) : (
               <Link
