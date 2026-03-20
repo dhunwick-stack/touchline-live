@@ -89,12 +89,12 @@ export default function PublicTeamHero({
 
       <div className="relative mx-auto max-w-7xl px-6 py-8">
         <div className="rounded-[32px] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             {/* --------------------------------------------------- */}
             {/* LEFT SIDE */}
             {/* --------------------------------------------------- */}
 
-            <div className="flex min-w-0 items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4 lg:flex-1">
               {team.logo_url ? (
                 <img
                   src={team.logo_url}
@@ -162,7 +162,7 @@ export default function PublicTeamHero({
             {/* --------------------------------------------------- */}
 
             {actions.length > 0 ? (
-              <div className="flex flex-wrap gap-3 xl:justify-end">
+              <div className="flex flex-wrap gap-3 lg:ml-6 lg:max-w-[42%] lg:justify-end lg:self-end">
                 {actions.map((action) => {
                   const content = (
                     <>
