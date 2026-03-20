@@ -431,6 +431,8 @@ function MatchCard({
   // ---------------------------------------------------
 
   const liveClockText = getLiveClockText(match, nowMs);
+  const homeWon = match.status === 'final' && match.home_score > match.away_score;
+  const awayWon = match.status === 'final' && match.away_score > match.home_score;
 
   return (
     <div
@@ -490,6 +492,12 @@ function MatchCard({
               >
                 {match.home_team?.name || 'Home Team'}
               </Link>
+
+              {homeWon ? (
+                <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-emerald-100 px-2 text-sm font-bold text-emerald-700">
+                  W
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -521,6 +529,12 @@ function MatchCard({
               >
                 {match.away_team?.name || 'Away Team'}
               </Link>
+
+              {awayWon ? (
+                <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-emerald-100 px-2 text-sm font-bold text-emerald-700">
+                  W
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

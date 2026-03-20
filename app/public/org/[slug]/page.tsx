@@ -275,99 +275,136 @@ const heroStyle = useMemo(
           <p className="text-sm text-slate-500">No recent matches yet.</p>
         ) : (
           <div className="flex gap-4 overflow-x-auto scroll-smooth pb-2 md:grid md:grid-cols-2 xl:grid-cols-4 md:overflow-visible">
-            {recentMatches.slice(0, 4).map((match) => (
-              <div
-                key={match.id}
-                className="min-w-[280px] rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 md:min-w-0"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    {/* --------------------------------------------------- */}
-                    {/* HOME TEAM */}
-                    {/* --------------------------------------------------- */}
+            {recentMatches.slice(0, 4).map((match) => {
+                const homeBelongsToOrganization =
+                  match.home_team?.organization_id === organization.id;
+                const awayBelongsToOrganization =
+                  match.away_team?.organization_id === organization.id;
+                const organizationGoals =
+                  homeBelongsToOrganization && !awayBelongsToOrganization
+                    ? match.home_score
+                    : awayBelongsToOrganization && !homeBelongsToOrganization
+                      ? match.away_score
+                      : match.home_score;
+                const opponentGoals =
+                  homeBelongsToOrganization && !awayBelongsToOrganization
+                    ? match.away_score
+                    : awayBelongsToOrganization && !homeBelongsToOrganization
+                      ? match.home_score
+                      : match.away_score;
+                const result =
+                  organizationGoals > opponentGoals
+                    ? 'W'
+                    : organizationGoals < opponentGoals
+                      ? 'L'
+                      : 'D';
+                const resultClass =
+                  result === 'W'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : result === 'L'
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-amber-100 text-amber-700';
 
-                    <div className="flex items-center gap-2">
-                      {match.home_team?.logo_url ? (
-                        <img
-                          src={match.home_team.logo_url}
-                          alt={`${match.home_team.name} logo`}
-                          className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200"
-                        />
-                      ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
-                          LOGO
+                return (
+                  <div
+                    key={match.id}
+                    className="min-w-[280px] rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 md:min-w-0"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        {/* --------------------------------------------------- */}
+                        {/* HOME TEAM */}
+                        {/* --------------------------------------------------- */}
+
+                        <div className="flex items-center gap-2">
+                          {match.home_team?.logo_url ? (
+                            <img
+                              src={match.home_team.logo_url}
+                              alt={`${match.home_team.name} logo`}
+                              className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                              LOGO
+                            </div>
+                          )}
+
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {match.home_team?.name || 'Home'}
+                          </p>
                         </div>
-                      )}
 
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {match.home_team?.name || 'Home'}
-                      </p>
+                        {/* --------------------------------------------------- */}
+                        {/* AWAY TEAM */}
+                        {/* --------------------------------------------------- */}
+
+                        <div className="mt-2 flex items-center gap-2">
+                          {match.away_team?.logo_url ? (
+                            <img
+                              src={match.away_team.logo_url}
+                              alt={`${match.away_team.name} logo`}
+                              className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                              LOGO
+                            </div>
+                          )}
+
+                          <p className="truncate text-sm text-slate-600">
+                            {match.away_team?.name || 'Away'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* --------------------------------------------------- */}
+                      {/* SCORE */}
+                      {/* --------------------------------------------------- */}
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-bold ${resultClass}`}
+                        >
+                          {result}
+                        </span>
+                        <div className="text-lg font-black tabular-nums text-slate-900">
+                          {match.home_score}-{match.away_score}
+                        </div>
+                      </div>
                     </div>
+                    {/* --------------------------------------------------- */}
+                    {/* DATE */}
+                    {/* --------------------------------------------------- */}
+
+                    <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      {match.match_date
+                        ? new Intl.DateTimeFormat('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          }).format(new Date(match.match_date))
+                        : 'Date TBD'}
+                    </p>
 
                     {/* --------------------------------------------------- */}
-                    {/* AWAY TEAM */}
+                    {/* ACTION */}
                     {/* --------------------------------------------------- */}
 
-                    <div className="mt-2 flex items-center gap-2">
-                      {match.away_team?.logo_url ? (
-                        <img
-                          src={match.away_team.logo_url}
-                          alt={`${match.away_team.name} logo`}
-                          className="h-8 w-8 rounded-xl object-cover ring-1 ring-slate-200"
-                        />
+                    <div className="mt-4">
+                      {match.public_slug ? (
+                        <Link
+                          href={`/public/${match.public_slug}`}
+                          className="inline-flex rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                        >
+                          View Recap
+                        </Link>
                       ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
-                          LOGO
-                        </div>
+                        <span className="text-xs text-slate-400">No recap link</span>
                       )}
-
-                      <p className="truncate text-sm text-slate-600">
-                        {match.away_team?.name || 'Away'}
-                      </p>
                     </div>
                   </div>
-
-                  {/* --------------------------------------------------- */}
-                  {/* SCORE */}
-                  {/* --------------------------------------------------- */}
-
-                  <div className="shrink-0 text-lg font-black tabular-nums text-slate-900">
-                    {match.home_score}-{match.away_score}
-                  </div>
-                </div>
-
-                {/* --------------------------------------------------- */}
-                {/* DATE */}
-                {/* --------------------------------------------------- */}
-
-                <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {match.match_date
-                    ? new Intl.DateTimeFormat('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }).format(new Date(match.match_date))
-                    : 'Date TBD'}
-                </p>
-
-                {/* --------------------------------------------------- */}
-                {/* ACTION */}
-                {/* --------------------------------------------------- */}
-
-                <div className="mt-4">
-                  {match.public_slug ? (
-                    <Link
-                      href={`/public/${match.public_slug}`}
-                      className="inline-flex rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-                    >
-                      View Recap
-                    </Link>
-                  ) : (
-                    <span className="text-xs text-slate-400">No recap link</span>
-                  )}
-                </div>
-              </div>
-            ))}
+                );
+              })}
           </div>
         )}
       </section>
