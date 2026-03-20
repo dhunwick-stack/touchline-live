@@ -47,6 +47,20 @@ type CsvImportRow = {
   errors: string[];
 };
 
+function buildPlayerFingerprint(input: {
+  first_name?: string | null;
+  last_name?: string | null;
+  jersey_number?: string | number | null;
+}) {
+  return [
+    (input.first_name || '').trim().toLowerCase(),
+    (input.last_name || '').trim().toLowerCase(),
+    input.jersey_number === null || input.jersey_number === undefined
+      ? ''
+      : String(input.jersey_number).trim(),
+  ].join('|');
+}
+
 export default function TeamRosterPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -269,6 +283,16 @@ export default function TeamRosterPage() {
 
   async function handleQuickAddOrganizationPlayer(candidate: OrganizationPlayerCandidate) {
     if (!teamId) return;
+
+    const candidateFingerprint = buildPlayerFingerprint(candidate);
+    const alreadyExists = players.some(
+      (player) => buildPlayerFingerprint(player) === candidateFingerprint,
+    );
+
+    if (alreadyExists) {
+      setError('That player is already on this roster.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -516,6 +540,32 @@ export default function TeamRosterPage() {
     setSaving(false);
   }
 
+  async function removePlayer(playerId: string) {
+    const player = players.find((entry) => entry.id === playerId);
+    if (!player) return;
+
+    const confirmed = window.confirm(
+      `Remove ${[player.first_name, player.last_name].filter(Boolean).join(' ') || 'this player'} from the roster?`,
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError('');
+
+    const { error } = await supabase.from('players').delete().eq('id', playerId);
+
+    if (error) {
+      setError(error.message || 'Failed to remove player.');
+      setSaving(false);
+      return;
+    }
+
+    setEditingIds((prev) => ({ ...prev, [playerId]: false }));
+    await loadRoster();
+    setSaving(false);
+  }
+
   // ---------------------------------------------------
   // SUMMARY DATA
   // ---------------------------------------------------
@@ -559,13 +609,20 @@ export default function TeamRosterPage() {
 
   const filteredOrganizationPlayerCandidates = useMemo(() => {
     const query = organizationPlayerSearch.trim().toLowerCase();
+    const existingFingerprints = new Set(players.map((player) => buildPlayerFingerprint(player)));
 
     if (!query) {
-      return organizationPlayerCandidates.slice(0, 5);
+      return organizationPlayerCandidates
+        .filter((candidate) => !existingFingerprints.has(buildPlayerFingerprint(candidate)))
+        .slice(0, 5);
     }
 
     return organizationPlayerCandidates
       .filter((candidate) => {
+        if (existingFingerprints.has(buildPlayerFingerprint(candidate))) {
+          return false;
+        }
+
         const fullName = [candidate.first_name, candidate.last_name]
           .filter(Boolean)
           .join(' ')
@@ -579,7 +636,7 @@ export default function TeamRosterPage() {
         );
       })
       .slice(0, 5);
-  }, [organizationPlayerCandidates, organizationPlayerSearch]);
+  }, [organizationPlayerCandidates, organizationPlayerSearch, players]);
 
   // ---------------------------------------------------
   // LOADING / ERROR STATES
@@ -838,6 +895,15 @@ if ((accessError || error) && !team) {
                             >
                               Cancel
                             </button>
+
+                            <button
+                              type="button"
+                              onClick={() => removePlayer(player.id)}
+                              disabled={saving}
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-100 disabled:opacity-60"
+                            >
+                              Remove Player
+                            </button>
                           </div>
                         </div>
                       )}
@@ -922,7 +988,7 @@ if ((accessError || error) && !team) {
                         <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
                           {organizationPlayerCandidates.length === 0
                             ? 'No players found on other teams in this organization yet.'
-                            : 'No organization players match that search.'}
+                            : 'No organization players match that search, or they are already on this roster.'}
                         </p>
                       )}
                     </div>
