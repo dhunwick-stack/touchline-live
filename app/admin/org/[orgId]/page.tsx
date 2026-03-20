@@ -408,6 +408,10 @@ export default function AdminOrganizationPage() {
           <p className="mt-1 text-sm text-slate-500">
             Add a new team directly under this organization.
           </p>
+          <p className="mt-2 text-xs font-medium text-slate-500">
+            New teams inherit this organization&apos;s banner and colors automatically. If no team
+            logo is entered, the organization logo will be used by default.
+          </p>
         </div>
 
         <form onSubmit={createTeamInOrganization} className="grid gap-4 md:grid-cols-2">
@@ -461,6 +465,9 @@ export default function AdminOrganizationPage() {
                 placeholder="https://..."
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3"
               />
+              <p className="text-xs font-medium text-slate-500">
+                Leave blank to use the organization logo automatically.
+              </p>
             </Field>
           </div>
 
