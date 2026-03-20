@@ -26,6 +26,8 @@ export default function NewMatchPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [createdMatchId, setCreatedMatchId] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [seasonId, setSeasonId] = useState('');
   const [venue, setVenue] = useState('');
@@ -44,6 +46,20 @@ export default function NewMatchPage() {
 
   const [homeTrackingMode, setHomeTrackingMode] = useState<TrackingMode>('full');
   const [awayTrackingMode, setAwayTrackingMode] = useState<TrackingMode>('basic');
+
+  function resetTeamEntry(nextTeams: Team[]) {
+    setHomeMode('saved');
+    setAwayMode('saved');
+    setHomeTeamId(nextTeams[0]?.id || '');
+    setAwayTeamId(nextTeams[1]?.id || nextTeams[0]?.id || '');
+    setHomeNewTeamName('');
+    setAwayNewTeamName('');
+    setHomeSaveReusable(true);
+    setAwaySaveReusable(false);
+    setHomeTrackingMode('full');
+    setAwayTrackingMode('basic');
+    setMessage('');
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -65,8 +81,7 @@ export default function NewMatchPage() {
       setTeams(teamsList);
       setSeasons(seasonsList);
       setSeasonId(seasonsList.find((s) => s.is_active)?.id || seasonsList[0]?.id || '');
-      setHomeTeamId(teamsList[0]?.id || '');
-      setAwayTeamId(teamsList[1]?.id || teamsList[0]?.id || '');
+      resetTeamEntry(teamsList);
       setLoading(false);
     }
 
@@ -95,15 +110,22 @@ export default function NewMatchPage() {
     try {
       let resolvedHomeTeamId = homeTeamId;
       let resolvedAwayTeamId = awayTeamId;
+      let nextTeams = teams;
 
       if (homeMode === 'new') {
         const createdHome = await createTeamIfNeeded(homeNewTeamName, homeSaveReusable);
         resolvedHomeTeamId = createdHome?.id || '';
+        if (createdHome) {
+          nextTeams = [...nextTeams, createdHome].sort((a, b) => a.name.localeCompare(b.name));
+        }
       }
 
       if (awayMode === 'new') {
         const createdAway = await createTeamIfNeeded(awayNewTeamName, awaySaveReusable);
         resolvedAwayTeamId = createdAway?.id || '';
+        if (createdAway) {
+          nextTeams = [...nextTeams, createdAway].sort((a, b) => a.name.localeCompare(b.name));
+        }
       }
 
       if (!resolvedHomeTeamId || !resolvedAwayTeamId) {
@@ -134,7 +156,9 @@ export default function NewMatchPage() {
         throw new Error(error.message);
       }
 
-      router.push(`/live/${data.id}`);
+      setTeams(nextTeams);
+      setCreatedMatchId(data.id);
+      setShowSuccessModal(true);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Something went wrong.');
       setSaving(false);
@@ -142,6 +166,17 @@ export default function NewMatchPage() {
     }
 
     setSaving(false);
+  }
+
+  function handleGoToMatch() {
+    if (!createdMatchId) return;
+    router.push(`/live/${createdMatchId}`);
+  }
+
+  function handleAddAnotherGame() {
+    setShowSuccessModal(false);
+    setCreatedMatchId('');
+    resetTeamEntry(teams);
   }
 
   if (loading) {
@@ -244,6 +279,41 @@ export default function NewMatchPage() {
           {saving ? 'Creating Match...' : 'Create Match'}
         </button>
       </form>
+
+      {showSuccessModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-6">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Match Created
+            </p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+              What would you like to do next?
+            </h2>
+            <p className="mt-2 text-slate-600">
+              Jump straight into live match management or keep this form open for another quick
+              entry.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleGoToMatch}
+                className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600"
+              >
+                Go to Match
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddAnotherGame}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Add Another Game
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
