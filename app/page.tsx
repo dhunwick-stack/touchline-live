@@ -278,11 +278,16 @@ export default function HomePage() {
 
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
-                        match.status === 'final'
+                        match.status === 'live'
+                          ? 'inline-flex items-center gap-2 bg-emerald-500/15 text-emerald-700 ring-emerald-400/20'
+                          : match.status === 'final'
                           ? 'bg-red-600 text-white ring-red-500/70'
                           : 'bg-white text-slate-600 ring-slate-200'
                       }`}
                     >
+                      {match.status === 'live' ? (
+                        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                      ) : null}
                       {prettyStatus(match.status)}
                     </span>
                   </div>

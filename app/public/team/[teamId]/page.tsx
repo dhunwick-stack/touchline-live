@@ -459,13 +459,20 @@ export default function PublicTeamPage() {
                     </p>
                   </div>
 
-                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
-                    {nextMatch.status === 'live'
-                      ? 'Live'
-                      : nextMatch.status === 'halftime'
-                        ? 'Halftime'
-                        : 'Scheduled'}
-                  </span>
+                  {nextMatch.status === 'live' ? (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-100 ring-1 ring-emerald-300/25">
+                      <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                      Live
+                    </span>
+                  ) : nextMatch.status === 'halftime' ? (
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/15">
+                      Halftime
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-900">
+                      Scheduled
+                    </span>
+                  )}
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
@@ -534,7 +541,7 @@ export default function PublicTeamPage() {
                       className="inline-flex rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900"
                     >
                       {nextMatch.status === 'live' || nextMatch.status === 'halftime'
-                        ? 'Watch Live'
+                        ? 'Follow Live'
                         : 'View Match'}
                     </Link>
                   ) : null}

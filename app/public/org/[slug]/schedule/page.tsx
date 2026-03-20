@@ -336,9 +336,16 @@ export default function PublicOrganizationSchedulePage() {
                       {/* ------------------------------------------- */}
 
                       <div className="text-right">
-                        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                          {prettyStatus(match.status)}
-                        </p>
+                        {match.status === 'live' ? (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700 ring-1 ring-emerald-400/20">
+                            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                            Live
+                          </span>
+                        ) : (
+                          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                            {prettyStatus(match.status)}
+                          </p>
+                        )}
 
                         <p className="mt-1 text-sm text-slate-500">
                           {match.match_date

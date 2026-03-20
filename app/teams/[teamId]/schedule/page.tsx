@@ -753,7 +753,8 @@ function ScheduleMatchCard({
 function StatusBadge({ status }: { status: Match['status'] }) {
   if (status === 'live') {
     return (
-      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700 ring-1 ring-emerald-400/20">
+        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
         Live
       </span>
     );
