@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { hasValidAdminSession, clearAdminSession } from '@/lib/admin-session';
 import { supabase } from '@/lib/supabase';
 import type { Organization, Team } from '@/lib/types';
+import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
 type TeamAccessRequest = {
   id: string;
@@ -22,30 +21,19 @@ type TeamRow = Team & {
 };
 
 export default function AdminRequestsPage() {
-  const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [requests, setRequests] = useState<TeamAccessRequest[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [actingRequestId, setActingRequestId] = useState('');
+  const { authChecked, currentUser, hasSuperAccess, loading: accessLoading } = useSuperAdminGuard({
+    nextPath: '/admin/requests',
+  });
 
   useEffect(() => {
-    const isValid = hasValidAdminSession();
-
-    if (!isValid) {
-      clearAdminSession();
-      router.replace('/admin/admin-login?next=/admin/requests');
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [router]);
-
-  useEffect(() => {
-    if (!authChecked) return;
+    if (!authChecked || !hasSuperAccess) return;
     loadData();
-  }, [authChecked]);
+  }, [authChecked, hasSuperAccess]);
 
   async function loadData() {
     setLoading(true);
@@ -172,8 +160,24 @@ export default function AdminRequestsPage() {
       .slice(0, 5);
   }
 
-  if (!authChecked) {
+  if (!authChecked || accessLoading) {
     return <main className="mx-auto max-w-6xl px-6 py-10">Loading admin...</main>;
+  }
+
+  if (!hasSuperAccess) {
+    return (
+      <main className="mx-auto max-w-4xl px-6 py-10">
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">
+            Super Admin Access Required
+          </h1>
+          <p className="mt-3 text-slate-600">
+            {currentUser?.email || 'This account'} does not currently have permission to review
+            access requests.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (

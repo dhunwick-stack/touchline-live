@@ -1,90 +1,88 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import Link from 'next/link';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'touchline-admin';
-
-function AdminLoginForm() {
-  const router = useRouter();
+function AdminAccessPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const next = searchParams.get('next') || '/admin';
+  const [checking, setChecking] = useState(true);
+  const [userEmail, setUserEmail] = useState('');
 
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    async function checkAccess() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  function setAdminSession() {
-    const session = {
-      expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    };
+      if (!session?.user) {
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
 
-    localStorage.setItem('adminSession', JSON.stringify(session));
-  }
+      setUserEmail(session.user.email || '');
 
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setChecking(true);
-    setError('');
+      const { data: superAdmin } = await supabase
+        .from('super_admin_users')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
 
-    if (!code.trim()) {
-      setError('Enter the admin code.');
+      if (superAdmin) {
+        router.replace(next);
+        return;
+      }
+
       setChecking(false);
-      return;
     }
 
-    if (code.trim() !== ADMIN_CODE) {
-      setError('Incorrect admin code.');
-      setChecking(false);
-      return;
-    }
+    checkAccess();
+  }, [next, router]);
 
-    setAdminSession();
-    router.push(next);
+  if (checking) {
+    return <main className="mx-auto max-w-md px-6 py-12">Checking admin access...</main>;
   }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center justify-center px-6 py-12">
-      <form
-        onSubmit={handleLogin}
-        className="w-full rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-      >
+      <div className="w-full rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Touchline Live
         </p>
 
         <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-          Admin Login
+          Super Admin Access
         </h1>
 
         <p className="mt-2 text-sm text-slate-600">
-          Enter the global admin code to continue.
+          {userEmail || 'This account'} is signed in, but it is not currently listed as a super
+          admin.
         </p>
 
-        <div className="mt-5">
-          <input
-            type="password"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Admin code"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-            autoFocus
-          />
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Ask an existing super admin to add your Supabase user id to the <code>super_admin_users</code>{' '}
+          table.
         </div>
 
-        {error ? (
-          <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={checking}
-          className="mt-5 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {checking ? 'Checking…' : 'Continue'}
-        </button>
-      </form>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            href="/"
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+          >
+            Return Home
+          </Link>
+          <Link
+            href="/teams"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+          >
+            Go to Teams
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }
@@ -92,7 +90,7 @@ function AdminLoginForm() {
 export default function AdminLoginPage() {
   return (
     <Suspense fallback={<main className="mx-auto max-w-md px-6 py-12">Loading login...</main>}>
-      <AdminLoginForm />
+      <AdminAccessPageInner />
     </Suspense>
   );
 }

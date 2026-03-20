@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { hasValidAdminSession, clearAdminSession } from '@/lib/admin-session';
 import { supabase } from '@/lib/supabase';
+import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
 const adminSections = [
   {
@@ -35,24 +34,13 @@ const adminSections = [
 ];
 
 export default function AdminHomePage() {
-  const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const { authChecked, currentUser, hasSuperAccess, loading } = useSuperAdminGuard({
+    nextPath: '/admin',
+  });
 
   useEffect(() => {
-    const isValid = hasValidAdminSession();
-
-    if (!isValid) {
-      clearAdminSession();
-      router.replace('/admin/admin-login?next=/admin');
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [router]);
-
-  useEffect(() => {
-    if (!authChecked) return;
+    if (!authChecked || !hasSuperAccess) return;
 
     async function loadPendingRequestCount() {
       const { count, error } = await supabase
@@ -65,10 +53,43 @@ export default function AdminHomePage() {
     }
 
     loadPendingRequestCount();
-  }, [authChecked]);
+  }, [authChecked, hasSuperAccess]);
 
-  if (!authChecked) {
+  if (!authChecked || loading) {
     return <main className="mx-auto max-w-6xl px-6 py-10">Loading admin...</main>;
+  }
+
+  if (!hasSuperAccess) {
+    return (
+      <main className="mx-auto max-w-4xl px-6 py-10">
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Touchline Live
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+            Super Admin Access Required
+          </h1>
+          <p className="mt-3 text-slate-600">
+            {currentUser?.email || 'This account'} is signed in, but it is not currently listed as a
+            super admin.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/"
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            >
+              Return Home
+            </Link>
+            <Link
+              href="/teams"
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+            >
+              Go to Teams
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (

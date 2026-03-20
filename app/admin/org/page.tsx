@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Organization } from '@/lib/types';
+import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
 // ---------------------------------------------------
 // SLUG HELPER
@@ -22,34 +23,10 @@ function slugifyOrganization(name: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-// ---------------------------------------------------
-// ADMIN SESSION HELPER
-// ---------------------------------------------------
-
-function hasValidAdminSession() {
-  try {
-    const raw = localStorage.getItem('adminSession');
-    if (!raw) return false;
-
-    const session = JSON.parse(raw);
-    return session.expires > Date.now();
-  } catch {
-    return false;
-  }
-}
-
-// ---------------------------------------------------
-// PAGE
-// FILE: app/admin/org/page.tsx
-// ---------------------------------------------------
-
 export default function AdminOrgPage() {
-  // ---------------------------------------------------
-  // ACCESS STATE
-  // ---------------------------------------------------
-
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [hasAccess, setHasAccess] = useState(false);
+  const { authChecked, currentUser, hasSuperAccess, loading: accessLoading } = useSuperAdminGuard({
+    nextPath: '/admin/org',
+  });
 
   // ---------------------------------------------------
   // PAGE STATE
@@ -62,16 +39,6 @@ export default function AdminOrgPage() {
   const [loading, setLoading] = useState(false);
   const [loadingOrgs, setLoadingOrgs] = useState(true);
   const [message, setMessage] = useState('');
-
-  // ---------------------------------------------------
-  // ADMIN ACCESS CHECK
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    const valid = hasValidAdminSession();
-    setHasAccess(valid);
-    setAccessChecked(true);
-  }, []);
 
   // ---------------------------------------------------
   // LOAD ORGANIZATIONS
@@ -100,9 +67,9 @@ export default function AdminOrgPage() {
   // ---------------------------------------------------
 
   useEffect(() => {
-    if (!accessChecked) return;
+    if (!authChecked || !hasSuperAccess) return;
     loadOrgs();
-  }, [accessChecked]);
+  }, [authChecked, hasSuperAccess]);
 
   // ---------------------------------------------------
   // CREATE ORGANIZATION
@@ -115,7 +82,7 @@ export default function AdminOrgPage() {
     // HARD STOP IF NOT AUTHORIZED
     // ---------------------------------------------------
 
-    if (!hasAccess) {
+    if (!hasSuperAccess) {
       setMessage('You must log in as a global admin to create an organization.');
       return;
     }
@@ -168,8 +135,22 @@ export default function AdminOrgPage() {
   // ACCESS LOADING
   // ---------------------------------------------------
 
-  if (!accessChecked) {
+  if (!authChecked || accessLoading) {
     return <main className="mx-auto max-w-5xl px-6 py-10">Checking access...</main>;
+  }
+
+  if (!hasSuperAccess) {
+    return (
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <h1 className="text-3xl font-black">Super Admin Access Required</h1>
+          <p className="mt-3 text-slate-600">
+            {currentUser?.email || 'This account'} is signed in, but it is not authorized to manage
+            organizations.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   // ---------------------------------------------------
@@ -190,21 +171,19 @@ export default function AdminOrgPage() {
           </p>
         </div>
 
-        {!hasAccess ? (
-          <Link
-            href="/admin/admin-login?next=/admin/org"
-            className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
-          >
-            Admin Login
-          </Link>
-        ) : null}
+        <Link
+          href="/admin"
+          className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
+        >
+          Admin Dashboard
+        </Link>
       </div>
 
       {/* --------------------------------------------------- */}
       {/* ADMIN-ONLY CREATE ORGANIZATION FORM */}
       {/* --------------------------------------------------- */}
 
-      {hasAccess ? (
+      {hasSuperAccess ? (
         <form
           onSubmit={createOrg}
           className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -377,7 +356,7 @@ export default function AdminOrgPage() {
                 )}
 
                 <Link
-                  href={hasAccess ? `/admin/org/${org.id}` : `/admin/admin-login?next=/admin/org/${org.id}`}
+                  href={`/admin/org/${org.id}`}
                   className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
                   style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
                 >

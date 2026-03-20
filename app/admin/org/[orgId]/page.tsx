@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Organization, Team } from '@/lib/types';
+import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
 type TeamRow = Team & {
   organization: Organization | null;
@@ -22,6 +23,14 @@ export default function AdminOrganizationPage() {
       : Array.isArray(params?.orgId)
         ? params.orgId[0]
         : '';
+  const {
+    authChecked,
+    currentUser,
+    hasSuperAccess,
+    loading: accessLoading,
+  } = useSuperAdminGuard({
+    nextPath: orgId ? `/admin/org/${orgId}` : '/admin/org',
+  });
 
   // ---------------------------------------------------
   // ORG EDIT STATE
@@ -67,7 +76,7 @@ export default function AdminOrganizationPage() {
 
   useEffect(() => {
     async function loadOrg() {
-      if (!orgId) return;
+      if (!orgId || !authChecked || !hasSuperAccess) return;
 
       setLoading(true);
       setMessage('');
@@ -124,7 +133,7 @@ export default function AdminOrganizationPage() {
     }
 
     loadOrg();
-  }, [orgId]);
+  }, [orgId, authChecked, hasSuperAccess]);
 
   // ---------------------------------------------------
   // SAVE ORG
@@ -224,6 +233,26 @@ export default function AdminOrganizationPage() {
   // ---------------------------------------------------
   // LOADING
   // ---------------------------------------------------
+
+  if (!authChecked || accessLoading) {
+    return <div className="p-6">Checking access...</div>;
+  }
+
+  if (!hasSuperAccess) {
+    return (
+      <main className="mx-auto max-w-6xl space-y-6 p-6">
+        <section className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">
+            Super Admin Access Required
+          </h1>
+          <p className="mt-3 text-slate-600">
+            {currentUser?.email || 'This account'} is signed in, but it is not authorized to edit
+            organizations.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   if (loading) {
     return <div className="p-6">Loading organization...</div>;
