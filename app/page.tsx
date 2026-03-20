@@ -150,15 +150,12 @@ export default function HomePage() {
         <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 lg:justify-end">
           {userEmail ? (
             <>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">
-                Signed in as {userEmail}
-              </div>
-
               <Link
                 href="/teams?mine=1"
-                className="inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
               >
-                Your Teams
+                <span>My Teams</span>
+                <span aria-hidden="true">→</span>
               </Link>
             </>
           ) : (

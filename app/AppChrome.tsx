@@ -45,6 +45,16 @@ export default function AppChrome({
     router.refresh();
   }
 
+  function getGreeting() {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  const userLabel = userEmail?.split('@')[0] || 'there';
+
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -90,7 +100,13 @@ export default function AppChrome({
 
             {userEmail ? (
               <div className="ml-2 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                <span>Signed in as {userEmail}</span>
+                <Link
+                  href="/teams?mine=1"
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
+                >
+                  <span>{getGreeting()}, {userLabel}</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
