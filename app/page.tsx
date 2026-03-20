@@ -46,6 +46,7 @@ export default function HomePage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // ---------------------------------------------------
   // LOAD DASHBOARD DATA
@@ -82,6 +83,32 @@ export default function HomePage() {
     loadDashboard();
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!active) return;
+      setUserEmail(session?.user?.email ?? null);
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // ---------------------------------------------------
   // DERIVED VALUES
   // ---------------------------------------------------
@@ -104,19 +131,54 @@ export default function HomePage() {
       {/* HERO */}
       {/* --------------------------------------------------- */}
 
-      <section className="text-center">
-        <p className="mb-3 inline-flex rounded-full bg-emerald-50 px-4 py-1 text-sm font-semibold text-emerald-700">
-          Touchline Live
-        </p>
+      <section className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-3xl text-center lg:text-left">
+          <p className="mb-3 inline-flex rounded-full bg-emerald-50 px-4 py-1 text-sm font-semibold text-emerald-700">
+            Touchline Live
+          </p>
 
-        <h1 className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
-          Club, team, and match management built for the sidelines.
-        </h1>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+            Club, team, and match management built for the sidelines.
+          </h1>
 
-        <p className="mx-auto mt-4 max-w-3xl text-lg text-slate-600">
-          Browse organizations, manage teams, launch matches, and share public-facing pages for clubs,
-          schools, and supporters.
-        </p>
+          <p className="mt-4 text-lg text-slate-600">
+            Browse organizations, manage teams, launch matches, and share public-facing pages for clubs,
+            schools, and supporters.
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 lg:justify-end">
+          {userEmail ? (
+            <>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">
+                Signed in as {userEmail}
+              </div>
+
+              <Link
+                href="/teams?mine=1"
+                className="inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+              >
+                Your Teams
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="inline-flex rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Sign In
+              </Link>
+
+              <Link
+                href="/login"
+                className="inline-flex rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
       </section>
 
       {/* --------------------------------------------------- */}
