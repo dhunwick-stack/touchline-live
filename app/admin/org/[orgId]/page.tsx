@@ -185,7 +185,10 @@ export default function AdminOrganizationPage() {
       team_level: newTeamLevel.trim() || null,
       gender: newGender.trim() || null,
       age_group: newAgeGroup.trim() || null,
-      logo_url: newLogoUrl.trim() || null,
+      logo_url: newLogoUrl.trim() || logoUrl.trim() || null,
+      banner_url: bannerUrl.trim() || null,
+      primary_color: primaryColor || null,
+      secondary_color: secondaryColor || null,
       is_reusable: true,
     });
 
