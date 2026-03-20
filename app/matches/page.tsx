@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import type { User } from '@supabase/supabase-js';
 import type { Match, Team } from '@/lib/types';
 
 // ---------------------------------------------------
@@ -25,6 +26,7 @@ type MatchRow = Match & {
 
 export default function MatchesPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
@@ -64,6 +66,33 @@ export default function MatchesPage() {
 
   useEffect(() => {
     loadMatches();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!cancelled) {
+        setCurrentUser(session?.user ?? null);
+      }
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // ---------------------------------------------------
@@ -184,12 +213,14 @@ export default function MatchesPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href="/matches/new"
-            className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
-          >
-            New Match
-          </Link>
+          {currentUser ? (
+            <Link
+              href="/matches/new"
+              className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white"
+            >
+              New Match
+            </Link>
+          ) : null}
 
           <Link
             href="/teams"
@@ -270,6 +301,7 @@ export default function MatchesPage() {
             matches={liveMatches}
             highlight={liveMatches.length > 0}
             nowMs={nowMs}
+            showAdminActions={!!currentUser}
           />
 
           <MatchSection
@@ -279,6 +311,7 @@ export default function MatchesPage() {
             emptyText="No upcoming matches scheduled."
             matches={upcomingMatches}
             nowMs={nowMs}
+            showAdminActions={!!currentUser}
           />
 
           <MatchSection
@@ -288,6 +321,7 @@ export default function MatchesPage() {
             emptyText="No completed matches yet."
             matches={recentResults}
             nowMs={nowMs}
+            showAdminActions={!!currentUser}
           />
         </div>
       )}
@@ -307,6 +341,7 @@ function MatchSection({
   matches,
   highlight = false,
   nowMs,
+  showAdminActions,
 }: {
   title: string;
   subtitle: string;
@@ -315,6 +350,7 @@ function MatchSection({
   matches: MatchRow[];
   highlight?: boolean;
   nowMs: number;
+  showAdminActions: boolean;
 }) {
   return (
     <section
@@ -361,7 +397,13 @@ function MatchSection({
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {matches.map((match) => (
-            <MatchCard key={match.id} match={match} highlight={highlight} nowMs={nowMs} />
+            <MatchCard
+              key={match.id}
+              match={match}
+              highlight={highlight}
+              nowMs={nowMs}
+              showAdminActions={showAdminActions}
+            />
           ))}
         </div>
       )}
@@ -377,10 +419,12 @@ function MatchCard({
   match,
   highlight = false,
   nowMs,
+  showAdminActions,
 }: {
   match: MatchRow;
   highlight?: boolean;
   nowMs: number;
+  showAdminActions: boolean;
 }) {
   // ---------------------------------------------------
   // LIVE CLOCK LABEL
@@ -490,33 +534,39 @@ function MatchCard({
           </span>
         </div>
 
-        <div className="mt-5 border-t border-slate-200 pt-4">
-          <div className="flex flex-wrap gap-3 md:flex-nowrap">
-            <Link
-              href={`/matches/${match.id}/edit`}
-              className="flex-1 rounded-2xl bg-white px-4 py-3 text-center text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
-            >
-              Edit
-            </Link>
+        {(showAdminActions || match.public_slug) ? (
+          <div className="mt-5 border-t border-slate-200 pt-4">
+            <div className="flex flex-wrap gap-3 md:flex-nowrap">
+              {showAdminActions ? (
+                <>
+                  <Link
+                    href={`/matches/${match.id}/edit`}
+                    className="flex-1 rounded-2xl bg-white px-4 py-3 text-center text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
+                  >
+                    Edit
+                  </Link>
 
-            <Link
-              href={`/live/${match.id}`}
-              className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-amber-600"
-            >
-              Manage Match
-            </Link>
+                  <Link
+                    href={`/live/${match.id}`}
+                    className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-amber-600"
+                  >
+                    Manage Match
+                  </Link>
+                </>
+              ) : null}
 
-            {match.public_slug ? (
-              <Link
-                href={`/public/${match.public_slug}`}
-                target="_blank"
-                className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
-              >
-                Public Scoreboard
-              </Link>
-            ) : null}
+              {match.public_slug ? (
+                <Link
+                  href={`/public/${match.public_slug}`}
+                  target="_blank"
+                  className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                >
+                  Public Scoreboard
+                </Link>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );
