@@ -18,6 +18,16 @@ function getDateTimeLocalValue(date: Date) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function getDefaultSeasonId(seasons: Season[]) {
+  const currentYear = String(new Date().getFullYear());
+  const currentYearSeason =
+    seasons.find((season) => season.name?.includes(currentYear)) ||
+    seasons.find((season) => season.start_date?.startsWith(currentYear)) ||
+    seasons.find((season) => season.end_date?.startsWith(currentYear));
+
+  return currentYearSeason?.id || seasons.find((s) => s.is_active)?.id || seasons[0]?.id || '';
+}
+
 export default function NewMatchPage() {
   const router = useRouter();
 
@@ -80,7 +90,7 @@ export default function NewMatchPage() {
 
       setTeams(teamsList);
       setSeasons(seasonsList);
-      setSeasonId(seasonsList.find((s) => s.is_active)?.id || seasonsList[0]?.id || '');
+      setSeasonId(getDefaultSeasonId(seasonsList));
       resetTeamEntry(teamsList);
       setLoading(false);
     }
