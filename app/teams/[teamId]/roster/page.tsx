@@ -37,6 +37,16 @@ type OrganizationPlayerCandidate = Pick<
   team_id: string;
 };
 
+type CsvImportRow = {
+  first_name: string;
+  last_name: string;
+  jersey_number: string;
+  position: string;
+  school_year: string;
+  active: boolean;
+  errors: string[];
+};
+
 export default function TeamRosterPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -73,6 +83,9 @@ export default function TeamRosterPage() {
   const [organizationPlayerCandidates, setOrganizationPlayerCandidates] = useState<
     OrganizationPlayerCandidate[]
   >([]);
+  const [csvImportRows, setCsvImportRows] = useState<CsvImportRow[]>([]);
+  const [csvImportFileName, setCsvImportFileName] = useState('');
+  const [importingCsv, setImportingCsv] = useState(false);
 
   // ---------------------------------------------------
   // ADD PLAYER FORM STATE
@@ -279,6 +292,152 @@ export default function TeamRosterPage() {
     setOrganizationPlayerSearch('');
     await loadRoster();
     setSaving(false);
+  }
+
+  // ---------------------------------------------------
+  // CSV IMPORT
+  // ---------------------------------------------------
+
+  function parseCsvLine(line: string) {
+    const cells: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+
+      if (character === '"') {
+        const nextCharacter = line[index + 1];
+
+        if (inQuotes && nextCharacter === '"') {
+          current += '"';
+          index += 1;
+          continue;
+        }
+
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (character === ',' && !inQuotes) {
+        cells.push(current.trim());
+        current = '';
+        continue;
+      }
+
+      current += character;
+    }
+
+    cells.push(current.trim());
+    return cells;
+  }
+
+  function normalizeCsvBoolean(value: string) {
+    const normalized = value.trim().toLowerCase();
+
+    if (!normalized) return true;
+    if (['true', 'yes', 'y', '1'].includes(normalized)) return true;
+    if (['false', 'no', 'n', '0'].includes(normalized)) return false;
+
+    return true;
+  }
+
+  function parseCsvImportText(text: string) {
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return [] as CsvImportRow[];
+    }
+
+    const headers = parseCsvLine(lines[0]).map((header) => header.trim().toLowerCase());
+    const headerIndex = new Map(headers.map((header, index) => [header, index]));
+
+    return lines.slice(1).map((line) => {
+      const cells = parseCsvLine(line);
+
+      const firstName = cells[headerIndex.get('first_name') ?? -1] || '';
+      const lastName = cells[headerIndex.get('last_name') ?? -1] || '';
+      const jerseyNumber = cells[headerIndex.get('jersey_number') ?? -1] || '';
+      const position = cells[headerIndex.get('position') ?? -1] || '';
+      const schoolYear = cells[headerIndex.get('school_year') ?? -1] || '';
+      const activeValue = cells[headerIndex.get('active') ?? -1] || '';
+      const errors: string[] = [];
+
+      if (!firstName.trim() && !lastName.trim()) {
+        errors.push('Missing player name');
+      }
+
+      if (jerseyNumber.trim() && Number.isNaN(Number.parseInt(jerseyNumber.trim(), 10))) {
+        errors.push('Invalid jersey number');
+      }
+
+      return {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        jersey_number: jerseyNumber.trim(),
+        position: position.trim(),
+        school_year: schoolYear.trim(),
+        active: normalizeCsvBoolean(activeValue),
+        errors,
+      };
+    });
+  }
+
+  async function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+
+    if (!file) {
+      setCsvImportRows([]);
+      setCsvImportFileName('');
+      return;
+    }
+
+    const text = await file.text();
+    const parsedRows = parseCsvImportText(text);
+
+    setCsvImportFileName(file.name);
+    setCsvImportRows(parsedRows);
+    setError('');
+  }
+
+  async function handleImportCsv() {
+    if (!teamId || csvImportRows.length === 0) return;
+
+    const validRows = csvImportRows.filter((row) => row.errors.length === 0);
+
+    if (validRows.length === 0) {
+      setError('CSV import has no valid rows to add.');
+      return;
+    }
+
+    setImportingCsv(true);
+    setError('');
+
+    const payload = validRows.map((row) => ({
+      team_id: teamId,
+      first_name: row.first_name || null,
+      last_name: row.last_name || null,
+      jersey_number: row.jersey_number ? Number.parseInt(row.jersey_number, 10) : null,
+      position: row.position || null,
+      school_year: row.school_year || null,
+      active: row.active,
+    }));
+
+    const { error } = await supabase.from('players').insert(payload);
+
+    if (error) {
+      setError(error.message);
+      setImportingCsv(false);
+      return;
+    }
+
+    setCsvImportRows([]);
+    setCsvImportFileName('');
+    await loadRoster();
+    setImportingCsv(false);
   }
 
   // ---------------------------------------------------
@@ -769,6 +928,79 @@ if ((accessError || error) && !team) {
                     </div>
                   </div>
                 ) : null}
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold text-slate-900">Import Roster CSV</h3>
+                    <p className="mt-1 text-xs font-medium text-slate-500">
+                      Columns: <code>first_name,last_name,jersey_number,position,school_year,active</code>
+                    </p>
+                  </div>
+
+                  <Field label="CSV File">
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={handleCsvFileChange}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    />
+                  </Field>
+
+                  {csvImportFileName ? (
+                    <p className="mt-3 text-xs font-medium text-slate-500">
+                      Loaded: {csvImportFileName}
+                    </p>
+                  ) : null}
+
+                  {csvImportRows.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                        {csvImportRows.filter((row) => row.errors.length === 0).length} valid row
+                        {csvImportRows.filter((row) => row.errors.length === 0).length === 1 ? '' : 's'}{' '}
+                        ready to import out of {csvImportRows.length}.
+                      </div>
+
+                      <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                        {csvImportRows.map((row, index) => (
+                          <div
+                            key={`${row.first_name}-${row.last_name}-${index}`}
+                            className={`rounded-2xl border px-4 py-3 text-sm ${
+                              row.errors.length > 0
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : 'border-slate-200 bg-white text-slate-700'
+                            }`}
+                          >
+                            <p className="font-semibold">
+                              {[row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unnamed Player'}
+                            </p>
+                            <p className="mt-1 text-xs font-medium">
+                              {[
+                                row.jersey_number ? `#${row.jersey_number}` : null,
+                                row.position || null,
+                                isHighSchoolTeam ? row.school_year || null : null,
+                                row.active ? 'Active' : 'Inactive',
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')}
+                            </p>
+                            {row.errors.length > 0 ? (
+                              <p className="mt-2 text-xs font-semibold">{row.errors.join(' • ')}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleImportCsv}
+                        disabled={saving || importingCsv}
+                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {importingCsv ? 'Importing...' : 'Import Valid Rows'}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
 
                 <Field label="First Name">
                   <input
