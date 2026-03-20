@@ -627,7 +627,7 @@ function StatusBadge({ status }: { status: Match['status'] }) {
 
   if (status === 'final') {
     return (
-      <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
+      <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
         Final
       </span>
     );

@@ -276,7 +276,13 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                        match.status === 'final'
+                          ? 'bg-red-600 text-white ring-red-500/70'
+                          : 'bg-white text-slate-600 ring-slate-200'
+                      }`}
+                    >
                       {prettyStatus(match.status)}
                     </span>
                   </div>

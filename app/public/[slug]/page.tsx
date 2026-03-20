@@ -916,7 +916,7 @@ function StatusPill({ status }: { status: Match['status'] }) {
 
   if (status === 'final') {
     return (
-      <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
+      <span className="inline-flex rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white ring-1 ring-red-500/70">
         Final
       </span>
     );
