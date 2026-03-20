@@ -2,7 +2,6 @@
 
 import SidelineActionGrid from '@/components/match/SidelineActionGrid';
 import SidelineFlowModal from '@/components/match/SidelineFlowModal';
-import SidelineHeader from '@/components/match/SidelineHeader';
 import SidelineRecentEvents from '@/components/match/SidelineRecentEvents';
 import GoalFlow from '@/components/match/flows/GoalFlow';
 import SubstitutionFlow from '@/components/match/flows/SubstitutionFlow';
@@ -11,14 +10,16 @@ import RedCardFlow from '@/components/match/flows/RedCardFlow';
 import UndoFlow from '@/components/match/flows/UndoFlow';
 import useSidelineMode from '@/hooks/matches/useSidelineMode';
 import useLiveMatchPage from '@/components/live/useLiveMatchPage';
+import MatchHeader from '@/components/match/MatchHeader';
 
 type LiveMatchController = ReturnType<typeof useLiveMatchPage>;
 
 type Props = {
   live: LiveMatchController;
+  modeSwitcher: React.ReactNode;
 };
 
-export default function SidelineMode({ live }: Props) {
+export default function SidelineMode({ live, modeSwitcher }: Props) {
   const sideline = useSidelineMode(live);
 
   const actions = [
@@ -65,7 +66,14 @@ export default function SidelineMode({ live }: Props) {
   return (
     <>
       <div className="space-y-6">
-        <SidelineHeader match={live.match!} formattedClock={live.formattedClock} />
+        <MatchHeader
+          match={live.match!}
+          formattedClock={live.formattedClock}
+          mode="admin"
+          theme="team"
+        />
+
+        {modeSwitcher}
 
         {live.error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

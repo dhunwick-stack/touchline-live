@@ -11,9 +11,10 @@ type LiveMatchController = ReturnType<typeof useLiveMatchPage>;
 
 type Props = {
   live: LiveMatchController;
+  modeSwitcher: React.ReactNode;
 };
 
-export default function QuickEntryMode({ live }: Props) {
+export default function QuickEntryMode({ live, modeSwitcher }: Props) {
   const quick = useQuickEntryMode(live);
   const goalTeamName =
     quick.goalSide === 'home'
@@ -22,8 +23,10 @@ export default function QuickEntryMode({ live }: Props) {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6 pt-6">
         <QuickEntryHeader match={live.match!} formattedClock={live.formattedClock} />
+
+        {modeSwitcher}
 
         {live.error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

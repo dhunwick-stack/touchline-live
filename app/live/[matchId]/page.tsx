@@ -183,6 +183,31 @@ export default function LiveMatchPage() {
   // PAGE
   // ---------------------------------------------------
 
+  const modeSwitcher = (
+    <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <div className="flex flex-wrap gap-3">
+        {[
+          { value: 'full', label: 'Full Control' },
+          { value: 'sideline', label: 'Sideline' },
+          { value: 'quick', label: 'Quick Score' },
+        ].map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setMode(option.value as LiveInterfaceMode)}
+            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+              mode === option.value
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
   return (
     <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">
       {mode === 'full' ? (
@@ -208,31 +233,10 @@ export default function LiveMatchPage() {
               />
             }
           />
+
+          <section className="mt-6">{modeSwitcher}</section>
         </>
       ) : null}
-
-      <section className="mt-6 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-wrap gap-3">
-          {[
-            { value: 'full', label: 'Full Control' },
-            { value: 'sideline', label: 'Sideline' },
-            { value: 'quick', label: 'Quick Score' },
-          ].map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setMode(option.value as LiveInterfaceMode)}
-              className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                mode === option.value
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </section>
 
       {mode === 'full' ? (
         <>
@@ -313,9 +317,9 @@ export default function LiveMatchPage() {
         </>
       ) : null}
 
-      {mode === 'sideline' ? <SidelineMode live={live} /> : null}
+      {mode === 'sideline' ? <SidelineMode live={live} modeSwitcher={modeSwitcher} /> : null}
 
-      {mode === 'quick' ? <QuickEntryMode live={live} /> : null}
+      {mode === 'quick' ? <QuickEntryMode live={live} modeSwitcher={modeSwitcher} /> : null}
 
       {/* --------------------------------------------------- */}
       {/* PAUSE MATCH MODAL */}
