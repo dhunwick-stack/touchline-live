@@ -29,6 +29,14 @@ type EditingPlayerState = Record<
   }
 >;
 
+type OrganizationPlayerCandidate = Pick<
+  Player,
+  'id' | 'first_name' | 'last_name' | 'jersey_number' | 'position' | 'school_year' | 'active'
+> & {
+  team_name: string;
+  team_id: string;
+};
+
 export default function TeamRosterPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -61,6 +69,10 @@ export default function TeamRosterPage() {
   const [error, setError] = useState('');
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
   const [editingPlayers, setEditingPlayers] = useState<EditingPlayerState>({});
+  const [organizationPlayerSearch, setOrganizationPlayerSearch] = useState('');
+  const [organizationPlayerCandidates, setOrganizationPlayerCandidates] = useState<
+    OrganizationPlayerCandidate[]
+  >([]);
 
   // ---------------------------------------------------
   // ADD PLAYER FORM STATE
@@ -135,6 +147,62 @@ export default function TeamRosterPage() {
     }
 
     setEditingPlayers(initialEditing);
+
+    if (loadedTeam.organization_id) {
+      const { data: organizationTeams, error: organizationTeamsError } = await supabase
+        .from('teams')
+        .select('id, name')
+        .eq('organization_id', loadedTeam.organization_id)
+        .neq('id', teamId)
+        .order('name', { ascending: true });
+
+      if (organizationTeamsError) {
+        setError(organizationTeamsError.message);
+        setLoading(false);
+        return;
+      }
+
+      const relatedTeams = organizationTeams ?? [];
+
+      if (relatedTeams.length > 0) {
+        const relatedTeamIds = relatedTeams.map((relatedTeam) => relatedTeam.id);
+        const teamNamesById = new Map(
+          relatedTeams.map((relatedTeam) => [relatedTeam.id, relatedTeam.name || 'Other Team']),
+        );
+
+        const { data: organizationPlayers, error: organizationPlayersError } = await supabase
+          .from('players')
+          .select('id, team_id, first_name, last_name, jersey_number, position, school_year, active')
+          .in('team_id', relatedTeamIds)
+          .order('first_name', { ascending: true })
+          .order('last_name', { ascending: true, nullsFirst: false });
+
+        if (organizationPlayersError) {
+          setError(organizationPlayersError.message);
+          setLoading(false);
+          return;
+        }
+
+        setOrganizationPlayerCandidates(
+          ((organizationPlayers as Player[]) ?? []).map((player) => ({
+            id: player.id,
+            team_id: player.team_id,
+            first_name: player.first_name,
+            last_name: player.last_name,
+            jersey_number: player.jersey_number,
+            position: player.position,
+            school_year: player.school_year,
+            active: player.active,
+            team_name: teamNamesById.get(player.team_id) || 'Other Team',
+          })),
+        );
+      } else {
+        setOrganizationPlayerCandidates([]);
+      }
+    } else {
+      setOrganizationPlayerCandidates([]);
+    }
+
     setLoading(false);
   }
 
@@ -182,6 +250,33 @@ export default function TeamRosterPage() {
     setNewSchoolYear('');
     setNewActive(true);
 
+    await loadRoster();
+    setSaving(false);
+  }
+
+  async function handleQuickAddOrganizationPlayer(candidate: OrganizationPlayerCandidate) {
+    if (!teamId) return;
+
+    setSaving(true);
+    setError('');
+
+    const { error: insertError } = await supabase.from('players').insert({
+      team_id: teamId,
+      first_name: candidate.first_name || null,
+      last_name: candidate.last_name || null,
+      jersey_number: candidate.jersey_number,
+      position: candidate.position || null,
+      school_year: candidate.school_year || null,
+      active: candidate.active !== false,
+    });
+
+    if (insertError) {
+      setError(insertError.message);
+      setSaving(false);
+      return;
+    }
+
+    setOrganizationPlayerSearch('');
     await loadRoster();
     setSaving(false);
   }
@@ -302,6 +397,30 @@ export default function TeamRosterPage() {
       combined.includes('sophomore')
     );
   }, [team]);
+
+  const filteredOrganizationPlayerCandidates = useMemo(() => {
+    const query = organizationPlayerSearch.trim().toLowerCase();
+
+    if (!query) {
+      return organizationPlayerCandidates.slice(0, 5);
+    }
+
+    return organizationPlayerCandidates
+      .filter((candidate) => {
+        const fullName = [candidate.first_name, candidate.last_name]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          fullName.includes(query) ||
+          (candidate.team_name || '').toLowerCase().includes(query) ||
+          (candidate.position || '').toLowerCase().includes(query) ||
+          String(candidate.jersey_number || '').includes(query)
+        );
+      })
+      .slice(0, 5);
+  }, [organizationPlayerCandidates, organizationPlayerSearch]);
 
   // ---------------------------------------------------
   // LOADING / ERROR STATES
@@ -588,6 +707,69 @@ if ((accessError || error) && !team) {
               </div>
 
               <div className="space-y-4">
+                {team.organization_id ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <div className="mb-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Quick Add From Organization</h3>
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        Search players from other teams in this organization and clone them into this roster.
+                      </p>
+                    </div>
+
+                    <Field label="Search Player">
+                      <input
+                        value={organizationPlayerSearch}
+                        onChange={(e) => setOrganizationPlayerSearch(e.target.value)}
+                        placeholder="Search by name, team, position, or jersey"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                      />
+                    </Field>
+
+                    <div className="mt-3 space-y-2">
+                      {filteredOrganizationPlayerCandidates.length > 0 ? (
+                        filteredOrganizationPlayerCandidates.map((candidate) => (
+                          <div
+                            key={candidate.id}
+                            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {[candidate.first_name, candidate.last_name].filter(Boolean).join(' ') ||
+                                  'Unnamed Player'}
+                              </p>
+                              <p className="text-xs font-medium text-slate-500">
+                                {[
+                                  candidate.team_name,
+                                  candidate.position,
+                                  candidate.jersey_number ? `#${candidate.jersey_number}` : null,
+                                  isHighSchoolTeam ? candidate.school_year : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ')}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAddOrganizationPlayer(candidate)}
+                              disabled={saving}
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              Quick Add
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                          {organizationPlayerCandidates.length === 0
+                            ? 'No players found on other teams in this organization yet.'
+                            : 'No organization players match that search.'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
                 <Field label="First Name">
                   <input
                     value={newFirstName}
