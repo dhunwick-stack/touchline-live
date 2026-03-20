@@ -12,7 +12,7 @@ export default function SidelineFlowModal({ open, title, onClose, children }: Pr
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 md:items-center">
-      <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl ring-1 ring-slate-200">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-[2rem] bg-white p-6 shadow-2xl ring-1 ring-slate-200">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="text-2xl font-black text-slate-900">{title}</h2>
           <button
@@ -23,7 +23,7 @@ export default function SidelineFlowModal({ open, title, onClose, children }: Pr
             Close
           </button>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

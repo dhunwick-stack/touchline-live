@@ -96,27 +96,28 @@ export default function GoalFlow({
         >
           Confirm Goal Without Assist
         </button>
-
-        {players
-          .filter((player) => player.id !== playerId)
-          .map((player) => (
-            <button
-              key={player.id}
-              type="button"
-              onClick={() => {
-                setAssistPlayerId(player.id);
-                onConfirm({ side, playerId, assistPlayerId: player.id });
-              }}
-              disabled={saving}
-              className={`min-h-[64px] rounded-3xl px-5 py-4 text-left text-base font-semibold ring-1 ${
-                assistPlayerId === player.id
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                  : 'bg-slate-100 text-slate-900 ring-slate-200'
-              }`}
-            >
-              Assist: {playerDisplayName(player)}
-            </button>
-          ))}
+        <div className="grid max-h-[50vh] gap-3 overflow-y-auto">
+          {players
+            .filter((player) => player.id !== playerId)
+            .map((player) => (
+              <button
+                key={player.id}
+                type="button"
+                onClick={() => {
+                  setAssistPlayerId(player.id);
+                  onConfirm({ side, playerId, assistPlayerId: player.id });
+                }}
+                disabled={saving}
+                className={`min-h-[64px] rounded-3xl px-5 py-4 text-left text-base font-semibold ring-1 ${
+                  assistPlayerId === player.id
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                    : 'bg-slate-100 text-slate-900 ring-slate-200'
+                }`}
+              >
+                Assist: {playerDisplayName(player)}
+              </button>
+            ))}
+        </div>
       </div>
 
       <div className="flex justify-between gap-3">
