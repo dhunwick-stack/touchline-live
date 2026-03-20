@@ -1,20 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 export default function AppChrome({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isPublicPage = pathname?.startsWith('/public');
-
-  if (isPublicPage) {
-    return <>{children}</>;
-  }
-
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
