@@ -49,7 +49,12 @@ function LoginPageInner() {
     if (typeof window === 'undefined') return undefined;
 
     const safeNext = next.startsWith('/') ? next : '/';
-    return `${window.location.origin}${safeNext}`;
+    const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    const baseUrl = configuredSiteUrl
+      ? configuredSiteUrl.replace(/\/+$/, '')
+      : window.location.origin;
+
+    return `${baseUrl}${safeNext}`;
   }
 
   // ---------------------------------------------------
@@ -146,8 +151,10 @@ function LoginPageInner() {
       return;
     }
 
-    router.push(next);
-    router.refresh();
+    setLoading(false);
+    router.push(
+      `/login?next=${encodeURIComponent(next)}&signup=check-email`,
+    );
   }
 
   // ---------------------------------------------------
@@ -157,6 +164,13 @@ function LoginPageInner() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
       <div className="w-full rounded-3xl bg-white p-8 shadow-md ring-1 ring-slate-200">
+        {searchParams.get('signup') === 'check-email' ? (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+            Check your email to confirm your account. If the link still points to localhost,
+            update your Supabase Auth Site URL and Redirect URLs to your live domain.
+          </div>
+        ) : null}
+
         <h1 className="text-2xl font-black">
           {mode === 'signin' ? 'Sign in to Touchline' : 'Create your Touchline account'}
         </h1>

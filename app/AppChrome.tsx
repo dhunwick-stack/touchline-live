@@ -12,29 +12,70 @@ export default function AppChrome({
 }) {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hasSuperAccess, setHasSuperAccess] = useState(false);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
 
   useEffect(() => {
     let active = true;
 
-    async function loadSession() {
+    async function loadSessionState() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!active) return;
-      setUserEmail(session?.user?.email ?? null);
+
+      const user = session?.user ?? null;
+      setUserEmail(user?.email ?? null);
+
+      if (!user) {
+        setHasSuperAccess(false);
+        setPendingRequestCount(0);
+        return;
+      }
+
+      const { data: superAdmin } = await supabase
+        .from('super_admin_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      const superAccess = !!superAdmin;
+      setHasSuperAccess(superAccess);
+
+      if (!superAccess) {
+        setPendingRequestCount(0);
+        return;
+      }
+
+      const { count } = await supabase
+        .from('team_access_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (!active) return;
+      setPendingRequestCount(count ?? 0);
     }
 
-    loadSession();
+    loadSessionState();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user?.email ?? null);
+      const user = session?.user ?? null;
+      setUserEmail(user?.email ?? null);
+      void loadSessionState();
     });
+
+    const refreshInterval = window.setInterval(() => {
+      void loadSessionState();
+    }, 15000);
 
     return () => {
       active = false;
+      window.clearInterval(refreshInterval);
       subscription.unsubscribe();
     };
   }, []);
@@ -105,6 +146,15 @@ export default function AppChrome({
             >
               Organizations
             </Link>
+
+            {hasSuperAccess && pendingRequestCount > 0 ? (
+              <Link
+                href="/admin/requests"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                {pendingRequestCount} Pending
+              </Link>
+            ) : null}
 
             {userEmail ? (
               <div className="ml-2 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
