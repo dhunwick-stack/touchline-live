@@ -29,7 +29,7 @@ export default function MatchesPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   // ---------------------------------------------------
@@ -65,7 +65,19 @@ export default function MatchesPage() {
   // ---------------------------------------------------
 
   useEffect(() => {
-    loadMatches();
+    const timer = window.setTimeout(() => {
+      void loadMatches();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setNowMs(Date.now());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -695,12 +707,12 @@ function getPublicAction(match: MatchRow, nowMs: number) {
   }
 
   const kickoffMs = match.match_date ? new Date(match.match_date).getTime() : null;
-  const enableWindowMs = 2 * 60 * 60 * 1000;
-  const isEnabledSoon = kickoffMs !== null && kickoffMs - nowMs <= enableWindowMs;
+  const isEnabledOnGameDay =
+    kickoffMs !== null && nowMs >= getStartOfLocalDayMs(new Date(kickoffMs));
 
   return {
     label: 'Follow Live',
-    disabled: !isEnabledSoon,
+    disabled: !isEnabledOnGameDay,
   };
 }
 
@@ -716,6 +728,10 @@ function formatMatchDate(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function getStartOfLocalDayMs(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 function matchMatchesSearch(match: MatchRow, query: string) {
