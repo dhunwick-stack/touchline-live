@@ -1,5 +1,5 @@
 import { calculateMinutesPlayed } from '@/lib/matchStats';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import type { Match, MatchEvent, Player } from '@/lib/types';
 import {
   buildRecentForm,
@@ -83,6 +83,7 @@ function escapeHtml(value: string) {
 }
 
 async function getRecipientEmails(match: Match) {
+  const supabaseAdmin = getSupabaseAdmin();
   const teamIds = [match.home_team_id, match.away_team_id].filter(Boolean) as string[];
 
   const [{ data: teamUsers }, { data: superAdmins }] = await Promise.all([
@@ -286,6 +287,7 @@ function buildMinutesRows(params: {
 }
 
 export async function buildFinalRecapEmailPayload(matchId: string): Promise<EmailPayload> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data: matchData, error: matchError } = await supabaseAdmin
     .from('matches')
     .select(`*, ${PUBLIC_MATCH_TEAM_RELATION_SELECT}`)

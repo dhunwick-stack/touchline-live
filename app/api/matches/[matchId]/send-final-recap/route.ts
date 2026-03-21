@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildFinalRecapEmailPayload, renderFinalRecapEmail } from '@/lib/finalRecapEmail';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 type Params = {
   params: Promise<{
@@ -11,6 +11,7 @@ type Params = {
 export async function POST(_request: Request, { params }: Params) {
   try {
     const { matchId } = await params;
+    const supabaseAdmin = getSupabaseAdmin();
 
     const { data: match, error: matchError } = await supabaseAdmin
       .from('matches')
