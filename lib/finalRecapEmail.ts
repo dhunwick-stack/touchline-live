@@ -379,35 +379,47 @@ export async function buildFinalRecapEmailPayload(matchId: string): Promise<Emai
 
 function renderMinutesTable(title: string, rows: MinutesRow[], trackingMode: Match['home_tracking_mode']) {
   if (trackingMode !== 'full') {
-    return `<h3>${escapeHtml(title)}</h3><p>Minutes played unavailable because this team was not tracked in full mode.</p>`;
+    return `
+      <div style="border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;padding:18px;">
+        <h3 style="margin:0 0 10px;font-size:16px;color:#0f172a;">${escapeHtml(title)}</h3>
+        <p style="margin:0;color:#64748b;line-height:1.6;">Minutes played unavailable because this team was not tracked in full mode.</p>
+      </div>
+    `;
   }
 
   if (rows.length === 0) {
-    return `<h3>${escapeHtml(title)}</h3><p>No minutes recorded.</p>`;
+    return `
+      <div style="border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;padding:18px;">
+        <h3 style="margin:0 0 10px;font-size:16px;color:#0f172a;">${escapeHtml(title)}</h3>
+        <p style="margin:0;color:#64748b;line-height:1.6;">No minutes recorded.</p>
+      </div>
+    `;
   }
 
   const tableRows = rows
     .map(
       (row) => `
         <tr>
-          <td style="padding:8px 10px;border-top:1px solid #e2e8f0;">${escapeHtml(playerDisplayName(row.player) || 'Unknown Player')}</td>
-          <td style="padding:8px 10px;border-top:1px solid #e2e8f0;text-align:right;font-weight:700;">${row.minutes}</td>
+          <td style="padding:10px 12px;border-top:1px solid #e2e8f0;color:#0f172a;">${escapeHtml(playerDisplayName(row.player) || 'Unknown Player')}</td>
+          <td style="padding:10px 12px;border-top:1px solid #e2e8f0;text-align:right;font-weight:800;color:#0f172a;">${row.minutes}</td>
         </tr>
       `,
     )
     .join('');
 
   return `
-    <h3>${escapeHtml(title)}</h3>
-    <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-      <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:10px;text-align:left;">Player</th>
-          <th style="padding:10px;text-align:right;">Minutes</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows}</tbody>
-    </table>
+    <div style="border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;padding:18px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#0f172a;">${escapeHtml(title)}</h3>
+      <table style="width:100%;border-collapse:separate;border-spacing:0;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+        <thead>
+          <tr style="background:#eff6ff;">
+            <th style="padding:10px 12px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Player</th>
+            <th style="padding:10px 12px;text-align:right;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Minutes</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -418,14 +430,28 @@ export function renderFinalRecapEmail(payload: EmailPayload) {
   const venueName = getVenueName(match);
   const venueAddress = getVenueAddress(match);
   const directionsUrl = venueAddress ? getAppleMapsUrl(venueAddress) : null;
+  const winnerPrimary =
+    match.home_score > match.away_score
+      ? match.home_team?.primary_color
+      : match.away_score > match.home_score
+        ? match.away_team?.primary_color
+        : null;
+  const winnerSecondary =
+    match.home_score > match.away_score
+      ? match.home_team?.secondary_color
+      : match.away_score > match.home_score
+        ? match.away_team?.secondary_color
+        : null;
+  const heroPrimary = winnerPrimary || match.home_team?.primary_color || '#0f172a';
+  const heroSecondary = winnerSecondary || match.away_team?.primary_color || '#7f1d1d';
 
   const sectionHtml = finalRecap.sections
     .map(
       (section) => `
-        <section style="margin-top:24px;">
+        <section style="margin-top:22px;border:1px solid #e2e8f0;border-radius:18px;background:#ffffff;padding:20px;">
           <h3 style="margin:0 0 12px;font-size:18px;color:#0f172a;">${escapeHtml(section.title)}</h3>
           <ul style="margin:0;padding-left:20px;color:#334155;line-height:1.7;">
-            ${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+            ${section.items.map((item) => `<li style="margin-top:8px;">${escapeHtml(item)}</li>`).join('')}
           </ul>
         </section>
       `,
@@ -433,33 +459,48 @@ export function renderFinalRecapEmail(payload: EmailPayload) {
     .join('');
 
   const html = `
-    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">
-      <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:28px;">
-        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#64748b;">Touchline Live Final Recap</p>
-        <h1 style="margin:0;font-size:32px;line-height:1.1;">${escapeHtml(homeName)} ${match.home_score}-${match.away_score} ${escapeHtml(awayName)}</h1>
-        <p style="margin:16px 0 0;font-size:18px;font-weight:700;color:#1e293b;">${escapeHtml(finalRecap.headline)}</p>
-
-        <div style="margin-top:20px;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;">
-          <p style="margin:0 0 6px;"><strong>Date:</strong> ${escapeHtml(match.match_date ? formatMatchDate(match.match_date) : 'Date TBD')}</p>
-          <p style="margin:0 0 6px;"><strong>Venue:</strong> ${escapeHtml(venueName)}</p>
-          <p style="margin:0;">
-            <strong>Links:</strong>
-            ${publicUrl ? `<a href="${publicUrl}" style="color:#0f766e;">Public recap</a>` : 'Public recap unavailable'}
-            &nbsp;|&nbsp;
-            <a href="${adminUrl}" style="color:#0f766e;">Admin match page</a>
-            ${directionsUrl ? `&nbsp;|&nbsp;<a href="${directionsUrl}" style="color:#0f766e;">Directions</a>` : ''}
-          </p>
+    <div style="font-family:Arial,sans-serif;background:#eef2f7;padding:24px;color:#0f172a;">
+      <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #dbe3ef;border-radius:28px;overflow:hidden;">
+        <div style="padding:28px;background:linear-gradient(135deg, ${heroPrimary} 0%, ${heroSecondary} 100%);color:#ffffff;">
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.76);">Touchline Live Final Recap</p>
+          <table role="presentation" style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="width:34%;vertical-align:middle;text-align:left;font-size:28px;font-weight:800;line-height:1.15;padding-right:10px;">${escapeHtml(homeName)}</td>
+              <td style="width:32%;vertical-align:middle;text-align:center;">
+                <div style="display:inline-block;min-width:180px;padding:18px 20px;border-radius:22px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);">
+                  <div style="font-size:52px;font-weight:900;line-height:1;">${match.home_score}-${match.away_score}</div>
+                  <div style="margin-top:10px;font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.78);">Final</div>
+                </div>
+              </td>
+              <td style="width:34%;vertical-align:middle;text-align:right;font-size:28px;font-weight:800;line-height:1.15;padding-left:10px;">${escapeHtml(awayName)}</td>
+            </tr>
+          </table>
+          <p style="margin:18px 0 0;font-size:18px;font-weight:700;line-height:1.5;color:rgba(255,255,255,.94);">${escapeHtml(finalRecap.headline)}</p>
         </div>
 
-        ${sectionHtml}
-
-        <section style="margin-top:28px;">
-          <h2 style="margin:0 0 14px;font-size:22px;">Minutes Played</h2>
-          <div style="display:grid;gap:16px;">
-            ${renderMinutesTable(`${homeName} Minutes`, homeMinutes, match.home_tracking_mode)}
-            ${renderMinutesTable(`${awayName} Minutes`, awayMinutes, match.away_tracking_mode)}
+        <div style="padding:28px;">
+          <div style="padding:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;">
+            <p style="margin:0 0 8px;color:#334155;"><strong>Date:</strong> ${escapeHtml(match.match_date ? formatMatchDate(match.match_date) : 'Date TBD')}</p>
+            <p style="margin:0 0 8px;color:#334155;"><strong>Venue:</strong> ${escapeHtml(venueName)}</p>
+            <p style="margin:0;color:#334155;">
+              <strong>Links:</strong>
+              ${publicUrl ? `<a href="${publicUrl}" style="color:#0f766e;font-weight:700;">Public recap</a>` : 'Public recap unavailable'}
+              &nbsp;|&nbsp;
+              <a href="${adminUrl}" style="color:#0f766e;font-weight:700;">Admin match page</a>
+              ${directionsUrl ? `&nbsp;|&nbsp;<a href="${directionsUrl}" style="color:#0f766e;font-weight:700;">Directions</a>` : ''}
+            </p>
           </div>
-        </section>
+
+          ${sectionHtml}
+
+          <section style="margin-top:28px;">
+            <h2 style="margin:0 0 14px;font-size:22px;color:#0f172a;">Minutes Played</h2>
+            <div style="display:grid;gap:16px;">
+              ${renderMinutesTable(`${homeName} Minutes`, homeMinutes, match.home_tracking_mode)}
+              ${renderMinutesTable(`${awayName} Minutes`, awayMinutes, match.away_tracking_mode)}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   `;
