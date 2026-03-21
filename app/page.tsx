@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Team } from '@/lib/types';
 
@@ -43,8 +43,10 @@ export default function HomePage() {
   // ---------------------------------------------------
 
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [recentMatches, setRecentMatches] = useState<MatchRow[]>([]);
+  const [organizationCount, setOrganizationCount] = useState(0);
+  const [teamCount, setTeamCount] = useState(0);
+  const [liveMatchCount, setLiveMatchCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
@@ -57,12 +59,19 @@ export default function HomePage() {
       setLoading(true);
 
       const [
+        { count: organizationCountValue },
+        { count: teamCountValue },
+        { count: liveMatchCountValue },
         { data: organizationData },
-        { data: teamData },
         { data: matchData },
       ] = await Promise.all([
+        supabase.from('organizations').select('*', { count: 'exact', head: true }),
+        supabase.from('teams').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('matches')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['live', 'halftime']),
         supabase.from('organizations').select('*').order('name', { ascending: true }).limit(6),
-        supabase.from('teams').select('*').order('created_at', { ascending: false }).limit(12),
         supabase
           .from('matches')
           .select(`
@@ -70,13 +79,15 @@ export default function HomePage() {
             home_team:home_team_id (*),
             away_team:away_team_id (*)
           `)
-          .order('match_date', { ascending: false, nullsFirst: false })
-          .limit(4),
+          .order('match_date', { ascending: true, nullsFirst: false })
+          .limit(20),
       ]);
 
       setOrganizations((organizationData as Organization[]) ?? []);
-      setTeams((teamData as Team[]) ?? []);
-      setRecentMatches((matchData as MatchRow[]) ?? []);
+      setOrganizationCount(organizationCountValue ?? 0);
+      setTeamCount(teamCountValue ?? 0);
+      setLiveMatchCount(liveMatchCountValue ?? 0);
+      setRecentMatches(sortHomepageMatches((matchData as MatchRow[]) ?? [], Date.now()).slice(0, 4));
       setLoading(false);
     }
 
@@ -112,14 +123,6 @@ export default function HomePage() {
   // ---------------------------------------------------
   // DERIVED VALUES
   // ---------------------------------------------------
-
-  const liveMatches = useMemo(
-    () =>
-      recentMatches.filter(
-        (match) => match.status === 'live' || match.status === 'halftime',
-      ).length,
-    [recentMatches],
-  );
 
   // ---------------------------------------------------
   // PAGE
@@ -183,9 +186,9 @@ export default function HomePage() {
       {/* --------------------------------------------------- */}
 
       <section className="mt-8 grid gap-4 md:grid-cols-3">
-        <SummaryCard label="Organizations" value={organizations.length} />
-        <SummaryCard label="Teams" value={teams.length} />
-        <SummaryCard label="Live Matches" value={liveMatches} />
+        <SummaryCard label="Organizations" value={organizationCount} />
+        <SummaryCard label="Teams" value={teamCount} />
+        <SummaryCard label="Live Matches" value={liveMatchCount} />
       </section>
 
       {/* --------------------------------------------------- */}
@@ -301,7 +304,7 @@ export default function HomePage() {
             <div className="min-w-0">
               <h2 className="text-2xl font-bold text-slate-900">Recent Matches</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Latest fixtures across the platform.
+                Live, today, and upcoming fixtures across the platform.
               </p>
             </div>
 
@@ -405,4 +408,45 @@ function prettyStatus(status: Match['status']) {
   if (status === 'cancelled') return 'Cancelled';
   if (status === 'postponed') return 'Postponed';
   return status;
+}
+
+function sortHomepageMatches(matches: MatchRow[], nowMs: number) {
+  return matches.slice().sort((a, b) => {
+    const categoryDiff = getHomepageMatchCategory(a, nowMs) - getHomepageMatchCategory(b, nowMs);
+
+    if (categoryDiff !== 0) return categoryDiff;
+
+    const aTime = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+    const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+
+    const category = getHomepageMatchCategory(a, nowMs);
+
+    if (category === 3 || category === 4) {
+      return bTime - aTime;
+    }
+
+    return aTime - bTime;
+  });
+}
+
+function getHomepageMatchCategory(match: MatchRow, nowMs: number) {
+  if (match.status === 'live' || match.status === 'halftime') return 0;
+  if (!match.match_date) return 4;
+
+  const matchDate = new Date(match.match_date);
+  const now = new Date(nowMs);
+
+  if (isSameLocalDay(matchDate, now)) return 1;
+  if (matchDate.getTime() > nowMs) return 2;
+  if (match.status === 'final') return 3;
+
+  return 4;
+}
+
+function isSameLocalDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
