@@ -27,6 +27,8 @@ type MatchRow = Match & {
 export default function MatchesPage() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [managedTeamIds, setManagedTeamIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [nowMs, setNowMs] = useState(0);
@@ -60,6 +62,30 @@ export default function MatchesPage() {
     setLoading(false);
   }
 
+  async function handleDeleteMatch(match: MatchRow) {
+    if (!canManageMatch(match, isSuperAdmin, managedTeamIds)) {
+      setMessage('You do not have permission to delete this match.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete match "${match.home_team?.name || 'Home Team'} vs ${match.away_team?.name || 'Away Team'}"? This cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setMessage('');
+
+    const { error } = await supabase.from('matches').delete().eq('id', match.id);
+
+    if (error) {
+      setMessage(error.message || 'Failed to delete match.');
+      return;
+    }
+
+    await loadMatches();
+  }
+
   // ---------------------------------------------------
   // INITIAL LOAD
   // ---------------------------------------------------
@@ -88,8 +114,33 @@ export default function MatchesPage() {
         data: { session },
       } = await supabase.auth.getSession();
 
+      const user = session?.user ?? null;
+
+      if (!user) {
+        if (!cancelled) {
+          setCurrentUser(null);
+          setIsSuperAdmin(false);
+          setManagedTeamIds([]);
+        }
+        return;
+      }
+
+      const [{ data: superAdminData }, { data: teamUserData }] = await Promise.all([
+        supabase
+          .from('super_admin_users')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('team_users')
+          .select('team_id')
+          .eq('user_id', user.id),
+      ]);
+
       if (!cancelled) {
-        setCurrentUser(session?.user ?? null);
+        setCurrentUser(user);
+        setIsSuperAdmin(Boolean(superAdminData));
+        setManagedTeamIds((teamUserData ?? []).map((row) => row.team_id).filter(Boolean));
       }
     }
 
@@ -98,7 +149,13 @@ export default function MatchesPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user ?? null);
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+
+      if (!user) {
+        setIsSuperAdmin(false);
+        setManagedTeamIds([]);
+      }
     });
 
     return () => {
@@ -313,7 +370,10 @@ export default function MatchesPage() {
             matches={liveMatches}
             highlight={liveMatches.length > 0}
             nowMs={nowMs}
-            showAdminActions={!!currentUser}
+            showAdminActions={Boolean(currentUser)}
+            isSuperAdmin={isSuperAdmin}
+            managedTeamIds={managedTeamIds}
+            onDeleteMatch={handleDeleteMatch}
           />
 
           <MatchSection
@@ -323,7 +383,10 @@ export default function MatchesPage() {
             emptyText="No upcoming matches scheduled."
             matches={upcomingMatches}
             nowMs={nowMs}
-            showAdminActions={!!currentUser}
+            showAdminActions={Boolean(currentUser)}
+            isSuperAdmin={isSuperAdmin}
+            managedTeamIds={managedTeamIds}
+            onDeleteMatch={handleDeleteMatch}
           />
 
           <MatchSection
@@ -333,7 +396,10 @@ export default function MatchesPage() {
             emptyText="No completed matches yet."
             matches={recentResults}
             nowMs={nowMs}
-            showAdminActions={!!currentUser}
+            showAdminActions={Boolean(currentUser)}
+            isSuperAdmin={isSuperAdmin}
+            managedTeamIds={managedTeamIds}
+            onDeleteMatch={handleDeleteMatch}
           />
         </div>
       )}
@@ -354,6 +420,9 @@ function MatchSection({
   highlight = false,
   nowMs,
   showAdminActions,
+  isSuperAdmin,
+  managedTeamIds,
+  onDeleteMatch,
 }: {
   title: string;
   subtitle: string;
@@ -363,6 +432,9 @@ function MatchSection({
   highlight?: boolean;
   nowMs: number;
   showAdminActions: boolean;
+  isSuperAdmin: boolean;
+  managedTeamIds: string[];
+  onDeleteMatch: (match: MatchRow) => void | Promise<void>;
 }) {
   return (
     <section
@@ -415,6 +487,9 @@ function MatchSection({
               highlight={highlight}
               nowMs={nowMs}
               showAdminActions={showAdminActions}
+              isSuperAdmin={isSuperAdmin}
+              managedTeamIds={managedTeamIds}
+              onDeleteMatch={onDeleteMatch}
             />
           ))}
         </div>
@@ -432,11 +507,17 @@ function MatchCard({
   highlight = false,
   nowMs,
   showAdminActions,
+  isSuperAdmin,
+  managedTeamIds,
+  onDeleteMatch,
 }: {
   match: MatchRow;
   highlight?: boolean;
   nowMs: number;
   showAdminActions: boolean;
+  isSuperAdmin: boolean;
+  managedTeamIds: string[];
+  onDeleteMatch: (match: MatchRow) => void | Promise<void>;
 }) {
   // ---------------------------------------------------
   // LIVE CLOCK LABEL
@@ -446,6 +527,7 @@ function MatchCard({
   const homeWon = match.status === 'final' && match.home_score > match.away_score;
   const awayWon = match.status === 'final' && match.away_score > match.home_score;
   const publicAction = getPublicAction(match, nowMs);
+  const canManage = showAdminActions && canManageMatch(match, isSuperAdmin, managedTeamIds);
 
   return (
     <div
@@ -561,10 +643,10 @@ function MatchCard({
           </span>
         </div>
 
-        {(showAdminActions || match.public_slug) ? (
+        {(canManage || match.public_slug) ? (
           <div className="mt-4 border-t border-slate-200 pt-3">
             <div className="flex flex-wrap gap-3 md:flex-nowrap">
-              {showAdminActions ? (
+              {canManage ? (
                 <>
                   <Link
                     href={`/matches/${match.id}/edit`}
@@ -579,6 +661,14 @@ function MatchCard({
                   >
                     Manage Match
                   </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => void onDeleteMatch(match)}
+                    className="flex-1 rounded-2xl bg-rose-50 px-4 py-2.5 text-center text-sm font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
+                  >
+                    Delete Match
+                  </button>
                 </>
               ) : null}
 
@@ -754,4 +844,16 @@ function matchMatchesSearch(match: MatchRow, query: string) {
     .toLowerCase();
 
   return haystack.includes(normalizedQuery);
+}
+
+function canManageMatch(
+  match: MatchRow,
+  isSuperAdmin: boolean,
+  managedTeamIds: string[],
+) {
+  if (isSuperAdmin) return true;
+
+  return [match.home_team_id, match.away_team_id].some(
+    (teamId) => teamId && managedTeamIds.includes(teamId),
+  );
 }

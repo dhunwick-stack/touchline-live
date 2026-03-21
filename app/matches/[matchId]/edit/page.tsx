@@ -128,6 +128,7 @@ export default function EditMatchPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState('');
   const [backfilling, setBackfilling] = useState(false);
 
@@ -653,6 +654,29 @@ export default function EditMatchPage() {
     setMessage('Historical final backfill applied.');
   }
 
+  async function handleDeleteMatch() {
+    if (!match || !hasSuperAccess || deleting) return;
+
+    const confirmed = window.confirm(
+      `Delete match "${match.home_team?.name || 'Home Team'} vs ${match.away_team?.name || 'Away Team'}"? This cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setMessage('');
+
+    const { error } = await supabase.from('matches').delete().eq('id', match.id);
+
+    if (error) {
+      setDeleting(false);
+      setMessage(error.message || 'Failed to delete match.');
+      return;
+    }
+
+    router.push('/matches');
+  }
+
   // ---------------------------------------------------
   // LOADING / EMPTY STATES
   // ---------------------------------------------------
@@ -865,7 +889,17 @@ export default function EditMatchPage() {
         {/* ACTIONS */}
         {/* --------------------------------------------------- */}
 
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleDeleteMatch}
+            disabled={saving || deleting}
+            className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 disabled:opacity-60"
+          >
+            {deleting ? 'Deleting Match...' : 'Delete Match'}
+          </button>
+
+          <div className="flex flex-wrap justify-end gap-3">
           <Link
             href={`/live/${match.id}`}
             className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900"
@@ -881,6 +915,7 @@ export default function EditMatchPage() {
           >
             {saving ? 'Saving...' : 'Save Match Changes'}
           </button>
+          </div>
         </div>
       </section>
 

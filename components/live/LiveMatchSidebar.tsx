@@ -255,6 +255,7 @@ export default function LiveMatchSidebar({
 
       <MatchActionsCard
         match={match}
+        allowDelete
         onUpdated={(updatedMatch) =>
           setMatch((prev) =>
             prev

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Ban,
   CalendarClock,
   CheckCircle2,
+  Trash2,
   Lock,
   Unlock,
 } from 'lucide-react';
@@ -14,17 +16,21 @@ import type { Match } from '@/lib/types';
 type MatchActionsCardProps = {
   match: Match;
   onUpdated?: (updatedMatch: Match) => void;
+  allowDelete?: boolean;
 };
 
 export default function MatchActionsCard({
   match,
   onUpdated,
+  allowDelete = false,
 }: MatchActionsCardProps) {
+  const router = useRouter();
   // ---------------------------------------------------
   // LOCAL STATE
   // ---------------------------------------------------
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState(match.status_note || '');
   const [rescheduleDate, setRescheduleDate] = useState(
@@ -106,6 +112,29 @@ export default function MatchActionsCard({
       match_date: new Date(rescheduleDate).toISOString(),
       status_note: note.trim() || 'Rescheduled.',
     });
+  }
+
+  async function handleDeleteMatch() {
+    if (!allowDelete || deleting) return;
+
+    const confirmed = window.confirm(
+      'Delete this match? This action cannot be undone.',
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+
+    const { error: deleteError } = await supabase.from('matches').delete().eq('id', match.id);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      setDeleting(false);
+      return;
+    }
+
+    router.push('/matches');
   }
 
   // ---------------------------------------------------
@@ -242,6 +271,31 @@ export default function MatchActionsCard({
   </button>
 </div>
       </div>
+
+      {allowDelete ? (
+        <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-rose-700">
+                Danger Zone
+              </h3>
+              <p className="mt-1 text-sm text-rose-700/90">
+                Permanently delete this match and remove it from schedules and results.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDeleteMatch}
+              disabled={saving || deleting}
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>{deleting ? 'Deleting...' : 'Delete Match'}</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* --------------------------------------------------- */}
       {/* ERROR / NOTE */}
