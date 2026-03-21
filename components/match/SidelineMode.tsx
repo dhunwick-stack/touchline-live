@@ -21,6 +21,7 @@ type Props = {
 
 export default function SidelineMode({ live, modeSwitcher }: Props) {
   const sideline = useSidelineMode(live);
+  const visibleClockMinute = Number.parseInt((live.formattedClock || '0:00').split(':')[0] || '0', 10);
 
   const actions = [
     {
@@ -145,6 +146,8 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
           teamOptions={sideline.teamOptions}
           getOnFieldPlayersForSide={sideline.getOnFieldPlayersForSide}
           getBenchPlayersForSide={sideline.getBenchPlayersForSide}
+          currentMinute={Number.isNaN(visibleClockMinute) ? 0 : visibleClockMinute}
+          currentClockLabel={live.formattedClock}
           onCancel={() => sideline.setActiveFlow(null)}
           onConfirm={sideline.submitSubstitution}
           saving={live.saving}

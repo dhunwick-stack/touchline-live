@@ -4,23 +4,16 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import { calculateMinutesPlayed } from '@/lib/matchStats';
-import {
-  createMatchLineupSnapshot,
-  saveStartingLineup,
-  validateStartingLineupCount,
-} from '@/lib/matchLineups';
 import { supabase } from '@/lib/supabase';
 import {
   buildFallbackLineupRows,
-  eventTypeOptions,
   playerDisplayName,
   supportsLineups,
 } from '@/components/live/liveMatchPageShared';
 import useLiveMatchPageActions from '@/components/live/useLiveMatchPageActions';
 import useLiveMatchPageDerived from '@/components/live/useLiveMatchPageDerived';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { MatchEvent, MatchLineup, Player } from '@/lib/types';
 import type { EventFormState, MatchRow } from '@/components/live/liveMatchPageShared';
 
@@ -84,7 +77,7 @@ export default function useLiveMatchPage() {
     notes: '',
   });
 
-  async function refreshLiveState(currentMatchId: string) {
+  const refreshLiveState = useCallback(async (currentMatchId: string) => {
     const { data: matchData, error: matchError } = await supabase
       .from('matches')
       .select(`
@@ -204,12 +197,12 @@ export default function useLiveMatchPage() {
         ? 'Using roster fallback where saved lineup snapshots were not found.'
         : null,
     );
-  }
+  }, []);
 
-  async function loadMatchPage(options?: {
+  const loadMatchPage = useCallback(async (options?: {
     preserveAccessState?: boolean;
     backgroundRefresh?: boolean;
-  }) {
+  }) => {
     if (!matchId) return;
 
     if (!options?.backgroundRefresh) {
@@ -480,12 +473,12 @@ export default function useLiveMatchPage() {
       setLoading(false);
     }
     setConnectionNotice(null);
-  }
+  }, [matchId, router]);
 
   useEffect(() => {
     if (!matchId) return;
-    loadMatchPage();
-  }, [matchId]);
+    void loadMatchPage();
+  }, [loadMatchPage, matchId]);
 
   useEffect(() => {
     if (!match?.id || !hasMatchAccess) return;
@@ -560,7 +553,7 @@ export default function useLiveMatchPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [match?.id, hasMatchAccess]);
+  }, [hasMatchAccess, match?.id, refreshLiveState]);
 
   useEffect(() => {
     if (!match?.clock_running) return;
@@ -597,7 +590,7 @@ export default function useLiveMatchPage() {
       cancelled = true;
       window.clearInterval(poller);
     };
-  }, [match?.id, match?.status]);
+  }, [match?.id, match?.status, refreshLiveState]);
 
   const {
     secondsElapsed,
@@ -632,6 +625,8 @@ export default function useLiveMatchPage() {
     nowMs,
   });
 
+  const currentGameMinute = Math.max(0, Math.floor(secondsElapsed / 60));
+
   const {
     resetForm,
     openPauseModal,
@@ -644,6 +639,7 @@ export default function useLiveMatchPage() {
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     addEvent,
+    addSubstitutionBatch,
     startLivePeriod,
     pauseClock,
     undoLastEvent,
@@ -656,8 +652,6 @@ export default function useLiveMatchPage() {
     editingDisabled,
     homePlayers,
     awayPlayers,
-    selectedOnFieldPlayers,
-    selectedBenchPlayers,
     selectedHomeStarterIds,
     selectedAwayStarterIds,
     setSelectedHomeStarterIds,
@@ -687,6 +681,7 @@ export default function useLiveMatchPage() {
     error,
     connectionNotice,
     formattedClock,
+    currentGameMinute,
     safeEvents,
     homePlayers,
     awayPlayers,
@@ -704,6 +699,7 @@ export default function useLiveMatchPage() {
     setForm,
     resetForm,
     addEvent,
+    addSubstitutionBatch,
     eventSelectablePlayers,
     eventSelectableSecondaryPlayers,
     selectedOnFieldPlayers,

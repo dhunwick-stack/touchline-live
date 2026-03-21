@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import useLiveMatchPage from '@/components/live/useLiveMatchPage';
-import type { MatchEvent, Player, TeamSide, TrackingMode } from '@/lib/types';
+import type { TeamSide, TrackingMode } from '@/lib/types';
 
 export type SidelineFlowType =
   | null
@@ -18,6 +18,7 @@ type LiveMatchController = ReturnType<typeof useLiveMatchPage>;
 
 export default function useSidelineMode(live: LiveMatchController) {
   const [activeFlow, setActiveFlow] = useState<SidelineFlowType>(null);
+  const visibleClockMinute = Number.parseInt((live.formattedClock || '0:00').split(':')[0] || '0', 10);
 
   const canWrite = live.hasMatchAccess && !live.editingDisabled;
 
@@ -132,21 +133,40 @@ export default function useSidelineMode(live: LiveMatchController) {
 
   async function submitSubstitution(params: {
     side: TeamSide;
-    outgoingPlayerId: string;
-    incomingPlayerId: string;
+    substitutions: {
+      outgoingPlayerId: string;
+      incomingPlayerId: string;
+    }[];
   }) {
-    await live.addEvent({
-      overrides: {
-        type: 'substitution',
+    let success = false;
+
+    if (typeof live.addSubstitutionBatch === 'function') {
+      success = await live.addSubstitutionBatch({
         side: params.side,
-        playerId: params.outgoingPlayerId,
-        secondaryPlayerId: params.incomingPlayerId,
-        playerNameOverride: '',
-        secondaryPlayerNameOverride: '',
-        notes: '',
-      },
-    });
-    setActiveFlow(null);
+        minute: Number.isNaN(visibleClockMinute) ? 0 : visibleClockMinute,
+        substitutions: params.substitutions,
+      });
+    } else {
+      success = true;
+
+      for (const substitution of params.substitutions) {
+        await live.addEvent({
+          overrides: {
+            type: 'substitution',
+            side: params.side,
+            playerId: substitution.outgoingPlayerId,
+            secondaryPlayerId: substitution.incomingPlayerId,
+            playerNameOverride: '',
+            secondaryPlayerNameOverride: '',
+            notes: '',
+          },
+        });
+      }
+    }
+
+    if (success) {
+      setActiveFlow(null);
+    }
   }
 
   async function confirmUndo() {

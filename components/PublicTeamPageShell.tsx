@@ -171,6 +171,16 @@ useEffect(() => {
     return;
   }
 
+  const {
+    data: { session: authSession },
+  } = await supabase.auth.getSession();
+
+  if (!authSession?.user) {
+    const nextUrl = `/team-login?teamId=${encodeURIComponent(team.id)}&mode=admin`;
+    router.push(`/login?next=${encodeURIComponent(nextUrl)}`);
+    return;
+  }
+
   setAdminCode('');
   setAdminError('');
   setCheckingAdminCode(false);

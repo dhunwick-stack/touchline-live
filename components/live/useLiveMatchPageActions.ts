@@ -28,8 +28,6 @@ type UseLiveMatchPageActionsParams = {
   editingDisabled: boolean;
   homePlayers: Player[];
   awayPlayers: Player[];
-  selectedOnFieldPlayers: Player[];
-  selectedBenchPlayers: Player[];
   selectedHomeStarterIds: string[];
   selectedAwayStarterIds: string[];
   setSelectedHomeStarterIds: Dispatch<SetStateAction<string[]>>;
@@ -55,6 +53,11 @@ type AddEventOptions = {
   allowGoalWithoutPlayer?: boolean;
 };
 
+type BatchSubstitutionRow = {
+  outgoingPlayerId: string;
+  incomingPlayerId: string;
+};
+
 // ---------------------------------------------------
 // HOOK
 // FILE: components/live/useLiveMatchPageActions.ts
@@ -69,8 +72,6 @@ export default function useLiveMatchPageActions({
   editingDisabled,
   homePlayers,
   awayPlayers,
-  selectedOnFieldPlayers,
-  selectedBenchPlayers,
   selectedHomeStarterIds,
   selectedAwayStarterIds,
   setSelectedHomeStarterIds,
@@ -133,6 +134,18 @@ export default function useLiveMatchPageActions({
     const players = side === 'home' ? homePlayers : awayPlayers;
     const onFieldIds = new Set(getOnFieldPlayersForSide(side).map((player) => player.id));
     return players.filter((player) => !onFieldIds.has(player.id));
+  }
+
+  function formatPlayerLabel(player: Player | undefined) {
+    if (!player) return 'Player';
+
+    const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ').trim();
+
+    if (player.jersey_number !== null && player.jersey_number !== undefined) {
+      return `#${player.jersey_number} ${fullName}`;
+    }
+
+    return fullName || 'Player';
   }
 
   function resetForm(nextSide?: TeamSide) {
@@ -514,6 +527,130 @@ export default function useLiveMatchPageActions({
     resetForm(effectiveForm.side);
   }
 
+  async function addSubstitutionBatch(params: {
+    side: TeamSide;
+    minute: number;
+    substitutions: BatchSubstitutionRow[];
+  }) {
+    if (!match) return false;
+    if (editingDisabled) {
+      setError('This match is not editable in its current state.');
+      return false;
+    }
+    if (getTrackingModeForSide(params.side) !== 'full') {
+      setError('Batch substitutions require full tracking for this team.');
+      return false;
+    }
+    if (!Number.isInteger(params.minute) || params.minute < 0) {
+      setError('Substitution minute must be zero or higher.');
+      return false;
+    }
+    if (params.substitutions.length === 0) {
+      setError('Add at least one substitution to submit.');
+      return false;
+    }
+
+    const sidePlayers = params.side === 'home' ? homePlayers : awayPlayers;
+    const sidePlayerMap = new Map(sidePlayers.map((player) => [player.id, player]));
+    const activeIds = new Set(getOnFieldPlayersForSide(params.side).map((player) => player.id));
+    const benchIds = new Set(getBenchPlayersForSide(params.side).map((player) => player.id));
+
+    for (const substitution of params.substitutions) {
+      if (!substitution.outgoingPlayerId || !substitution.incomingPlayerId) {
+        setError('Each substitution needs both an outgoing and incoming player.');
+        return false;
+      }
+
+      if (substitution.outgoingPlayerId === substitution.incomingPlayerId) {
+        setError('Outgoing and incoming players must be different.');
+        return false;
+      }
+
+      if (!activeIds.has(substitution.outgoingPlayerId)) {
+        setError(
+          `${formatPlayerLabel(sidePlayerMap.get(substitution.outgoingPlayerId))} is not currently on the field.`,
+        );
+        return false;
+      }
+
+      if (!benchIds.has(substitution.incomingPlayerId)) {
+        setError(
+          `${formatPlayerLabel(sidePlayerMap.get(substitution.incomingPlayerId))} is not currently available from the bench.`,
+        );
+        return false;
+      }
+
+      activeIds.delete(substitution.outgoingPlayerId);
+      activeIds.add(substitution.incomingPlayerId);
+      benchIds.delete(substitution.incomingPlayerId);
+      benchIds.add(substitution.outgoingPlayerId);
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const eventTeamId = params.side === 'home' ? match.home_team_id : match.away_team_id;
+    const insertPayload = params.substitutions.map((substitution) => ({
+      match_id: match.id,
+      minute: params.minute,
+      event_type: 'substitution' as const,
+      team_side: params.side,
+      team_id: eventTeamId,
+      player_id: substitution.outgoingPlayerId,
+      secondary_player_id: substitution.incomingPlayerId,
+      player_name_override: null,
+      secondary_player_name_override: null,
+      notes: null,
+    }));
+
+    const { error: insertError } = await supabase.from('match_events').insert(insertPayload);
+
+    if (insertError) {
+      setSaving(false);
+      setError(insertError.message);
+      return false;
+    }
+
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({
+        current_minute: params.minute,
+      })
+      .eq('id', match.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError(updateError.message);
+      return false;
+    }
+
+    const { data: refreshedEvents, error: refreshError } = await supabase
+      .from('match_events')
+      .select('*')
+      .eq('match_id', match.id)
+      .order('created_at', { ascending: false });
+
+    if (refreshError) {
+      setSaving(false);
+      setError(refreshError.message);
+      return false;
+    }
+
+    setEvents(((refreshedEvents as MatchEvent[]) ?? []).filter(Boolean));
+    setMatch((prev) =>
+      prev
+        ? {
+            ...prev,
+            current_minute: params.minute,
+          }
+        : prev,
+    );
+
+    setSaving(false);
+    resetForm(params.side);
+    return true;
+  }
+
   async function startLivePeriod() {
     if (!match || editingDisabled) return;
 
@@ -716,6 +853,7 @@ export default function useLiveMatchPageActions({
     handleSaveHomeLineup,
     handleSaveAwayLineup,
     addEvent,
+    addSubstitutionBatch,
     startLivePeriod,
     pauseClock,
     undoLastEvent,
