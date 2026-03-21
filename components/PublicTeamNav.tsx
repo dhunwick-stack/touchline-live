@@ -12,6 +12,10 @@ export default function PublicTeamNav({ teamId }: { teamId: string }) {
       label: 'Overview',
     },
     {
+      href: `/public/team/${teamId}/roster`,
+      label: 'Roster',
+    },
+    {
       href: `/public/team/${teamId}/schedule`,
       label: 'Schedule',
     },

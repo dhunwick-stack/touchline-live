@@ -51,6 +51,7 @@ export default function PublicTeamPage() {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   // ---------------------------------------------------
   // LOAD PAGE DATA
@@ -146,6 +147,14 @@ export default function PublicTeamPage() {
 
     loadPageData();
   }, [teamId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // ---------------------------------------------------
   // TEAM SUMMARY
@@ -305,7 +314,7 @@ export default function PublicTeamPage() {
       (nextMatch.status === 'scheduled' || nextMatch.status === 'not_started') &&
       nextMatch.match_date
     ) {
-      const diff = (new Date(nextMatch.match_date).getTime() - Date.now()) / (1000 * 60);
+      const diff = (new Date(nextMatch.match_date).getTime() - currentTime) / (1000 * 60);
 
       if (diff <= 30 && diff >= -5) {
         return { match: nextMatch, type: 'soon' as const };
@@ -313,7 +322,7 @@ export default function PublicTeamPage() {
     }
 
     return null;
-  }, [nextMatch]);
+  }, [currentTime, nextMatch]);
 
   // ---------------------------------------------------
   // HERO STYLE
@@ -632,9 +641,17 @@ export default function PublicTeamPage() {
           <div className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-slate-200">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Roster Preview</h2>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                {players.length} players
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                  {players.length} players
+                </span>
+                <Link
+                  href={`/public/team/${team.id}/roster`}
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm"
+                >
+                  Full Roster
+                </Link>
+              </div>
             </div>
 
             {players.length === 0 ? (

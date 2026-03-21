@@ -134,6 +134,8 @@ export type Player = {
   jersey_number: number | null;
   position: string | null;
   school_year?: string | null;
+  height?: string | null;
+  weight?: string | null;
   active: boolean;
   created_at: string;
 };

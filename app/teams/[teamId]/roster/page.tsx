@@ -750,7 +750,12 @@ if ((accessError || error) && !team) {
                                   'Unnamed Player'}
                               </p>
                               <p className="text-sm text-slate-500">
-                                {[player.position, isHighSchoolTeam ? player.school_year : null]
+                                {[
+                                  player.position,
+                                  isHighSchoolTeam ? player.school_year : null,
+                                  player.height || null,
+                                  player.weight || null,
+                                ]
                                   .filter(Boolean)
                                   .join(' • ') || 'No position'}
                               </p>
