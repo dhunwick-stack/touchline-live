@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import TeamPageIntro from '@/components/TeamPageIntro';
@@ -61,6 +61,16 @@ function buildPlayerFingerprint(input: {
   ].join('|');
 }
 
+function normalizeTeamGender(value?: string | null) {
+  const normalized = (value || '').trim().toLowerCase();
+
+  if (normalized === 'boys' || normalized === 'girls') {
+    return normalized;
+  }
+
+  return '';
+}
+
 export default function TeamRosterPage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -118,19 +128,10 @@ export default function TeamRosterPage() {
 
 
   // ---------------------------------------------------
-  // INITIAL LOAD
-  // ---------------------------------------------------
-
-  useEffect(() => {
-    if (!teamId || !authChecked) return;
-    loadRoster();
-  }, [teamId, authChecked]);
-
-  // ---------------------------------------------------
   // LOAD ROSTER
   // ---------------------------------------------------
 
-  async function loadRoster() {
+  const loadRoster = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -176,11 +177,18 @@ export default function TeamRosterPage() {
     setEditingPlayers(initialEditing);
 
     if (loadedTeam.organization_id) {
-      const { data: organizationTeams, error: organizationTeamsError } = await supabase
+      const teamGender = normalizeTeamGender(loadedTeam.gender);
+      let organizationTeamsQuery = supabase
         .from('teams')
-        .select('id, name')
+        .select('id, name, gender')
         .eq('organization_id', loadedTeam.organization_id)
-        .neq('id', teamId)
+        .neq('id', teamId);
+
+      if (teamGender) {
+        organizationTeamsQuery = organizationTeamsQuery.eq('gender', teamGender);
+      }
+
+      const { data: organizationTeams, error: organizationTeamsError } = await organizationTeamsQuery
         .order('name', { ascending: true });
 
       if (organizationTeamsError) {
@@ -231,7 +239,21 @@ export default function TeamRosterPage() {
     }
 
     setLoading(false);
-  }
+  }, [teamId]);
+
+  // ---------------------------------------------------
+  // INITIAL LOAD
+  // ---------------------------------------------------
+
+  useEffect(() => {
+    if (!teamId || !authChecked) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void loadRoster();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [teamId, authChecked, loadRoster]);
 
   // ---------------------------------------------------
   // ADD PLAYER
@@ -935,9 +957,11 @@ if ((accessError || error) && !team) {
                 {team.organization_id ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                     <div className="mb-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Quick Add From Organization</h3>
+                      <h3 className="text-sm font-semibold text-slate-900">Quick Add Players</h3>
                       <p className="mt-1 text-xs font-medium text-slate-500">
-                        Search players from other teams in this organization and clone them into this roster.
+                        {normalizeTeamGender(team.gender)
+                          ? `Search players from other ${normalizeTeamGender(team.gender)} teams in this organization and clone them into this roster.`
+                          : 'Search players from other teams in this organization and clone them into this roster.'}
                       </p>
                     </div>
 
@@ -987,8 +1011,12 @@ if ((accessError || error) && !team) {
                       ) : (
                         <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
                           {organizationPlayerCandidates.length === 0
-                            ? 'No players found on other teams in this organization yet.'
-                            : 'No organization players match that search, or they are already on this roster.'}
+                            ? normalizeTeamGender(team.gender)
+                              ? `No players found on other ${normalizeTeamGender(team.gender)} teams in this organization yet.`
+                              : 'No players found on other teams in this organization yet.'
+                            : normalizeTeamGender(team.gender)
+                              ? `No ${normalizeTeamGender(team.gender)} organization players match that search, or they are already on this roster.`
+                              : 'No organization players match that search, or they are already on this roster.'}
                         </p>
                       )}
                     </div>
