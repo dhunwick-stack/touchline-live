@@ -5,7 +5,7 @@
 // ---------------------------------------------------
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
@@ -25,6 +25,108 @@ type GroupedMatches = {
   label: string;
   matches: MatchRow[];
 };
+
+type ScheduleImportRow = {
+  date_time: string;
+  opponent: string;
+  home_away: 'home' | 'away' | '';
+  venue: string;
+  season: string;
+  errors: string[];
+};
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeHomeAway(value: string): 'home' | 'away' | '' {
+  const normalized = value.trim().toLowerCase();
+
+  if (['home', 'h', 'vs'].includes(normalized)) return 'home';
+  if (['away', 'a', '@'].includes(normalized)) return 'away';
+
+  return '';
+}
+
+function parseScheduleImportText(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [] as ScheduleImportRow[];
+  }
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim().toLowerCase());
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+
+  return lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line);
+    const dateTime = cells[headerIndex.get('date_time') ?? -1] || '';
+    const opponent = cells[headerIndex.get('opponent') ?? -1] || '';
+    const homeAwayValue = cells[headerIndex.get('home_away') ?? -1] || '';
+    const venue = cells[headerIndex.get('venue') ?? -1] || '';
+    const season = cells[headerIndex.get('season') ?? -1] || '';
+    const normalizedHomeAway = normalizeHomeAway(homeAwayValue);
+    const errors: string[] = [];
+
+    if (!dateTime.trim()) {
+      errors.push('Missing date_time');
+    } else if (Number.isNaN(new Date(dateTime.trim()).getTime())) {
+      errors.push('Invalid date_time');
+    }
+
+    if (!opponent.trim()) {
+      errors.push('Missing opponent');
+    }
+
+    if (!normalizedHomeAway) {
+      errors.push('home_away must be home or away');
+    }
+
+    return {
+      date_time: dateTime.trim(),
+      opponent: opponent.trim(),
+      home_away: normalizedHomeAway,
+      venue: venue.trim(),
+      season: season.trim(),
+      errors,
+    };
+  });
+}
+
+function normalizeName(value?: string | null) {
+  return (value || '').trim().toLowerCase();
+}
 
 // ---------------------------------------------------
 // PAGE
@@ -69,12 +171,16 @@ export default function TeamSchedulePage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
+  const [scheduleImportRows, setScheduleImportRows] = useState<ScheduleImportRow[]>([]);
+  const [scheduleImportFileName, setScheduleImportFileName] = useState('');
+  const [importingSchedule, setImportingSchedule] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   // ---------------------------------------------------
   // LOAD TEAM + MATCHES + SEASONS
   // ---------------------------------------------------
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!teamId) return;
 
     setLoading(true);
@@ -120,7 +226,7 @@ export default function TeamSchedulePage() {
     setSelectedSeasonId(activeSeason?.id || 'all');
 
     setLoading(false);
-  }
+  }, [teamId]);
 
   // ---------------------------------------------------
   // INITIAL LOAD
@@ -128,8 +234,20 @@ export default function TeamSchedulePage() {
 
   useEffect(() => {
     if (!teamId || !authChecked) return;
-    loadData();
-  }, [teamId, authChecked]);
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [teamId, authChecked, loadData]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setCurrentTimeMs(Date.now());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   // ---------------------------------------------------
   // DELETE MATCH
@@ -160,6 +278,131 @@ export default function TeamSchedulePage() {
 
     await loadData();
     setDeletingMatchId(null);
+  }
+
+  async function handleScheduleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+
+    if (!file) {
+      setScheduleImportRows([]);
+      setScheduleImportFileName('');
+      return;
+    }
+
+    const text = await file.text();
+    const parsedRows = parseScheduleImportText(text);
+
+    setScheduleImportFileName(file.name);
+    setScheduleImportRows(parsedRows);
+    setMessage('');
+  }
+
+  async function handleImportScheduleCsv() {
+    if (!team || !teamId || scheduleImportRows.length === 0) return;
+
+    const validRows = scheduleImportRows.filter((row) => row.errors.length === 0);
+
+    if (validRows.length === 0) {
+      setMessage('Schedule import has no valid rows to add.');
+      return;
+    }
+
+    setImportingSchedule(true);
+    setMessage('');
+
+    const [{ data: teamData, error: teamError }, { data: seasonData, error: seasonError }] =
+      await Promise.all([
+        supabase.from('teams').select('*').order('name', { ascending: true }),
+        supabase.from('seasons').select('*').order('start_date', { ascending: false }),
+      ]);
+
+    if (teamError || seasonError) {
+      setMessage(teamError?.message || seasonError?.message || 'Failed to prepare schedule import.');
+      setImportingSchedule(false);
+      return;
+    }
+
+    const allTeams = (teamData as Team[]) ?? [];
+    const allSeasons = (seasonData as Season[]) ?? [];
+    const teamsByName = new Map<string, Team>();
+    const seasonsByName = new Map<string, Season>();
+
+    for (const candidateTeam of allTeams) {
+      const key = normalizeName(candidateTeam.name);
+      if (key && !teamsByName.has(key)) {
+        teamsByName.set(key, candidateTeam);
+      }
+    }
+
+    for (const season of allSeasons) {
+      const key = normalizeName(season.name);
+      if (key && !seasonsByName.has(key)) {
+        seasonsByName.set(key, season);
+      }
+    }
+
+    const createdOpponentIds = new Map<string, string>();
+    const payload: Array<Record<string, string | null>> = [];
+
+    for (const row of validRows) {
+      const opponentKey = normalizeName(row.opponent);
+      let opponentTeamId =
+        createdOpponentIds.get(opponentKey) || teamsByName.get(opponentKey)?.id || '';
+
+      if (!opponentTeamId) {
+        const { data: createdOpponent, error: createOpponentError } = await supabase
+          .from('teams')
+          .insert({
+            name: row.opponent,
+            is_reusable: false,
+            match_tracking_mode: 'basic',
+          })
+          .select('*')
+          .single();
+
+        if (createOpponentError) {
+          setMessage(createOpponentError.message || `Failed to create opponent ${row.opponent}.`);
+          setImportingSchedule(false);
+          return;
+        }
+
+        opponentTeamId = (createdOpponent as Team).id;
+        createdOpponentIds.set(opponentKey, opponentTeamId);
+      }
+
+      const matchedSeason =
+        seasonsByName.get(normalizeName(row.season)) ||
+        (selectedSeasonId !== 'all'
+          ? allSeasons.find((season) => season.id === selectedSeasonId) || null
+          : allSeasons.find((season) => season.is_active) || null);
+
+      const isHome = row.home_away === 'home';
+
+      payload.push({
+        season_id: matchedSeason?.id || null,
+        home_team_id: isHome ? teamId : opponentTeamId,
+        away_team_id: isHome ? opponentTeamId : teamId,
+        home_tracking_mode: isHome ? team.match_tracking_mode : 'basic',
+        away_tracking_mode: isHome ? 'basic' : team.match_tracking_mode,
+        venue: row.venue || null,
+        match_date: new Date(row.date_time).toISOString(),
+        public_slug: null,
+        status: 'not_started',
+      });
+    }
+
+    const { error } = await supabase.from('matches').insert(payload);
+
+    if (error) {
+      setMessage(error.message || 'Failed to import schedule.');
+      setImportingSchedule(false);
+      return;
+    }
+
+    setScheduleImportRows([]);
+    setScheduleImportFileName('');
+    await loadData();
+    setImportingSchedule(false);
   }
 
   // ---------------------------------------------------
@@ -212,8 +455,6 @@ export default function TeamSchedulePage() {
   );
 
   const nextUpcomingMatch = useMemo(() => {
-    const now = Date.now();
-
     return (
       scheduledMatches
         .filter((match) => {
@@ -221,7 +462,7 @@ export default function TeamSchedulePage() {
 
           return (
             ['not_started', 'scheduled'].includes(match.status) &&
-            new Date(match.match_date).getTime() >= now
+            new Date(match.match_date).getTime() >= currentTimeMs
           );
         })
         .sort((a, b) => {
@@ -234,7 +475,7 @@ export default function TeamSchedulePage() {
           return aTime - bTime;
         })[0] ?? null
     );
-  }, [scheduledMatches]);
+  }, [scheduledMatches, currentTimeMs]);
 
   const groupedScheduledMatches = useMemo<GroupedMatches[]>(() => {
     const groups = new Map<string, MatchRow[]>();
@@ -355,6 +596,88 @@ export default function TeamSchedulePage() {
               className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
             />
           </div>
+        </section>
+
+        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Import Schedule CSV</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Upload rows with <code>date_time</code>, <code>opponent</code>, and{' '}
+                <code>home_away</code>. Optional columns: <code>venue</code> and <code>season</code>.
+              </p>
+            </div>
+
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+              Choose CSV
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleScheduleCsvFileChange}
+                className="sr-only"
+              />
+            </label>
+          </div>
+
+          {scheduleImportFileName ? (
+            <p className="mt-4 text-sm font-medium text-slate-600">Loaded: {scheduleImportFileName}</p>
+          ) : null}
+
+          <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+            Example headers: <code>date_time,opponent,home_away,venue,season</code>
+          </div>
+
+          {scheduleImportRows.length > 0 ? (
+            <div className="mt-4 space-y-4">
+              <p className="text-sm font-medium text-slate-600">
+                {scheduleImportRows.filter((row) => row.errors.length === 0).length} valid row
+                {scheduleImportRows.filter((row) => row.errors.length === 0).length === 1 ? '' : 's'}{' '}
+                ready to import out of {scheduleImportRows.length}.
+              </p>
+
+              <div className="space-y-3">
+                {scheduleImportRows.map((row, index) => (
+                  <div
+                    key={`${row.opponent}-${row.date_time}-${index}`}
+                    className={`rounded-2xl border px-4 py-3 ${
+                      row.errors.length > 0
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">
+                        {row.opponent || 'Opponent missing'} • {row.home_away || 'side missing'} •{' '}
+                        {row.date_time || 'date missing'}
+                      </p>
+                      {row.season ? (
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold ring-1 ring-current/10">
+                          {row.season}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {row.venue ? <p className="mt-2 text-sm">Venue: {row.venue}</p> : null}
+
+                    {row.errors.length > 0 ? (
+                      <p className="mt-2 text-sm font-medium">{row.errors.join(' • ')}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleImportScheduleCsv}
+                  disabled={importingSchedule}
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {importingSchedule ? 'Importing...' : 'Import Valid Rows'}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {/* --------------------------------------------------- */}
