@@ -21,6 +21,52 @@ type GroupedMatches = {
   matches: MatchRow[];
 };
 
+function getDefaultSeasonId(seasons: Season[]) {
+  const currentYear = new Date().getFullYear();
+  const getTrailingYear = (season: Season) => {
+    const match = (season.name || '').trim().match(/(\d{4})\s*$/);
+    return match ? Number.parseInt(match[1], 10) : null;
+  };
+
+  const exactYearSeason = seasons.find((season) => getTrailingYear(season) === currentYear);
+
+  if (exactYearSeason) {
+    return exactYearSeason.id;
+  }
+
+  const closestFutureOrCurrentNamedSeason = seasons
+    .map((season) => ({
+      season,
+      year: getTrailingYear(season),
+    }))
+    .filter((entry) => entry.year !== null && entry.year! >= currentYear)
+    .sort((a, b) => (a.year as number) - (b.year as number))[0];
+
+  if (closestFutureOrCurrentNamedSeason) {
+    return closestFutureOrCurrentNamedSeason.season.id;
+  }
+
+  const closestPastNamedSeason = seasons
+    .map((season) => ({
+      season,
+      year: getTrailingYear(season),
+    }))
+    .filter((entry) => entry.year !== null)
+    .sort((a, b) => (b.year as number) - (a.year as number))[0];
+
+  if (closestPastNamedSeason) {
+    return closestPastNamedSeason.season.id;
+  }
+
+  const activeSeason = seasons.find((season) => season.is_active);
+
+  if (activeSeason) {
+    return activeSeason.id;
+  }
+
+  return 'all';
+}
+
 export default function PublicTeamSchedulePage() {
   // ---------------------------------------------------
   // ROUTE PARAMS
@@ -45,6 +91,7 @@ export default function PublicTeamSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   // ---------------------------------------------------
   // LOAD TEAM + MATCHES + SEASONS
@@ -91,17 +138,24 @@ export default function PublicTeamSchedulePage() {
       }
 
       const loadedSeasons = (seasonData as Season[]) ?? [];
-      const activeSeason = loadedSeasons.find((season) => season.is_active);
 
       setTeam(teamData as unknown as Team);
       setMatches((matchData as MatchRow[]) ?? []);
       setSeasons(loadedSeasons);
-      setSelectedSeasonId(activeSeason?.id || 'all');
+      setSelectedSeasonId(getDefaultSeasonId(loadedSeasons));
       setLoading(false);
     }
 
     loadData();
   }, [teamId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // ---------------------------------------------------
   // FILTERED MATCHES
@@ -175,15 +229,13 @@ export default function PublicTeamSchedulePage() {
   // ---------------------------------------------------
 
   const nextUpcomingMatch = useMemo(() => {
-    const now = Date.now();
-
     return upcomingMatches
       .filter((match) => {
         if (!match.match_date) return false;
 
         return (
           ['not_started', 'scheduled'].includes(match.status) &&
-          new Date(match.match_date).getTime() >= now
+          new Date(match.match_date).getTime() >= currentTime
         );
       })
       .sort((a, b) => {
@@ -191,7 +243,7 @@ export default function PublicTeamSchedulePage() {
         const bTime = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
         return aTime - bTime;
       })[0] ?? null;
-  }, [upcomingMatches]);
+  }, [currentTime, upcomingMatches]);
 
   const featuredMatch = useMemo(() => {
     const liveOrHalftime = upcomingMatches.find(
@@ -273,7 +325,11 @@ export default function PublicTeamSchedulePage() {
       ) : null}
 
       {featuredMatch ? (
-        <FeaturedMatchCard match={featuredMatch} isLive={isFeaturedMatchLive} />
+        <FeaturedMatchCard
+          match={featuredMatch}
+          isLive={isFeaturedMatchLive}
+          currentTime={currentTime}
+        />
       ) : null}
 
       {loading ? (
@@ -308,6 +364,7 @@ export default function PublicTeamSchedulePage() {
                     label={group.label}
                     matches={group.matches}
                     teamId={teamId}
+                    currentTime={currentTime}
                   />
                 ))}
               </div>
@@ -326,7 +383,12 @@ export default function PublicTeamSchedulePage() {
             ) : (
               <div className="space-y-4">
                 {completedMatches.map((match) => (
-                  <PublicScheduleMatchCard key={match.id} match={match} teamId={teamId} />
+                  <PublicScheduleMatchCard
+                    key={match.id}
+                    match={match}
+                    teamId={teamId}
+                    currentTime={currentTime}
+                  />
                 ))}
               </div>
             )}
@@ -344,7 +406,12 @@ export default function PublicTeamSchedulePage() {
             ) : (
               <div className="space-y-4">
                 {delayedMatches.map((match) => (
-                  <PublicScheduleMatchCard key={match.id} match={match} teamId={teamId} />
+                  <PublicScheduleMatchCard
+                    key={match.id}
+                    match={match}
+                    teamId={teamId}
+                    currentTime={currentTime}
+                  />
                 ))}
               </div>
             )}
@@ -427,6 +494,45 @@ function ScheduleFilterBar({
   );
 }
 
+function canOpenLiveMatch(match: MatchRow, currentTime: number) {
+  if (match.status === 'live' || match.status === 'halftime') {
+    return true;
+  }
+
+  if (
+    (match.status === 'scheduled' || match.status === 'not_started') &&
+    match.match_date
+  ) {
+    const kickoffTime = new Date(match.match_date).getTime();
+    return kickoffTime - currentTime <= 60 * 60 * 1000;
+  }
+
+  return false;
+}
+
+function getMatchCta(match: MatchRow, currentTime: number) {
+  if (match.status === 'final') {
+    return {
+      label: 'View Recap',
+      enabled: !!match.public_slug,
+    };
+  }
+
+  if (
+    match.status === 'live' ||
+    match.status === 'halftime' ||
+    match.status === 'scheduled' ||
+    match.status === 'not_started'
+  ) {
+    return {
+      label: 'View Live',
+      enabled: !!match.public_slug && canOpenLiveMatch(match, currentTime),
+    };
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------
 // FEATURED MATCH CARD
 // ---------------------------------------------------
@@ -434,10 +540,14 @@ function ScheduleFilterBar({
 function FeaturedMatchCard({
   match,
   isLive,
+  currentTime,
 }: {
   match: MatchRow;
   isLive: boolean;
+  currentTime: number;
 }) {
+  const cta = getMatchCta(match, currentTime);
+
   return (
     <section
       className={`mb-8 rounded-3xl p-6 text-white shadow-sm ring-1 ${
@@ -516,15 +626,19 @@ function FeaturedMatchCard({
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
-        {match.public_slug ? (
+        {cta && cta.enabled && match.public_slug ? (
           <Link
             href={`/public/${match.public_slug}`}
             target="_blank"
             className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold hover:bg-emerald-600"
             style={{ color: '#ffffff' }}
           >
-            {isLive ? 'Watch Live' : 'View Match'}
+            {cta.label}
           </Link>
+        ) : cta ? (
+          <span className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white/50 ring-1 ring-white/10">
+            {cta.label}
+          </span>
         ) : (
           <span className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white/70 ring-1 ring-white/10">
             Public link coming soon
@@ -570,10 +684,12 @@ function GroupedMatchList({
   label,
   matches,
   teamId,
+  currentTime,
 }: {
   label: string;
   matches: MatchRow[];
   teamId: string;
+  currentTime: number;
 }) {
   return (
     <div>
@@ -586,7 +702,12 @@ function GroupedMatchList({
 
       <div className="space-y-4">
         {matches.map((match) => (
-          <PublicScheduleMatchCard key={match.id} match={match} teamId={teamId} />
+          <PublicScheduleMatchCard
+            key={match.id}
+            match={match}
+            teamId={teamId}
+            currentTime={currentTime}
+          />
         ))}
       </div>
     </div>
@@ -600,9 +721,11 @@ function GroupedMatchList({
 function PublicScheduleMatchCard({
   match,
   teamId,
+  currentTime,
 }: {
   match: MatchRow;
   teamId: string;
+  currentTime: number;
 }) {
   const isHomeTeam = match.home_team_id === teamId;
   const teamSide = isHomeTeam ? match.home_team : match.away_team;
@@ -610,6 +733,7 @@ function PublicScheduleMatchCard({
   const teamDisplayName = [teamSide?.club_name, teamSide?.name].filter(Boolean).join(' ') || 'Team';
   const opponentDisplayName =
     [opponent?.club_name, opponent?.name].filter(Boolean).join(' ') || 'Opponent';
+  const cta = getMatchCta(match, currentTime);
 
   return (
     <div className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-200">
@@ -663,14 +787,18 @@ function PublicScheduleMatchCard({
                 )}
               </div>
 
-              {match.public_slug ? (
+              {cta && cta.enabled && match.public_slug ? (
                 <Link
                   href={`/public/${match.public_slug}`}
                   target="_blank"
                   className="inline-flex rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"
                 >
-                  {match.status === 'live' || match.status === 'halftime' ? 'Watch Live' : 'View Recap'}
+                  {cta.label}
                 </Link>
+              ) : cta ? (
+                <span className="inline-flex rounded-2xl bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500">
+                  {cta.label}
+                </span>
               ) : null}
             </div>
 
