@@ -254,15 +254,40 @@ export default function MatchesPage() {
       matches
         .filter((match) => matchMatchesSearch(match, searchQuery))
         .filter((match) => match.status === 'final')
+        .filter((match) => {
+          if (!match.match_date) return true;
+          return !isSameLocalDay(new Date(match.match_date), new Date(nowMs));
+        })
         .sort((a, b) => {
           const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
           const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
           return bTime - aTime;
         }),
-    [matches, searchQuery],
+    [matches, nowMs, searchQuery],
   );
 
-  const filteredMatchCount = liveMatches.length + upcomingMatches.length + recentResults.length;
+  const completedTodayMatches = useMemo(
+    () =>
+      matches
+        .filter((match) => matchMatchesSearch(match, searchQuery))
+        .filter((match) => match.status === 'final')
+        .filter((match) => {
+          if (!match.match_date) return false;
+          return isSameLocalDay(new Date(match.match_date), new Date(nowMs));
+        })
+        .sort((a, b) => {
+          const aTime = a.match_date ? new Date(a.match_date).getTime() : 0;
+          const bTime = b.match_date ? new Date(b.match_date).getTime() : 0;
+          return bTime - aTime;
+        }),
+    [matches, nowMs, searchQuery],
+  );
+
+  const filteredMatchCount =
+    liveMatches.length +
+    completedTodayMatches.length +
+    upcomingMatches.length +
+    recentResults.length;
 
   // ---------------------------------------------------
   // PAGE
@@ -377,6 +402,20 @@ export default function MatchesPage() {
           />
 
           <MatchSection
+            title="Completed Today"
+            subtitle="Final results from today that should stay near the top."
+            count={completedTodayMatches.length}
+            emptyText="No matches have gone final yet today."
+            matches={completedTodayMatches}
+            completedToday
+            nowMs={nowMs}
+            showAdminActions={Boolean(currentUser)}
+            isSuperAdmin={isSuperAdmin}
+            managedTeamIds={managedTeamIds}
+            onDeleteMatch={handleDeleteMatch}
+          />
+
+          <MatchSection
             title="Upcoming"
             subtitle="Scheduled matches coming up next."
             count={upcomingMatches.length}
@@ -418,6 +457,7 @@ function MatchSection({
   emptyText,
   matches,
   highlight = false,
+  completedToday = false,
   nowMs,
   showAdminActions,
   isSuperAdmin,
@@ -430,6 +470,7 @@ function MatchSection({
   emptyText: string;
   matches: MatchRow[];
   highlight?: boolean;
+  completedToday?: boolean;
   nowMs: number;
   showAdminActions: boolean;
   isSuperAdmin: boolean;
@@ -485,6 +526,7 @@ function MatchSection({
               key={match.id}
               match={match}
               highlight={highlight}
+              completedToday={completedToday}
               nowMs={nowMs}
               showAdminActions={showAdminActions}
               isSuperAdmin={isSuperAdmin}
@@ -505,6 +547,7 @@ function MatchSection({
 function MatchCard({
   match,
   highlight = false,
+  completedToday = false,
   nowMs,
   showAdminActions,
   isSuperAdmin,
@@ -513,6 +556,7 @@ function MatchCard({
 }: {
   match: MatchRow;
   highlight?: boolean;
+  completedToday?: boolean;
   nowMs: number;
   showAdminActions: boolean;
   isSuperAdmin: boolean;
@@ -528,14 +572,22 @@ function MatchCard({
   const awayWon = match.status === 'final' && match.away_score > match.home_score;
   const publicAction = getPublicAction(match, nowMs);
   const canManage = showAdminActions && canManageMatch(match, isSuperAdmin, managedTeamIds);
+  const winningTeam = homeWon ? match.home_team : awayWon ? match.away_team : null;
+  const completedTodayStyle =
+    completedToday && match.status === 'final'
+      ? getCompletedTodayCardStyle(winningTeam?.primary_color, winningTeam?.secondary_color)
+      : null;
 
   return (
     <div
       className={`flex h-full flex-col rounded-3xl p-6 ring-1 ${
-        highlight
+        completedTodayStyle
+          ? 'border-l-4 border-transparent'
+          : highlight
           ? 'border-l-4 border-red-500 bg-white ring-red-100'
           : 'bg-slate-50 ring-slate-200'
       }`}
+      style={completedTodayStyle ?? undefined}
     >
       <div className="min-w-0 flex-1">
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -822,6 +874,37 @@ function formatMatchDate(value: string) {
 
 function getStartOfLocalDayMs(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function isSameLocalDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function getCompletedTodayCardStyle(
+  primaryColor?: string | null,
+  secondaryColor?: string | null,
+) {
+  if (!primaryColor && !secondaryColor) {
+    return {
+      background:
+        'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(254,242,242,1) 100%)',
+      borderLeftColor: '#dc2626',
+      boxShadow: 'inset 0 0 0 1px rgba(248,113,113,0.18)',
+    };
+  }
+
+  const primary = primaryColor || secondaryColor || '#0f172a';
+  const secondary = secondaryColor || primaryColor || '#1d4ed8';
+
+  return {
+    background: `linear-gradient(135deg, ${primary}14 0%, rgba(255,255,255,0.98) 30%, ${secondary}18 100%)`,
+    borderLeftColor: primary,
+    boxShadow: `inset 0 0 0 1px ${primary}22`,
+  };
 }
 
 function matchMatchesSearch(match: MatchRow, query: string) {
