@@ -11,6 +11,7 @@ import UndoFlow from '@/components/match/flows/UndoFlow';
 import useSidelineMode from '@/hooks/matches/useSidelineMode';
 import useLiveMatchPage from '@/components/live/useLiveMatchPage';
 import MatchHeader from '@/components/match/MatchHeader';
+import type { MinutesPlayedRow } from '@/components/live/liveMatchPageShared';
 
 type LiveMatchController = ReturnType<typeof useLiveMatchPage>;
 
@@ -113,12 +114,20 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
 
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <SidelineActionGrid actions={actions} />
-          <SidelineRecentEvents
-            events={sideline.recentEvents}
-            match={live.match!}
-            homePlayers={live.homePlayers}
-            awayPlayers={live.awayPlayers}
-          />
+          <div className="space-y-6">
+            <SidelineMinutesSnapshot
+              homeTeamName={live.match?.home_team?.name || 'Home Team'}
+              awayTeamName={live.match?.away_team?.name || 'Away Team'}
+              homeRows={live.homeMinutesPlayedRows}
+              awayRows={live.awayMinutesPlayedRows}
+            />
+            <SidelineRecentEvents
+              events={sideline.recentEvents}
+              match={live.match!}
+              homePlayers={live.homePlayers}
+              awayPlayers={live.awayPlayers}
+            />
+          </div>
         </div>
       </div>
 
@@ -258,4 +267,112 @@ export default function SidelineMode({ live, modeSwitcher }: Props) {
       </SidelineFlowModal>
     </>
   );
+}
+
+function SidelineMinutesSnapshot({
+  homeTeamName,
+  awayTeamName,
+  homeRows,
+  awayRows,
+}: {
+  homeTeamName: string;
+  awayTeamName: string;
+  homeRows: MinutesPlayedRow[];
+  awayRows: MinutesPlayedRow[];
+}) {
+  const homeLeaders = homeRows.slice(0, 11);
+  const awayLeaders = awayRows.slice(0, 11);
+
+  if (homeLeaders.length === 0 && awayLeaders.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900">Minutes On Field</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Quick sideline view of estimated minutes played.
+          </p>
+        </div>
+
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+          {homeLeaders.length + awayLeaders.length}
+        </span>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <MinutesMiniColumn title={homeTeamName} rows={homeLeaders} accent="home" />
+        <MinutesMiniColumn title={awayTeamName} rows={awayLeaders} accent="away" />
+      </div>
+    </section>
+  );
+}
+
+function MinutesMiniColumn({
+  title,
+  rows,
+  accent,
+}: {
+  title: string;
+  rows: MinutesPlayedRow[];
+  accent: 'home' | 'away';
+}) {
+  const badgeClass =
+    accent === 'home'
+      ? 'bg-blue-50 text-blue-700 ring-blue-200'
+      : 'bg-rose-50 text-rose-700 ring-rose-200';
+
+  return (
+    <div className="rounded-3xl bg-slate-50 p-4 ring-1 ring-slate-200">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="truncate text-sm font-semibold text-slate-900">{title}</h3>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ring-1 ${badgeClass}`}>
+          {rows.length}
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-sm text-slate-500">No minutes tracked yet.</p>
+      ) : (
+        <div className="h-56 space-y-2 overflow-y-scroll pr-1">
+          {rows.map((row) => (
+            <div
+              key={row.player.id}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-white px-3 py-2.5 ring-1 ring-slate-200"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {row.player.jersey_number !== null && row.player.jersey_number !== undefined
+                    ? `#${row.player.jersey_number} `
+                    : ''}
+                  {[row.player.first_name, row.player.last_name].filter(Boolean).join(' ')}
+                </p>
+                <p className="truncate text-xs text-slate-500">
+                  {row.player.position || 'No position'}
+                </p>
+              </div>
+
+              <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${getMinutesPillClasses(row.minutes)}`}>
+                {row.minutes} min
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getMinutesPillClasses(minutes: number) {
+  if (minutes >= 60) {
+    return 'bg-red-100 text-red-700 ring-red-200';
+  }
+
+  if (minutes >= 45) {
+    return 'bg-amber-100 text-amber-800 ring-amber-200';
+  }
+
+  return 'bg-sky-100 text-sky-800 ring-sky-200';
 }

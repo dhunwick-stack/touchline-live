@@ -103,7 +103,7 @@ export default function MinutesPlayedCard({
                   </p>
                 </div>
 
-                <div className="ml-4 shrink-0 rounded-full bg-white px-3 py-1 text-sm font-bold text-slate-700 ring-1 ring-slate-200">
+                <div className={`ml-4 shrink-0 rounded-full px-3 py-1 text-sm font-bold ring-1 ${getMinutesPillClasses(row.minutes)}`}>
                   {row.minutes} min
                 </div>
               </div>
@@ -122,4 +122,16 @@ export default function MinutesPlayedCard({
 function playerDisplayName(player: Player) {
   const fullName = [player.first_name, player.last_name].filter(Boolean).join(' ');
   return player.jersey_number ? `#${player.jersey_number} ${fullName}` : fullName;
+}
+
+function getMinutesPillClasses(minutes: number) {
+  if (minutes >= 60) {
+    return 'bg-red-100 text-red-700 ring-red-200';
+  }
+
+  if (minutes >= 45) {
+    return 'bg-amber-100 text-amber-800 ring-amber-200';
+  }
+
+  return 'bg-sky-100 text-sky-800 ring-sky-200';
 }

@@ -525,6 +525,13 @@ export default function useLiveMatchPageActions({
 
     setSaving(false);
     resetForm(effectiveForm.side);
+
+    if (effectiveForm.type === 'half_end' || effectiveForm.type === 'full_time') {
+      setForm((prev) => ({
+        ...prev,
+        type: 'goal',
+      }));
+    }
   }
 
   async function addSubstitutionBatch(params: {

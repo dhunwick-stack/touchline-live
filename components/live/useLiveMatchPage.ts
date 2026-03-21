@@ -13,7 +13,7 @@ import {
 import useLiveMatchPageActions from '@/components/live/useLiveMatchPageActions';
 import useLiveMatchPageDerived from '@/components/live/useLiveMatchPageDerived';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatchEvent, MatchLineup, Player } from '@/lib/types';
 import type { EventFormState, MatchRow } from '@/components/live/liveMatchPageShared';
 
@@ -66,6 +66,7 @@ export default function useLiveMatchPage() {
 
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pauseNote, setPauseNote] = useState('');
+  const autoCollapsedStartedCardsRef = useRef<Set<string>>(new Set());
 
   const [form, setForm] = useState<EventFormState>({
     type: 'goal',
@@ -564,6 +565,22 @@ export default function useLiveMatchPage() {
 
     return () => window.clearInterval(timer);
   }, [match?.clock_running]);
+
+  useEffect(() => {
+    if (!match?.id) return;
+
+    const hasStarted = ['live', 'halftime', 'final'].includes(match.status);
+
+    if (!hasStarted || autoCollapsedStartedCardsRef.current.has(match.id)) {
+      return;
+    }
+
+    setShowHomeLineupCard(false);
+    setShowAwayLineupCard(false);
+    setShowHomeMinutesCard(false);
+    setShowAwayMinutesCard(false);
+    autoCollapsedStartedCardsRef.current.add(match.id);
+  }, [match?.id, match?.status]);
 
   useEffect(() => {
     if (!match?.id) return;

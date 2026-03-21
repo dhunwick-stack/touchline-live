@@ -298,9 +298,11 @@ export default function SubstitutionFlow({
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-slate-900">Choose player coming off</h3>
+            <h3 className="min-w-0 text-sm font-semibold text-slate-900">
+              Choose player coming off
+            </h3>
             {selectedOutgoingPlayer ? (
               <button
                 type="button"
@@ -317,12 +319,12 @@ export default function SubstitutionFlow({
           </div>
 
           {selectedOutgoingPlayer ? (
-            <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+            <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm ring-1 ring-slate-900/20">
               {playerDisplayName(selectedOutgoingPlayer)}
             </div>
           ) : null}
 
-          <div className="grid max-h-[32vh] gap-3 overflow-y-auto">
+          <div className="grid max-h-[32vh] gap-2 overflow-y-auto pr-1">
             {visibleOnFieldPlayers.length === 0 ? (
               <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500 ring-1 ring-slate-200">
                 No on-field players available.
@@ -337,10 +339,10 @@ export default function SubstitutionFlow({
                     setIncomingPlayerId('');
                     setLocalError('');
                   }}
-                  className={`min-h-[60px] rounded-3xl px-5 py-4 text-left text-base font-semibold ring-1 ${
+                  className={`min-h-[56px] rounded-2xl px-4 py-3 text-left text-base font-semibold transition-colors ring-1 ${
                     outgoingPlayerId === player.id
                       ? 'bg-slate-900 text-white ring-slate-900'
-                      : 'bg-slate-100 text-slate-900 ring-slate-200'
+                      : 'bg-slate-100 text-slate-900 ring-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   {playerDisplayName(player)}
@@ -350,9 +352,11 @@ export default function SubstitutionFlow({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-slate-900">Choose player coming on</h3>
+            <h3 className="min-w-0 text-sm font-semibold text-slate-900">
+              Choose player coming on
+            </h3>
             {selectedIncomingPlayer ? (
               <button
                 type="button"
@@ -368,12 +372,12 @@ export default function SubstitutionFlow({
           </div>
 
           {selectedIncomingPlayer ? (
-            <div className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white">
+            <div className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm ring-1 ring-emerald-700/10">
               {playerDisplayName(selectedIncomingPlayer)}
             </div>
           ) : null}
 
-          <div className="grid max-h-[32vh] gap-3 overflow-y-auto">
+          <div className="grid max-h-[32vh] gap-2 overflow-y-auto pr-1">
             {!outgoingPlayerId ? (
               <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500 ring-1 ring-slate-200">
                 Pick the outgoing player first.
@@ -391,10 +395,10 @@ export default function SubstitutionFlow({
                     setIncomingPlayerId(player.id);
                     setLocalError('');
                   }}
-                  className={`min-h-[60px] rounded-3xl px-5 py-4 text-left text-base font-semibold ring-1 ${
+                  className={`min-h-[56px] rounded-2xl px-4 py-3 text-left text-base font-semibold transition-colors ring-1 ${
                     incomingPlayerId === player.id
                       ? 'bg-emerald-600 text-white ring-emerald-600'
-                      : 'bg-slate-100 text-slate-900 ring-slate-200'
+                      : 'bg-slate-100 text-slate-900 ring-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   {playerDisplayName(player)}
