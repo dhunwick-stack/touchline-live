@@ -25,13 +25,23 @@ type EditingPlayerState = Record<
     jersey_number: string;
     position: string;
     school_year: string;
+    height: string;
+    weight: string;
     active: boolean;
   }
 >;
 
 type OrganizationPlayerCandidate = Pick<
   Player,
-  'id' | 'first_name' | 'last_name' | 'jersey_number' | 'position' | 'school_year' | 'active'
+  | 'id'
+  | 'first_name'
+  | 'last_name'
+  | 'jersey_number'
+  | 'position'
+  | 'school_year'
+  | 'height'
+  | 'weight'
+  | 'active'
 > & {
   team_name: string;
   team_id: string;
@@ -120,6 +130,8 @@ export default function TeamRosterPage() {
   const [newJerseyNumber, setNewJerseyNumber] = useState('');
   const [newPosition, setNewPosition] = useState('');
   const [newSchoolYear, setNewSchoolYear] = useState('');
+  const [newHeight, setNewHeight] = useState('');
+  const [newWeight, setNewWeight] = useState('');
   const [newActive, setNewActive] = useState(true);
 
   // ---------------------------------------------------
@@ -170,6 +182,8 @@ export default function TeamRosterPage() {
             : '',
         position: player.position || '',
         school_year: player.school_year || '',
+        height: player.height || '',
+        weight: player.weight || '',
         active: player.active !== false,
       };
     }
@@ -207,7 +221,9 @@ export default function TeamRosterPage() {
 
         const { data: organizationPlayers, error: organizationPlayersError } = await supabase
           .from('players')
-          .select('id, team_id, first_name, last_name, jersey_number, position, school_year, active')
+          .select(
+            'id, team_id, first_name, last_name, jersey_number, position, school_year, height, weight, active',
+          )
           .in('team_id', relatedTeamIds)
           .order('first_name', { ascending: true })
           .order('last_name', { ascending: true, nullsFirst: false });
@@ -227,6 +243,8 @@ export default function TeamRosterPage() {
             jersey_number: player.jersey_number,
             position: player.position,
             school_year: player.school_year,
+            height: player.height,
+            weight: player.weight,
             active: player.active,
             team_name: teamNamesById.get(player.team_id) || 'Other Team',
           })),
@@ -283,6 +301,8 @@ export default function TeamRosterPage() {
       jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
       position: newPosition || null,
       school_year: newSchoolYear || null,
+      height: newHeight.trim() || null,
+      weight: newWeight.trim() || null,
       active: newActive,
     });
 
@@ -297,6 +317,8 @@ export default function TeamRosterPage() {
     setNewJerseyNumber('');
     setNewPosition('');
     setNewSchoolYear('');
+    setNewHeight('');
+    setNewWeight('');
     setNewActive(true);
 
     await loadRoster();
@@ -326,6 +348,8 @@ export default function TeamRosterPage() {
       jersey_number: candidate.jersey_number,
       position: candidate.position || null,
       school_year: candidate.school_year || null,
+      height: candidate.height || null,
+      weight: candidate.weight || null,
       active: candidate.active !== false,
     });
 
@@ -503,6 +527,8 @@ export default function TeamRosterPage() {
             : '',
         position: player.position || '',
         school_year: player.school_year || '',
+        height: player.height || '',
+        weight: player.weight || '',
         active: player.active !== false,
       },
     }));
@@ -524,6 +550,8 @@ export default function TeamRosterPage() {
             : '',
         position: player.position || '',
         school_year: player.school_year || '',
+        height: player.height || '',
+        weight: player.weight || '',
         active: player.active !== false,
       },
     }));
@@ -547,6 +575,8 @@ export default function TeamRosterPage() {
         jersey_number: Number.isNaN(jerseyValue as number) ? null : jerseyValue,
         position: draft.position || null,
         school_year: draft.school_year || null,
+        height: draft.height.trim() || null,
+        weight: draft.weight.trim() || null,
         active: draft.active,
       })
       .eq('id', playerId);
@@ -884,6 +914,40 @@ if ((accessError || error) && !team) {
                               </Field>
                             ) : null}
 
+                            <Field label="Height">
+                              <input
+                                value={draft?.height || ''}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      height: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                                placeholder="5'11&quot;"
+                              />
+                            </Field>
+
+                            <Field label="Weight">
+                              <input
+                                value={draft?.weight || ''}
+                                onChange={(e) =>
+                                  setEditingPlayers((prev) => ({
+                                    ...prev,
+                                    [player.id]: {
+                                      ...prev[player.id],
+                                      weight: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                                placeholder="180 lbs"
+                              />
+                            </Field>
+
                             <div className="md:col-span-2">
                               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
                                 <span className="text-sm font-semibold text-slate-700">Active</span>
@@ -1162,6 +1226,24 @@ if ((accessError || error) && !team) {
                     </select>
                   </Field>
                 ) : null}
+
+                <Field label="Height">
+                  <input
+                    value={newHeight}
+                    onChange={(e) => setNewHeight(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    placeholder="5'11&quot;"
+                  />
+                </Field>
+
+                <Field label="Weight">
+                  <input
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    placeholder="180 lbs"
+                  />
+                </Field>
 
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <span className="text-sm font-semibold text-slate-700">Active</span>
