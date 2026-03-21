@@ -470,14 +470,14 @@ function MatchCard({
           ) : null}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Home</p>
 
             <div className="mt-1 flex items-center gap-3">
               {match.home_team?.logo_url ? (
                 <Link href={`/teams/${match.home_team_id}`} className="shrink-0">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-1 ring-1 ring-slate-200">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1 ring-1 ring-slate-200">
                     <img
                       src={match.home_team.logo_url}
                       alt={`${match.home_team.name} logo`}
@@ -489,7 +489,7 @@ function MatchCard({
 
               <Link
                 href={`/teams/${match.home_team_id}`}
-                className="text-2xl font-black transition hover:opacity-80 hover:underline"
+                className="text-xl font-black transition hover:opacity-80 hover:underline md:text-2xl"
               >
                 {match.home_team?.name || 'Home Team'}
               </Link>
@@ -502,8 +502,8 @@ function MatchCard({
             </div>
           </div>
 
-          <div className="rounded-2xl bg-slate-900 px-5 py-4 text-center text-white shadow-sm">
-            <div className="text-3xl font-black">
+          <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
+            <div className="text-2xl font-black md:text-3xl">
               {match.home_score} - {match.away_score}
             </div>
           </div>
@@ -514,7 +514,7 @@ function MatchCard({
             <div className="mt-1 flex items-center gap-3">
               {match.away_team?.logo_url ? (
                 <Link href={`/teams/${match.away_team_id}`} className="shrink-0">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-1 ring-1 ring-slate-200">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1 ring-1 ring-slate-200">
                     <img
                       src={match.away_team.logo_url}
                       alt={`${match.away_team.name} logo`}
@@ -526,7 +526,7 @@ function MatchCard({
 
               <Link
                 href={`/teams/${match.away_team_id}`}
-                className="text-2xl font-black transition hover:opacity-80 hover:underline"
+                className="text-xl font-black transition hover:opacity-80 hover:underline md:text-2xl"
               >
                 {match.away_team?.name || 'Away Team'}
               </Link>
@@ -540,7 +540,7 @@ function MatchCard({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+        <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
           <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
             Home: {prettyTrackingMode(match.home_tracking_mode)}
           </span>
@@ -550,20 +550,20 @@ function MatchCard({
         </div>
 
         {(showAdminActions || match.public_slug) ? (
-          <div className="mt-5 border-t border-slate-200 pt-4">
+          <div className="mt-4 border-t border-slate-200 pt-3">
             <div className="flex flex-wrap gap-3 md:flex-nowrap">
               {showAdminActions ? (
                 <>
                   <Link
                     href={`/matches/${match.id}/edit`}
-                    className="flex-1 rounded-2xl bg-white px-4 py-3 text-center text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
+                    className="flex-1 rounded-2xl bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-900 ring-1 ring-slate-200"
                   >
                     Edit
                   </Link>
 
                   <Link
                     href={`/live/${match.id}`}
-                    className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-amber-600"
+                    className="flex-1 rounded-2xl bg-amber-500 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-amber-600"
                   >
                     Manage Match
                   </Link>
@@ -572,14 +572,14 @@ function MatchCard({
 
               {match.public_slug ? (
                 publicAction.disabled ? (
-                  <span className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-400 ring-1 ring-slate-200">
+                  <span className="flex-1 rounded-2xl bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-400 ring-1 ring-slate-200">
                     {publicAction.label}
                   </span>
                 ) : (
                   <Link
                     href={`/public/${match.public_slug}`}
                     target="_blank"
-                    className="flex-1 rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                    className="flex-1 rounded-2xl bg-emerald-50 px-4 py-2.5 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
                   >
                     {publicAction.label}
                   </Link>
