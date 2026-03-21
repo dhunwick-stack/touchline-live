@@ -8,7 +8,7 @@ import Link from 'next/link';
 import usePublicMatchPage from '@/components/public/usePublicMatchPage';
 import { ChevronDown, ChevronUp, CircleDot, Pause, Shield, Trophy } from 'lucide-react';
 import TimelineEventCard from '@/components/live/TimelineEventCard';
-import type { Match, MatchEvent, Player, Team } from '@/lib/types';
+import type { Match, Player, Team } from '@/lib/types';
 import {
   formatMatchDate,
   getAppleMapsUrl,
@@ -16,8 +16,6 @@ import {
   getVenueName,
   playerDisplayName,
   prettyStatus,
-  type MatchLineupRow,
-  type PublicMatchRow,
 } from '@/components/public/publicMatchPageShared';
 
 // ---------------------------------------------------
@@ -107,10 +105,10 @@ export default function PublicMatchPage() {
       {/* HERO SCOREBOARD */}
       {/* --------------------------------------------------- */}
 
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
-            <div>
+      <section className="relative left-1/2 right-1/2 -mx-[50dvw] w-[100dvw] bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+          <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr] md:gap-6">
+            <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Home
               </p>
@@ -132,17 +130,17 @@ export default function PublicMatchPage() {
                 />
               </div>
 
-              <div className="mt-5 inline-flex min-w-[260px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-md">
-                <div className="text-6xl font-black tracking-tight tabular-nums text-white md:text-7xl">
+              <div className="mt-4 inline-flex w-full max-w-[280px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-5 py-4 shadow-2xl backdrop-blur-md sm:mt-5 sm:px-6 sm:py-5 md:min-w-[260px] md:px-8 md:py-6">
+                <div className="text-5xl font-black tracking-tight tabular-nums text-white sm:text-6xl md:text-7xl">
                   {match.home_score} - {match.away_score}
                 </div>
 
-                <div className="mt-3 text-2xl font-semibold tabular-nums text-white/90 md:text-3xl">
+                <div className="mt-2 text-xl font-semibold tabular-nums text-white/90 sm:mt-3 sm:text-2xl md:text-3xl">
                   {formattedClock}
                 </div>
               </div>
 
-              <div className="mt-4 space-y-1">
+              <div className="mt-3 space-y-1 sm:mt-4">
                 <div className="text-sm font-medium text-white/90">
                   {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
                 </div>
@@ -150,7 +148,7 @@ export default function PublicMatchPage() {
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <p className="text-right text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Away
               </p>
@@ -752,23 +750,23 @@ function PublicScoreboardTeamLink({
     return (
       <Link
         href={href}
-        className="mt-2 flex items-center justify-end gap-3 rounded-2xl transition hover:opacity-90"
+        className="mt-2 flex min-w-0 items-center justify-between gap-3 rounded-2xl transition hover:opacity-90"
       >
-        <div className="text-right">
-          <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+        <div className="min-w-0 text-right">
+          <h2 className="truncate text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
             {team.name}
           </h2>
-          <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
+          <p className="mt-1 truncate text-sm text-white/75">{team.club_name || ''}</p>
         </div>
 
         {team.logo_url ? (
           <img
             src={team.logo_url}
             alt={`${team.name} logo`}
-            className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+            className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/20 sm:h-16 sm:w-16"
           />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15 sm:h-16 sm:w-16">
             LOGO
           </div>
         )}
@@ -779,25 +777,25 @@ function PublicScoreboardTeamLink({
   return (
     <Link
       href={href}
-      className="mt-2 flex items-center gap-3 rounded-2xl transition hover:opacity-90"
+      className="mt-2 flex min-w-0 items-center gap-3 rounded-2xl transition hover:opacity-90"
     >
       {team.logo_url ? (
         <img
           src={team.logo_url}
           alt={`${team.name} logo`}
-          className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/20"
+          className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/20 sm:h-16 sm:w-16"
         />
       ) : (
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xs font-bold text-red-100 ring-1 ring-white/15 sm:h-16 sm:w-16">
           LOGO
         </div>
       )}
 
-      <div>
-        <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+      <div className="min-w-0">
+        <h2 className="truncate text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
           {team.name}
         </h2>
-        <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
+        <p className="mt-1 truncate text-sm text-white/75">{team.club_name || ''}</p>
       </div>
     </Link>
   );
