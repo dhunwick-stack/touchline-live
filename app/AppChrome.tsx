@@ -59,8 +59,16 @@ export default function AppChrome({
     <>
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6">
-          <Link href="/" className="text-lg font-black tracking-tight">
-            Touchline Live
+          <Link
+            href="/"
+            aria-label="Touchline Live home"
+            className="flex h-8 w-[140px] shrink-0 items-center overflow-hidden md:h-9 md:w-[156px]"
+          >
+            <img
+              src="/tll-logo.svg"
+              alt="Touchline Live"
+              className="h-full w-full object-contain object-left"
+            />
           </Link>
 
           <nav className="flex flex-wrap items-center gap-2">
