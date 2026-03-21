@@ -31,6 +31,56 @@ export default function PublicTeamPageShell({
   const [checkingAdminCode, setCheckingAdminCode] = useState(false);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
 
+  async function checkDirectAdminAccess(currentTeamId: string) {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      return { hasAccess: false, error: sessionError.message || 'Failed to check sign-in status.' };
+    }
+
+    const user = session?.user;
+
+    if (!user) {
+      return { hasAccess: false, error: '' };
+    }
+
+    const { data: superAdmin, error: superAdminError } = await supabase
+      .from('super_admin_users')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (superAdminError) {
+      return {
+        hasAccess: false,
+        error: superAdminError.message || 'Failed to verify super admin access.',
+      };
+    }
+
+    if (superAdmin) {
+      return { hasAccess: true, error: '' };
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from('team_users')
+      .select('id')
+      .eq('team_id', currentTeamId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (membershipError) {
+      return {
+        hasAccess: false,
+        error: membershipError.message || 'Failed to verify team access.',
+      };
+    }
+
+    return { hasAccess: !!membership, error: '' };
+  }
+
   // ---------------------------------------------------
   // ADMIN SESSION HELPERS
   // ---------------------------------------------------
@@ -72,29 +122,52 @@ export default function PublicTeamPageShell({
 // ---------------------------------------------------
 
 useEffect(() => {
-  const isValid = hasValidAdminSession(team.id);
+  async function syncAdminAccess() {
+    const isValid = hasValidAdminSession(team.id);
 
-  if (isValid) {
-    localStorage.setItem('teamId', team.id);
-  } else {
+    if (isValid) {
+      localStorage.setItem('teamId', team.id);
+      setHasAdminAccess(true);
+      return;
+    }
+
     localStorage.removeItem('teamAdminSession');
     localStorage.removeItem('teamId');
+
+    const { hasAccess } = await checkDirectAdminAccess(team.id);
+    setHasAdminAccess(hasAccess);
   }
 
-  setHasAdminAccess(isValid);
+  syncAdminAccess();
 }, [team.id]);
 
   // ---------------------------------------------------
   // ADMIN LOGIN HELPERS
   // ---------------------------------------------------
 
- function openAdminLogin() {
+ async function openAdminLogin() {
   const session = getAdminSession();
 
   if (session && session.teamId === team.id && session.expires > Date.now()) {
     localStorage.setItem('teamId', team.id);
     setHasAdminAccess(true);
     router.push(`/teams/${team.id}`);
+    return;
+  }
+
+  const { hasAccess, error } = await checkDirectAdminAccess(team.id);
+
+  if (hasAccess) {
+    localStorage.setItem('teamId', team.id);
+    setHasAdminAccess(true);
+    router.push(`/teams/${team.id}`);
+    return;
+  }
+
+  if (error) {
+    setAdminError(error);
+    setCheckingAdminCode(false);
+    setShowAdminLogin(true);
     return;
   }
 
