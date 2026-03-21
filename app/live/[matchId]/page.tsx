@@ -26,6 +26,7 @@ type LiveInterfaceMode = 'full' | 'sideline' | 'quick';
 
 export default function LiveMatchPage() {
   const [mode, setMode] = useState<LiveInterfaceMode>('full');
+  const live = useLiveMatchPage();
   const {
     match,
     setMatch,
@@ -43,7 +44,6 @@ export default function LiveMatchPage() {
     savingHomeLineup,
     savingAwayLineup,
     undoing,
-    lineupNotice,
     selectedTeamName,
     selectedTrackingMode,
     editingDisabled,
@@ -94,7 +94,7 @@ export default function LiveMatchPage() {
     closePauseModal,
     pauseClock,
     applyPauseReason,
-  } = useLiveMatchPage();
+  } = live;
 
   // ---------------------------------------------------
   // LOADING / ERROR STATES
@@ -115,76 +115,6 @@ export default function LiveMatchPage() {
       </main>
     );
   }
-
-  const live = {
-    match,
-    setMatch,
-    loading,
-    authChecked,
-    hasMatchAccess,
-    error,
-    connectionNotice,
-    formattedClock,
-    safeEvents,
-    homePlayers,
-    awayPlayers,
-    loadingLineups,
-    saving,
-    savingHomeLineup,
-    savingAwayLineup,
-    undoing,
-    lineupNotice,
-    selectedTeamName,
-    selectedTrackingMode,
-    editingDisabled,
-    lineupEditingDisabled,
-    form,
-    setForm,
-    resetForm,
-    addEvent,
-    eventSelectablePlayers,
-    eventSelectableSecondaryPlayers,
-    selectedOnFieldPlayers,
-    selectedBenchPlayers,
-    showOnFieldState,
-    setShowOnFieldState,
-    playerDisplayName,
-    showLineupSnapshotStatus,
-    setShowLineupSnapshotStatus,
-    homeSnapshotRow,
-    awaySnapshotRow,
-    homeSupportsLineups,
-    awaySupportsLineups,
-    homeLineupRows,
-    awayLineupRows,
-    selectedHomeStarterIds,
-    selectedAwayStarterIds,
-    toggleHomeStarter,
-    toggleAwayStarter,
-    usePreviousHomeLineup,
-    usePreviousAwayLineup,
-    handleSaveHomeLineup,
-    handleSaveAwayLineup,
-    showHomeLineupCard,
-    showAwayLineupCard,
-    setShowHomeLineupCard,
-    setShowAwayLineupCard,
-    homeMinutesPlayedRows,
-    awayMinutesPlayedRows,
-    showHomeMinutesCard,
-    showAwayMinutesCard,
-    setShowHomeMinutesCard,
-    setShowAwayMinutesCard,
-    openPauseModal,
-    startLivePeriod,
-    undoLastEvent,
-    showPauseModal,
-    pauseNote,
-    setPauseNote,
-    closePauseModal,
-    pauseClock,
-    applyPauseReason,
-  };
 
   // ---------------------------------------------------
   // PAGE
