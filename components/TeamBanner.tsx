@@ -27,6 +27,7 @@ export default function TeamBanner({
   const basePath = `/teams/${teamId}`;
   const showNationalChampionsPill =
     team.name === '06 Premier' && (team.club_name || '').toLowerCase().includes('jahbat');
+  const secondaryLine = [team.club_name, team.nickname].filter(Boolean).join(' • ');
 
   // ---------------------------------------------------
   // BANNER STYLE
@@ -95,7 +96,7 @@ export default function TeamBanner({
 
               <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
 
-              <p className="text-white/85">{team.club_name || 'No club name'}</p>
+              <p className="text-white/85">{secondaryLine || 'No club name'}</p>
 
               {showNationalChampionsPill ? (
                 <div className="mt-3">

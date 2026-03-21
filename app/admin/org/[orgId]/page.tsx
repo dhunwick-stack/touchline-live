@@ -56,6 +56,7 @@ export default function AdminOrganizationPage() {
 
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamNickname, setNewTeamNickname] = useState('');
   const [newTeamLevel, setNewTeamLevel] = useState('');
   const [newGender, setNewGender] = useState('');
   const [newAgeGroup, setNewAgeGroup] = useState('');
@@ -190,6 +191,7 @@ export default function AdminOrganizationPage() {
     const { error } = await supabase.from('teams').insert({
       name: newTeamName.trim(),
       club_name: displayClubName || null,
+      nickname: newTeamNickname.trim() || null,
       organization_id: orgId,
       team_level: newTeamLevel.trim() || null,
       gender: newGender.trim() || null,
@@ -208,6 +210,7 @@ export default function AdminOrganizationPage() {
     }
 
     setNewTeamName('');
+    setNewTeamNickname('');
     setNewTeamLevel('');
     setNewGender('');
     setNewAgeGroup('');
@@ -449,6 +452,15 @@ export default function AdminOrganizationPage() {
               value={newTeamName}
               onChange={(e) => setNewTeamName(e.target.value)}
               placeholder="07 Premier, Varsity, JV..."
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+
+          <Field label="Nickname / Mascot">
+            <input
+              value={newTeamNickname}
+              onChange={(e) => setNewTeamNickname(e.target.value)}
+              placeholder="Wildkits, Tigers, Bulldogs..."
               className="w-full rounded-2xl border border-slate-200 px-4 py-3"
             />
           </Field>

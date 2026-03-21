@@ -4,7 +4,7 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
@@ -13,7 +13,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Match, Organization, Player, Team } from '@/lib/types';
-import type { User } from '@supabase/supabase-js';
 
 // ---------------------------------------------------
 // TYPES
@@ -76,6 +75,7 @@ const editSectionRef = useRef<HTMLElement | null>(null);
 
   const [teamName, setTeamName] = useState('');
   const [clubName, setClubName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [teamLevel, setTeamLevel] = useState('');
   const [gender, setGender] = useState('');
@@ -96,29 +96,11 @@ const editSectionRef = useRef<HTMLElement | null>(null);
   // INITIAL DATA LOAD
   // ---------------------------------------------------
 
-  useEffect(() => {
-    if (!teamId || !authChecked || !hasTeamAccess) return;
-    loadTeamData();
-  }, [teamId, authChecked, hasTeamAccess]);
-
-  useEffect(() => {
-    if (!team || searchParams.get('edit') !== '1') return;
-
-    setEditing(true);
-
-    window.setTimeout(() => {
-      editSectionRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    }, 50);
-  }, [team, searchParams]);
-
   // ---------------------------------------------------
   // LOAD TEAM DATA
   // ---------------------------------------------------
 
-  async function loadTeamData() {
+  const loadTeamData = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -233,6 +215,7 @@ const editSectionRef = useRef<HTMLElement | null>(null);
 
     setTeamName(loadedTeam.name || '');
     setClubName(loadedTeam.club_name || '');
+    setNickname(loadedTeam.nickname || '');
     setOrganizationId(loadedTeam.organization_id || null);
     setTeamLevel(loadedTeam.team_level || '');
     setGender(loadedTeam.gender || '');
@@ -244,7 +227,31 @@ const editSectionRef = useRef<HTMLElement | null>(null);
     setBannerUrl(loadedTeam.banner_url || '');
 
     setLoading(false);
-  }
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId || !authChecked || !hasTeamAccess) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void loadTeamData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [teamId, authChecked, hasTeamAccess, loadTeamData]);
+
+  useEffect(() => {
+    if (!team || searchParams.get('edit') !== '1') return;
+
+    const timeoutId = window.setTimeout(() => {
+      setEditing(true);
+      editSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [team, searchParams]);
 
   // ---------------------------------------------------
   // SAVE TEAM CHANGES
@@ -266,6 +273,7 @@ const editSectionRef = useRef<HTMLElement | null>(null);
       .update({
         name: teamName.trim() || null,
         club_name: resolvedClubName,
+        nickname: nickname.trim() || null,
         organization_id: organizationId,
         team_level: teamLevel.trim() || null,
         gender: gender.trim() || null,
@@ -743,6 +751,15 @@ if ((accessError || error) && !team) {
               />
             </Field>
 
+            <Field label="Nickname / Mascot">
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                placeholder="Wildkits, Tigers, Bulldogs..."
+              />
+            </Field>
+
             <Field label="Team Level">
               <input
                 value={teamLevel}
@@ -852,6 +869,7 @@ if ((accessError || error) && !team) {
                 setEditing(false);
                 setTeamName(team.name || '');
                 setClubName(team.club_name || '');
+                setNickname(team.nickname || '');
                 setOrganizationId(team.organization_id || null);
                 setTeamLevel(team.team_level || '');
                 setGender(team.gender || '');

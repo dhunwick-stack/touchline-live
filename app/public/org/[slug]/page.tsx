@@ -44,11 +44,7 @@ export default function PublicOrganizationPage() {
   // ---------------------------------------------------
 
   useEffect(() => {
-    if (!slug) {
-      setError('No organization slug found.');
-      setLoading(false);
-      return;
-    }
+    if (!slug) return;
 
     async function loadPage() {
       setLoading(true);
@@ -158,9 +154,15 @@ const heroStyle = useMemo(
     return Array.from(groups.entries());
   }, [teams]);
 
+  const locationLabel = [organization?.city, organization?.state].filter(Boolean).join(', ');
+
   // ---------------------------------------------------
   // LOADING / ERROR STATES
   // ---------------------------------------------------
+
+  if (!slug) {
+    return <main className="mx-auto max-w-7xl px-5 py-8 text-red-600">No organization slug found.</main>;
+  }
 
   if (loading) {
     return <main className="mx-auto max-w-7xl px-5 py-8">Loading organization page...</main>;
@@ -199,7 +201,7 @@ const heroStyle = useMemo(
   {/* dark overlay */}
   <div className="absolute inset-0 bg-black/30" />
 
-  <div className="relative mx-auto max-w-7xl px-6 py-12">
+  <div className="relative mx-auto max-w-7xl px-6 py-16 md:py-20">
 
     <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
 
@@ -211,10 +213,10 @@ const heroStyle = useMemo(
           <img
             src={organization.logo_url}
             alt={`${organization.name} logo`}
-            className="h-20 w-20 rounded-3xl object-cover ring-2 ring-white/30"
+            className="h-24 w-24 rounded-3xl object-cover shadow-2xl"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 text-xs font-bold text-white ring-2 ring-white/20">
+          <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-white/15 text-xs font-bold text-white">
             LOGO
           </div>
         )}
@@ -232,6 +234,27 @@ const heroStyle = useMemo(
           <p className="mt-1 text-sm text-white/80">
             {teams.length} team{teams.length !== 1 ? 's' : ''} in Touchline Live
           </p>
+
+          {(locationLabel || organization.website_url) ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {locationLabel ? (
+                <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur-sm">
+                  {locationLabel}
+                </span>
+              ) : null}
+
+              {organization.website_url ? (
+                <a
+                  href={organization.website_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur-sm transition hover:bg-white/18"
+                >
+                  Website
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 

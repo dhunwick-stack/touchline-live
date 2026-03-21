@@ -93,6 +93,7 @@ export type Team = {
   id: string;
   name: string;
   club_name?: string | null;
+  nickname?: string | null;
   age_group?: string | null;
   logo_url?: string | null;
   home_field_name?: string | null;

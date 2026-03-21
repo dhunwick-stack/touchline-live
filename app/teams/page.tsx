@@ -4,7 +4,7 @@
 // IMPORTS
 // ---------------------------------------------------
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Organization, Team } from '@/lib/types';
@@ -23,7 +23,10 @@ type TeamRow = Team & {
 // ---------------------------------------------------
 
 export default function TeamsPage() {
-  const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [showOnlyMine] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('mine') === '1';
+  });
 
   // ---------------------------------------------------
   // DATA STATE
@@ -38,8 +41,26 @@ export default function TeamsPage() {
   // ACCESS STATE
   // ---------------------------------------------------
 
-  const [hasAccess, setHasAccess] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
+  const [hasAccess] = useState(() => {
+    if (typeof window === 'undefined') return false;
+
+    try {
+      const rawSession = localStorage.getItem('teamAdminSession');
+      const storedTeamId = localStorage.getItem('teamId');
+
+      if (!rawSession || !storedTeamId) {
+        return false;
+      }
+
+      const session = JSON.parse(rawSession);
+      return session.teamId === storedTeamId && session.expires > Date.now();
+    } catch {
+      localStorage.removeItem('teamAdminSession');
+      localStorage.removeItem('teamId');
+      return false;
+    }
+  });
+  const [accessChecked] = useState(true);
 
   // ---------------------------------------------------
   // FORM STATE
@@ -47,6 +68,7 @@ export default function TeamsPage() {
 
   const [name, setName] = useState('');
   const [clubName, setClubName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [teamLevel, setTeamLevel] = useState('');
   const [gender, setGender] = useState('');
@@ -65,49 +87,11 @@ export default function TeamsPage() {
   // ACCESS CHECK
   // ---------------------------------------------------
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const params = new URLSearchParams(window.location.search);
-    setShowOnlyMine(params.get('mine') === '1');
-  }, []);
-
-  useEffect(() => {
-    try {
-      const rawSession = localStorage.getItem('teamAdminSession');
-      const storedTeamId = localStorage.getItem('teamId');
-
-      if (!rawSession || !storedTeamId) {
-        setHasAccess(false);
-        setAccessChecked(true);
-        return;
-      }
-
-      const session = JSON.parse(rawSession);
-
-      if (session.teamId !== storedTeamId || session.expires <= Date.now()) {
-        localStorage.removeItem('teamAdminSession');
-        localStorage.removeItem('teamId');
-        setHasAccess(false);
-        setAccessChecked(true);
-        return;
-      }
-
-      setHasAccess(true);
-      setAccessChecked(true);
-    } catch {
-      localStorage.removeItem('teamAdminSession');
-      localStorage.removeItem('teamId');
-      setHasAccess(false);
-      setAccessChecked(true);
-    }
-  }, []);
-
   // ---------------------------------------------------
   // LOAD TEAMS + ORGANIZATIONS
   // ---------------------------------------------------
 
-  async function loadTeams() {
+  const loadTeams = useCallback(async () => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -139,15 +123,19 @@ export default function TeamsPage() {
     setTeams((teamData as TeamRow[]) ?? []);
     setOrganizations((organizationData as Organization[]) ?? []);
     setMemberTeamIds(((membershipResult.data as { team_id: string }[]) ?? []).map((row) => row.team_id));
-  }
+  }, []);
 
   // ---------------------------------------------------
   // INITIAL LOAD
   // ---------------------------------------------------
 
   useEffect(() => {
-    loadTeams();
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      void loadTeams();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTeams]);
 
   // ---------------------------------------------------
   // CREATE TEAM
@@ -182,6 +170,7 @@ export default function TeamsPage() {
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),
       club_name: resolvedClubName,
+      nickname: nickname.trim() || null,
       organization_id: organizationId,
       team_level: teamLevel.trim() || null,
       gender: gender.trim() || null,
@@ -209,6 +198,7 @@ export default function TeamsPage() {
 
     setName('');
     setClubName('');
+    setNickname('');
     setOrganizationId(null);
     setTeamLevel('');
     setGender('');
@@ -353,6 +343,18 @@ export default function TeamsPage() {
                 value={clubName}
                 onChange={(e) => setClubName(e.target.value)}
                 placeholder="Optional if organization is selected"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Nickname / Mascot
+              </label>
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Wildkits, Tigers, Bulldogs..."
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-500"
               />
             </div>

@@ -52,7 +52,7 @@ export default function PublicTeamHero({
   .join(' • ');
 
   const secondaryLine =
-    teamMeta || description || organizationName || '';
+    [team.nickname, teamMeta || description || organizationName].filter(Boolean).join(' • ') || '';
 
   // ---------------------------------------------------
   // HERO STYLE
