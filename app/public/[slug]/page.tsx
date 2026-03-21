@@ -637,12 +637,14 @@ export default function PublicMatchPage() {
                   </div>
 
                   <dl className="mt-4 space-y-2 text-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
-                      <dt className="font-semibold text-slate-500">Record</dt>
-                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
-                        {teamSnapshots.away.record}
-                      </dd>
-                    </div>
+                    {teamSnapshots.away.recordSummary?.played ? (
+                      <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+                        <dt className="font-semibold text-slate-500">Record</dt>
+                        <dd className="min-w-0 break-words text-right font-medium text-slate-900">
+                          {teamSnapshots.away.record}
+                        </dd>
+                      </div>
+                    ) : null}
 
                     <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Top Scorer</dt>
