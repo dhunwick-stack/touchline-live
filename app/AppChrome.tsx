@@ -242,7 +242,7 @@ export default function AppChrome({
 
                     <div className="border-t border-slate-100 p-2">
                       <Link
-                        href={userEmail ? '/teams' : '/public/org'}
+                        href="/teams"
                         className="block rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
                         onClick={() => setTeamsMenuOpen(false)}
                       >
