@@ -218,6 +218,7 @@ export default function LiveMatchPage() {
   const showCompactMinutesSnapshot =
     ['live', 'halftime', 'final'].includes(match.status) &&
     (homeMinutesPlayedRows.length > 0 || awayMinutesPlayedRows.length > 0);
+  const showMobileInlineMatchView = ['live', 'halftime', 'final'].includes(match.status);
 
   return (
     <main className="mx-auto max-w-7xl px-6 pt-0 pb-32">
@@ -312,9 +313,30 @@ export default function LiveMatchPage() {
               setShowHomeMinutesCard={setShowHomeMinutesCard}
               setShowAwayMinutesCard={setShowAwayMinutesCard}
               setMatch={setMatch}
+              mobileAfterEventEntry={
+                showMobileInlineMatchView ? (
+                  <div className="space-y-6">
+                    {showCompactMinutesSnapshot ? (
+                      <CompactMinutesSnapshot
+                        homeTeamName={match.home_team?.name || 'Home Team'}
+                        awayTeamName={match.away_team?.name || 'Away Team'}
+                        homeRows={homeMinutesPlayedRows}
+                        awayRows={awayMinutesPlayedRows}
+                      />
+                    ) : null}
+
+                    <LiveTimeline
+                      events={safeEvents}
+                      match={match}
+                      homePlayers={homePlayers}
+                      awayPlayers={awayPlayers}
+                    />
+                  </div>
+                ) : null
+              }
             />
 
-            <div className="space-y-6">
+            <div className={showMobileInlineMatchView ? 'hidden space-y-6 xl:block' : 'space-y-6'}>
               {showCompactMinutesSnapshot ? (
                 <CompactMinutesSnapshot
                   homeTeamName={match.home_team?.name || 'Home Team'}

@@ -18,6 +18,7 @@ import type {
   SnapshotStatusRow,
 } from '@/components/live/liveMatchPageShared';
 import type { Dispatch, SetStateAction } from 'react';
+import type { ReactNode } from 'react';
 import type { Player, TeamSide, TrackingMode } from '@/lib/types';
 
 type LiveMatchSidebarProps = {
@@ -70,6 +71,7 @@ type LiveMatchSidebarProps = {
   setShowHomeMinutesCard: Dispatch<SetStateAction<boolean>>;
   setShowAwayMinutesCard: Dispatch<SetStateAction<boolean>>;
   setMatch: Dispatch<SetStateAction<MatchRow | null>>;
+  mobileAfterEventEntry?: ReactNode;
 };
 
 // ---------------------------------------------------
@@ -127,6 +129,7 @@ export default function LiveMatchSidebar({
   setShowHomeMinutesCard,
   setShowAwayMinutesCard,
   setMatch,
+  mobileAfterEventEntry,
 }: LiveMatchSidebarProps) {
   return (
     <div className="space-y-6">
@@ -153,6 +156,8 @@ export default function LiveMatchSidebar({
         setShowOnFieldState={setShowOnFieldState}
         playerDisplayName={playerDisplayName}
       />
+
+      {mobileAfterEventEntry ? <div className="xl:hidden">{mobileAfterEventEntry}</div> : null}
 
       {/* --------------------------------------------------- */}
       {/* LINEUP SNAPSHOT STATUS */}
