@@ -11,6 +11,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { sendFinalRecapEmail } from '@/lib/sendFinalRecapEmail';
 import type { Match } from '@/lib/types';
 
 type MatchActionsCardProps = {
@@ -67,6 +68,10 @@ export default function MatchActionsCard({
 
     setSaving(false);
     onUpdated?.(data as Match);
+
+    if ((data as Match).status === 'final' && updates.status === 'final') {
+      void sendFinalRecapEmail(match.id).catch(() => null);
+    }
   }
 
   // ---------------------------------------------------

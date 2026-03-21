@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { sendFinalRecapEmail } from '@/lib/sendFinalRecapEmail';
 import type { Match, MatchEvent, Player, Season, Team, TeamSide } from '@/lib/types';
 import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
@@ -521,6 +522,7 @@ export default function EditMatchPage() {
 
     setStatus('final');
     await loadPageData();
+    void sendFinalRecapEmail(match.id).catch(() => null);
     setBackfilling(false);
     setMessage('Quick final backfill applied.');
   }
@@ -650,6 +652,7 @@ export default function EditMatchPage() {
 
     setStatus('final');
     await loadPageData();
+    void sendFinalRecapEmail(match.id).catch(() => null);
     setBackfilling(false);
     setMessage('Historical final backfill applied.');
   }

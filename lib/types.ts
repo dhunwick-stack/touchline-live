@@ -186,6 +186,8 @@ export type Match = {
   is_locked?: boolean | null;
   status_note?: string | null;
   original_match_date?: string | null;
+  final_recap_emailed_at?: string | null;
+  final_recap_email_error?: string | null;
 };
 
 // ---------------------------------------------------

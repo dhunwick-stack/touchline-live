@@ -10,6 +10,7 @@ import {
   saveStartingLineup,
   validateStartingLineupCount,
 } from '@/lib/matchLineups';
+import { sendFinalRecapEmail } from '@/lib/sendFinalRecapEmail';
 import { supabase } from '@/lib/supabase';
 import type { Dispatch, SetStateAction } from 'react';
 import type { EventType, MatchEvent, MatchLineup, Player, TeamSide, TrackingMode } from '@/lib/types';
@@ -531,6 +532,10 @@ export default function useLiveMatchPageActions({
         ...prev,
         type: 'goal',
       }));
+    }
+
+    if (effectiveForm.type === 'full_time') {
+      void sendFinalRecapEmail(match.id).catch(() => null);
     }
   }
 
