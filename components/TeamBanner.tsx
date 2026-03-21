@@ -34,12 +34,16 @@ export default function TeamBanner({
 
   const bannerStyle = team?.banner_url
     ? {
-        backgroundImage: `linear-gradient(rgba(15,23,42,0.45), rgba(15,23,42,0.45)), url(${team.banner_url})`,
+        backgroundImage: `linear-gradient(135deg, ${team?.primary_color || '#0f172a'}dd, ${team?.secondary_color || '#1e293b'}cc), url(${team.banner_url})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
     : {
-        background: `linear-gradient(135deg, ${team?.primary_color || '#7f1d1d'}, ${team?.secondary_color || '#450a0a'})`,
+        background: `
+          radial-gradient(circle at 15% 20%, ${team?.secondary_color || '#f97316'}33, transparent 30%),
+          radial-gradient(circle at 85% 50%, ${team?.secondary_color || '#f97316'}22, transparent 28%),
+          linear-gradient(115deg, ${team?.primary_color || '#b91c1c'} 0%, ${team?.primary_color || '#b91c1c'} 46%, ${team?.secondary_color || '#7c2d12'} 100%)
+        `,
       };
 
   // ---------------------------------------------------
@@ -61,14 +65,14 @@ export default function TeamBanner({
       {/* OVERLAY */}
       {/* --------------------------------------------------- */}
 
-      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/14 via-black/8 to-black/12" />
 
       <div className="relative mx-auto max-w-7xl px-6 py-14">
         {/* ------------------------------------------------- */}
         {/* FLOATING CARD */}
         {/* ------------------------------------------------- */}
 
-        <div className="flex flex-col gap-6 rounded-3xl bg-white/10 p-6 backdrop-blur-md ring-1 ring-white/20 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-6 rounded-3xl bg-white/12 p-6 backdrop-blur-md ring-1 ring-white/22 lg:flex-row lg:items-center lg:justify-between">
           {/* ----------------------------------------------- */}
           {/* TEAM IDENTITY */}
           {/* ----------------------------------------------- */}
@@ -78,10 +82,10 @@ export default function TeamBanner({
               <img
                 src={team.logo_url}
                 alt={`${team.name} logo`}
-                className="h-20 w-20 rounded-3xl object-cover"
+                className="h-28 w-28 rounded-[2rem] object-cover shadow-2xl"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/20 text-xs font-bold">
+              <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white/20 text-sm font-bold ring-1 ring-white/25">
                 LOGO
               </div>
             )}
@@ -113,7 +117,7 @@ export default function TeamBanner({
             {/* MAIN NAV */}
             {/* --------------------------------------------- */}
 
-            <div className="inline-flex flex-wrap rounded-2xl bg-black/20 p-1.5 backdrop-blur-sm ring-1 ring-white/15">
+            <div className="inline-flex flex-wrap rounded-2xl bg-white/10 p-1.5 backdrop-blur-sm ring-1 ring-white/18">
               <Link
                 href={`${basePath}/stats`}
                 className={primaryNavClass(pathname === `${basePath}/stats`)}

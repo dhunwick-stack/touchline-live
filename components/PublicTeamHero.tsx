@@ -59,7 +59,11 @@ export default function PublicTeamHero({
   // ---------------------------------------------------
 
   const heroStyle = {
-    background: `linear-gradient(135deg, ${team.primary_color || '#1e3a8a'}, ${team.secondary_color || '#7c3aed'})`,
+    background: `
+      radial-gradient(circle at 14% 18%, ${team.secondary_color || '#f97316'}30, transparent 28%),
+      radial-gradient(circle at 88% 38%, ${team.secondary_color || '#f97316'}1f, transparent 24%),
+      linear-gradient(115deg, ${team.primary_color || '#1d4ed8'} 0%, ${team.primary_color || '#1d4ed8'} 48%, ${team.secondary_color || '#7c3aed'} 100%)
+    `,
   };
 
   // ---------------------------------------------------
@@ -87,10 +91,10 @@ export default function PublicTeamHero({
       className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen overflow-hidden text-white"
       style={heroStyle}
     >
-      <div className="absolute inset-0 bg-black/20" />
+      <div className="absolute inset-0 bg-black/8" />
 
       <div className="relative mx-auto max-w-7xl px-6 py-8">
-        <div className="rounded-[32px] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md">
+        <div className="rounded-[32px] border border-white/16 bg-white/10 p-6 shadow-2xl backdrop-blur-md">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             {/* --------------------------------------------------- */}
             {/* LEFT SIDE */}
@@ -101,10 +105,10 @@ export default function PublicTeamHero({
                 <img
                   src={team.logo_url}
                   alt={`${team.name} logo`}
-                  className="h-24 w-24 rounded-3xl object-cover ring-1 ring-white/20"
+                  className="h-32 w-32 rounded-[2rem] object-cover shadow-2xl"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 text-xs font-bold text-white/70 ring-1 ring-white/15">
+                <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-white/10 text-sm font-bold text-white/70 ring-1 ring-white/15">
                   LOGO
                 </div>
               )}
