@@ -82,18 +82,18 @@ export default function TimelineEventCard({
 
   if (systemEvent) {
     return (
-      <div className="relative overflow-hidden pl-14">
+      <div className="relative overflow-hidden pl-12 sm:pl-14">
         {/* --------------------------------------------------- */}
         {/* TIMELINE RAIL */}
         {/* --------------------------------------------------- */}
 
-        <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
+        <div className="absolute bottom-0 left-[0.85rem] top-0 w-px bg-slate-200 sm:left-[1rem]" />
 
         {/* --------------------------------------------------- */}
         {/* TIMELINE ICON */}
         {/* --------------------------------------------------- */}
 
-        <div className="absolute left-0 top-4 flex w-8 justify-center">
+        <div className="absolute left-0 top-4 flex w-7 justify-center sm:w-8">
           <div
             className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
           >
@@ -106,7 +106,7 @@ export default function TimelineEventCard({
         {/* --------------------------------------------------- */}
 
         <div className={`rounded-2xl border px-4 py-3 ${styles.shell}`}>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-slate-200">
               {minuteLabel}
             </span>
@@ -123,18 +123,18 @@ export default function TimelineEventCard({
   }
 
   return (
-    <div className="relative overflow-hidden pl-14">
+    <div className="relative overflow-hidden pl-12 sm:pl-14">
       {/* --------------------------------------------------- */}
       {/* TIMELINE RAIL */}
       {/* --------------------------------------------------- */}
 
-      <div className="absolute bottom-0 left-[1rem] top-0 w-px bg-slate-200" />
+      <div className="absolute bottom-0 left-[0.85rem] top-0 w-px bg-slate-200 sm:left-[1rem]" />
 
       {/* --------------------------------------------------- */}
       {/* TIMELINE ICON */}
       {/* --------------------------------------------------- */}
 
-      <div className="absolute left-0 top-4 flex w-8 justify-center">
+      <div className="absolute left-0 top-4 flex w-7 justify-center sm:w-8">
         <div
           className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ${styles.icon}`}
         >

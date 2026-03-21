@@ -87,7 +87,7 @@ export default function PublicMatchPage() {
   // ---------------------------------------------------
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-8">
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* --------------------------------------------------- */}
       {/* PAGE HEADER */}
       {/* --------------------------------------------------- */}
@@ -105,10 +105,10 @@ export default function PublicMatchPage() {
       {/* HERO SCOREBOARD */}
       {/* --------------------------------------------------- */}
 
-      <section className="relative left-1/2 right-1/2 -mx-[50dvw] w-[100dvw] bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-          <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr] md:gap-6">
-            <div className="min-w-0">
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-gradient-to-b from-red-900 to-[#7f1d1d] text-white">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 md:px-10 lg:px-14">
+          <div className="grid items-center gap-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)_minmax(0,1fr)] md:gap-6">
+            <div className="order-1 min-w-0 text-center md:order-none md:text-left">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Home
               </p>
@@ -120,8 +120,8 @@ export default function PublicMatchPage() {
               />
             </div>
 
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2">
+            <div className="order-2 min-w-0 text-center md:order-none">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <StatusPill status={match.status} />
                 <PeriodPill
                   status={match.status}
@@ -130,26 +130,26 @@ export default function PublicMatchPage() {
                 />
               </div>
 
-              <div className="mt-4 inline-flex w-full max-w-[280px] flex-col items-center rounded-[28px] border border-white/15 bg-white/10 px-5 py-4 shadow-2xl backdrop-blur-md sm:mt-5 sm:px-6 sm:py-5 md:min-w-[260px] md:px-8 md:py-6">
-                <div className="text-5xl font-black tracking-tight tabular-nums text-white sm:text-6xl md:text-7xl">
+              <div className="mt-4 inline-flex w-full max-w-[220px] flex-col items-center self-center rounded-[24px] border border-white/15 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-md sm:mt-5 sm:max-w-[280px] sm:px-6 sm:py-5 md:max-w-[320px] md:rounded-[28px] md:px-8 md:py-6">
+                <div className="text-[2.5rem] font-black tracking-tight tabular-nums text-white sm:text-6xl md:text-7xl">
                   {match.home_score} - {match.away_score}
                 </div>
 
-                <div className="mt-2 text-xl font-semibold tabular-nums text-white/90 sm:mt-3 sm:text-2xl md:text-3xl">
+                <div className="mt-1.5 text-base font-semibold tabular-nums text-white/90 sm:mt-3 sm:text-2xl md:text-3xl">
                   {formattedClock}
                 </div>
               </div>
 
               <div className="mt-3 space-y-1 sm:mt-4">
-                <div className="text-sm font-medium text-white/90">
+                <div className="break-words text-sm font-medium text-white/90">
                   {match.match_date ? formatMatchDate(match.match_date) : 'Date TBD'}
                 </div>
-                <div className="text-sm text-white/75">{getVenueName(match)}</div>
+                <div className="break-words text-sm text-white/75">{getVenueName(match)}</div>
               </div>
             </div>
 
-            <div className="min-w-0">
-              <p className="text-right text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
+            <div className="order-3 min-w-0 text-center md:order-none md:text-right">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
                 Away
               </p>
 
@@ -167,7 +167,7 @@ export default function PublicMatchPage() {
       {/* MAIN GRID */}
       {/* --------------------------------------------------- */}
 
-      <div className="mt-6 space-y-6">
+      <div className="mt-6 space-y-6 overflow-x-hidden">
         {connectionNotice ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {connectionNotice}
@@ -175,44 +175,38 @@ export default function PublicMatchPage() {
         ) : null}
 
         <div className="overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-900 p-[1px] shadow-sm">
-          <div className="rounded-[calc(1.5rem-1px)] bg-gradient-to-b from-slate-50 via-white to-red-50 p-6 ring-1 ring-white/70">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+          <div className="rounded-[calc(1.5rem-1px)] bg-gradient-to-b from-slate-50 via-white to-red-50 p-4 ring-1 ring-white/70 sm:p-6">
+            <div className="flex flex-wrap items-start gap-2 text-sm text-slate-600">
               <InlineStat label="Status" value={prettyStatus(match.status)} />
-              <span className="text-slate-300">|</span>
               <InlineStat label="Clock" value={formattedClock} mono />
-              <span className="text-slate-300">|</span>
               <InlineStat
                 label="Date"
                 value={match.match_date ? formatMatchDate(match.match_date) : 'TBD'}
               />
-              <span className="text-slate-300">|</span>
               <InlineStat label="Venue" value={getVenueName(match)} />
               {getVenueAddress(match) ? (
-                <>
-                  <span className="text-slate-300">|</span>
-                  <a
-                    href={getAppleMapsUrl(getVenueAddress(match)!)}
-                    target="_blank"
-                    rel="noreferrer"
+                <a
+                  href={getAppleMapsUrl(getVenueAddress(match)!)}
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                  >
-                    Get Directions
-                  </a>
-                </>
+                >
+                  Get Directions
+                </a>
               ) : null}
             </div>
           </div>
         </div>
 
         <div className="grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="flex flex-col gap-6 self-start">
+        <div className="min-w-0 flex flex-col gap-6 self-start">
           {/* ----------------------------------------------- */}
           {/* FINAL RECAP SUMMARY */}
           {/* ----------------------------------------------- */}
 
           {isFinal ? (
             <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">Match Story</h3>
                   <p className="mt-2 text-sm text-slate-600">
@@ -333,7 +327,7 @@ export default function PublicMatchPage() {
           {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-xl font-bold text-slate-900">
                 {isFinal ? 'Full Match Timeline' : 'Match Timeline'}
               </h3>
@@ -362,7 +356,7 @@ export default function PublicMatchPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 self-start">
+        <div className="min-w-0 flex flex-col gap-6 self-start">
           {/* ----------------------------------------------- */}
           {/* EXPLORE MORE */}
           {/* ----------------------------------------------- */}
@@ -467,7 +461,7 @@ export default function PublicMatchPage() {
           {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Starting Lineups</h3>
                 <p className="mt-2 text-sm text-slate-600">
@@ -513,7 +507,7 @@ export default function PublicMatchPage() {
           {/* ----------------------------------------------- */}
 
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">On Field Now</h3>
                 <p className="mt-2 text-sm text-slate-600">
@@ -591,25 +585,25 @@ export default function PublicMatchPage() {
                   </div>
 
                   <dl className="mt-4 space-y-2 text-sm">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Record</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.home.record}
                       </dd>
                     </div>
 
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Top Scorer</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.home.topScorerGoals > 0
                           ? `${teamSnapshots.home.topScorerName} (${teamSnapshots.home.topScorerGoals})`
                           : teamSnapshots.home.topScorerName}
                       </dd>
                     </div>
 
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Recent Form</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.home.recentForm}
                       </dd>
                     </div>
@@ -643,25 +637,25 @@ export default function PublicMatchPage() {
                   </div>
 
                   <dl className="mt-4 space-y-2 text-sm">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Record</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.away.record}
                       </dd>
                     </div>
 
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Top Scorer</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.away.topScorerGoals > 0
                           ? `${teamSnapshots.away.topScorerName} (${teamSnapshots.away.topScorerGoals})`
                           : teamSnapshots.away.topScorerName}
                       </dd>
                     </div>
 
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
                       <dt className="font-semibold text-slate-500">Recent Form</dt>
-                      <dd className="text-right font-medium text-slate-900">
+                      <dd className="min-w-0 break-words text-right font-medium text-slate-900">
                         {teamSnapshots.away.recentForm}
                       </dd>
                     </div>
@@ -708,9 +702,11 @@ function InlineStat({
   mono?: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-white/80 px-3 py-1 text-xs ring-1 ring-slate-200">
       <span className="font-semibold text-slate-500">{label}:</span>
-      <span className={`font-bold text-slate-900 ${mono ? 'tabular-nums' : ''}`}>{value}</span>
+      <span className={`min-w-0 break-words font-bold text-slate-900 ${mono ? 'tabular-nums' : ''}`}>
+        {value}
+      </span>
     </span>
   );
 }
@@ -750,13 +746,13 @@ function PublicScoreboardTeamLink({
     return (
       <Link
         href={href}
-        className="mt-2 flex min-w-0 items-center justify-between gap-3 rounded-2xl transition hover:opacity-90"
+        className="mt-2 flex w-full min-w-0 flex-col items-center gap-2 rounded-2xl text-center transition hover:opacity-90 md:flex-row md:items-start md:justify-end md:gap-3 md:text-right"
       >
-        <div className="min-w-0 text-right">
-          <h2 className="truncate text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
             {team.name}
           </h2>
-          <p className="mt-1 truncate text-sm text-white/75">{team.club_name || ''}</p>
+          <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
         </div>
 
         {team.logo_url ? (
@@ -777,7 +773,7 @@ function PublicScoreboardTeamLink({
   return (
     <Link
       href={href}
-      className="mt-2 flex min-w-0 items-center gap-3 rounded-2xl transition hover:opacity-90"
+      className="mt-2 flex w-full min-w-0 flex-col items-center gap-2 rounded-2xl text-center transition hover:opacity-90 md:flex-row md:items-start md:justify-start md:gap-3 md:text-left"
     >
       {team.logo_url ? (
         <img
@@ -791,11 +787,11 @@ function PublicScoreboardTeamLink({
         </div>
       )}
 
-      <div className="min-w-0">
-        <h2 className="truncate text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-lg font-black leading-tight text-white sm:text-xl md:text-2xl">
           {team.name}
         </h2>
-        <p className="mt-1 truncate text-sm text-white/75">{team.club_name || ''}</p>
+        <p className="mt-1 text-sm text-white/75">{team.club_name || ''}</p>
       </div>
     </Link>
   );
