@@ -605,30 +605,36 @@ if ((accessError || error) && !team) {
                   {/* ACTION */}
                   {/* ------------------------------------------- */}
 
-                  <div>
-                    {match.status === 'final' && match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        View Recap
-                      </Link>
-                    ) : match.status === 'live' || match.status === 'halftime' ? (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {match.status === 'live' || match.status === 'halftime' ? (
                       <Link
                         href={`/live/${match.id}`}
-                        className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+                        className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold !text-white visited:!text-white hover:bg-amber-600"
                       >
                         Manage Match
                       </Link>
-                    ) : match.public_slug ? (
-                      <Link
-                        href={`/public/${match.public_slug}`}
-                        className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
-                      >
-                        View Match
-                      </Link>
                     ) : (
-                      <span className="text-sm text-slate-400">—</span>
+                      <>
+                        {match.public_slug ? (
+                          <Link
+                            href={`/public/${match.public_slug}`}
+                            className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                              match.status === 'final'
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-white text-slate-800 ring-1 ring-slate-200'
+                            }`}
+                          >
+                            {match.status === 'final' ? 'View Recap' : 'View Match'}
+                          </Link>
+                        ) : null}
+
+                        <Link
+                          href={`/matches/${match.id}/edit`}
+                          className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold !text-white visited:!text-white hover:bg-amber-600"
+                        >
+                          Manage Match
+                        </Link>
+                      </>
                     )}
                   </div>
                 </div>
