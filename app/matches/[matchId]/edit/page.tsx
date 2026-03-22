@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { combineLocalDateAndTime, splitIsoToLocalDateTime } from '@/lib/matchDateTime';
 import { supabase } from '@/lib/supabase';
 import { sendFinalRecapEmail } from '@/lib/sendFinalRecapEmail';
 import type { Match, MatchEvent, Player, Season, Team, TeamSide } from '@/lib/types';
@@ -41,19 +42,6 @@ type QuickGoalBackfillRow = {
   assistName: string;
   minute: string;
 };
-
-// ---------------------------------------------------
-// DATETIME HELPER
-// ---------------------------------------------------
-
-function toLocalInputValue(isoString: string | null | undefined) {
-  if (!isoString) return '';
-
-  const date = new Date(isoString);
-  const tzOffset = date.getTimezoneOffset() * 60000;
-
-  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
-}
 
 // ---------------------------------------------------
 // READABLE PUBLIC SLUG HELPER
@@ -139,6 +127,7 @@ export default function EditMatchPage() {
 
   const [seasonId, setSeasonId] = useState('');
   const [matchDate, setMatchDate] = useState('');
+  const [matchTime, setMatchTime] = useState('');
   const [venue, setVenue] = useState('');
   const [status, setStatus] = useState<Match['status']>('scheduled');
   const [statusNote, setStatusNote] = useState('');
@@ -238,8 +227,11 @@ export default function EditMatchPage() {
     setSeasons(loadedSeasons);
     setPlayersByTeam(nextPlayersByTeam);
 
+    const localDateTime = splitIsoToLocalDateTime(loadedMatch.match_date || null);
+
     setSeasonId(loadedMatch.season_id || '');
-    setMatchDate(toLocalInputValue(loadedMatch.match_date || null));
+    setMatchDate(localDateTime.date);
+    setMatchTime(localDateTime.time);
     setVenue(loadedMatch.venue || '');
     setStatus(loadedMatch.status);
     setStatusNote(loadedMatch.status_note || '');
@@ -306,11 +298,11 @@ export default function EditMatchPage() {
     if (!match) return;
 
     setPublicSlug(
-      buildReadableMatchSlug({
-        homeTeamName: match.home_team?.name,
-        awayTeamName: match.away_team?.name,
-        matchDate: matchDate ? new Date(matchDate).toISOString() : match.match_date,
-      }),
+        buildReadableMatchSlug({
+          homeTeamName: match.home_team?.name,
+          awayTeamName: match.away_team?.name,
+          matchDate: combineLocalDateAndTime(matchDate, matchTime) || match.match_date,
+        }),
     );
   }
 
@@ -326,7 +318,7 @@ export default function EditMatchPage() {
 
     const updates = {
       season_id: seasonId || null,
-      match_date: matchDate ? new Date(matchDate).toISOString() : null,
+      match_date: combineLocalDateAndTime(matchDate, matchTime),
       venue: venue.trim() || null,
       status,
       status_note: statusNote.trim() || null,
@@ -810,11 +802,20 @@ export default function EditMatchPage() {
           {/* DATE / TIME */}
           {/* ------------------------------------------------- */}
 
-          <Field label="Match Date & Time">
+          <Field label="Match Date">
             <input
-              type="datetime-local"
+              type="date"
               value={matchDate}
               onChange={(e) => setMatchDate(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+            />
+          </Field>
+
+          <Field label="Match Time">
+            <input
+              type="time"
+              value={matchTime}
+              onChange={(e) => setMatchTime(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3"
             />
           </Field>

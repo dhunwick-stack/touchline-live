@@ -4,21 +4,12 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
+import { combineLocalDateAndTime, getLocalDateInputValue, getLocalTimeInputValue } from '@/lib/matchDateTime';
 import { supabase } from '@/lib/supabase';
 import { slugifyMatch } from '@/lib/utils';
 import type { Season, Team, TrackingMode } from '@/lib/types';
 
 type TeamOptionMode = 'saved' | 'new';
-
-function getDateTimeLocalValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
 
 function getDefaultSeasonId(seasons: Season[]) {
   const currentYear = String(new Date().getFullYear());
@@ -72,7 +63,8 @@ export default function TeamNewMatchPage() {
 
   const [seasonId, setSeasonId] = useState('');
   const [venue, setVenue] = useState('');
-  const [matchDate, setMatchDate] = useState(() => getDateTimeLocalValue(new Date()));
+  const [matchDate, setMatchDate] = useState(() => getLocalDateInputValue(new Date()));
+  const [matchTime, setMatchTime] = useState(() => getLocalTimeInputValue(new Date()));
 
   const [awayMode, setAwayMode] = useState<TeamOptionMode>('saved');
   const [awayTeamId, setAwayTeamId] = useState('');
@@ -203,7 +195,7 @@ export default function TeamNewMatchPage() {
           home_tracking_mode: homeTrackingMode,
           away_tracking_mode: awayTrackingMode,
           venue: venue.trim() || null,
-          match_date: matchDate ? new Date(matchDate).toISOString() : null,
+          match_date: combineLocalDateAndTime(matchDate, matchTime),
           public_slug: slugifyMatch(),
           status: 'not_started',
         })
@@ -296,7 +288,7 @@ if (!team) {
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-xl font-bold">Match Details</h2>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-4">
             <Field label="Season">
               <select
                 value={seasonId}
@@ -312,11 +304,20 @@ if (!team) {
               </select>
             </Field>
 
-            <Field label="Match Date & Time">
+            <Field label="Match Date">
               <input
-                type="datetime-local"
+                type="date"
                 value={matchDate}
                 onChange={(e) => setMatchDate(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              />
+            </Field>
+
+            <Field label="Match Time">
+              <input
+                type="time"
+                value={matchTime}
+                onChange={(e) => setMatchTime(e.target.value)}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3"
               />
             </Field>

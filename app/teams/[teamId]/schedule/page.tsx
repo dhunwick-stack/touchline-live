@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { buildReadableMatchSlug } from '@/lib/utils';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import { supabase } from '@/lib/supabase';
 import type { Match, Season, Team } from '@/lib/types';
@@ -27,6 +28,8 @@ type GroupedMatches = {
 };
 
 type ScheduleImportRow = {
+  date: string;
+  time: string;
   date_time: string;
   opponent: string;
   home_away: 'home' | 'away' | '';
@@ -91,6 +94,8 @@ function parseScheduleImportText(text: string) {
 
   return lines.slice(1).map((line) => {
     const cells = parseCsvLine(line);
+    const date = cells[headerIndex.get('date') ?? -1] || '';
+    const time = cells[headerIndex.get('time') ?? -1] || '';
     const dateTime = cells[headerIndex.get('date_time') ?? -1] || '';
     const opponent = cells[headerIndex.get('opponent') ?? -1] || '';
     const homeAwayValue = cells[headerIndex.get('home_away') ?? -1] || '';
@@ -98,11 +103,15 @@ function parseScheduleImportText(text: string) {
     const season = cells[headerIndex.get('season') ?? -1] || '';
     const normalizedHomeAway = normalizeHomeAway(homeAwayValue);
     const errors: string[] = [];
+    const combinedDateTime =
+      date.trim() && time.trim()
+        ? `${date.trim()}T${time.trim()}`
+        : dateTime.trim();
 
-    if (!dateTime.trim()) {
-      errors.push('Missing date_time');
-    } else if (Number.isNaN(new Date(dateTime.trim()).getTime())) {
-      errors.push('Invalid date_time');
+    if (!combinedDateTime) {
+      errors.push('Missing date/time');
+    } else if (Number.isNaN(new Date(combinedDateTime).getTime())) {
+      errors.push('Invalid date/time');
     }
 
     if (!opponent.trim()) {
@@ -114,7 +123,9 @@ function parseScheduleImportText(text: string) {
     }
 
     return {
-      date_time: dateTime.trim(),
+      date: date.trim(),
+      time: time.trim(),
+      date_time: combinedDateTime,
       opponent: opponent.trim(),
       home_away: normalizedHomeAway,
       venue: venue.trim(),
@@ -386,7 +397,11 @@ export default function TeamSchedulePage() {
         away_tracking_mode: isHome ? 'basic' : team.match_tracking_mode,
         venue: row.venue || null,
         match_date: new Date(row.date_time).toISOString(),
-        public_slug: null,
+        public_slug: buildReadableMatchSlug({
+          homeTeamName: isHome ? team.name : row.opponent,
+          awayTeamName: isHome ? row.opponent : team.name,
+          matchDate: new Date(row.date_time).toISOString(),
+        }),
         status: 'not_started',
       });
     }
@@ -603,8 +618,8 @@ export default function TeamSchedulePage() {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Import Schedule CSV</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Upload rows with <code>date_time</code>, <code>opponent</code>, and{' '}
-                <code>home_away</code>. Optional columns: <code>venue</code> and <code>season</code>.
+                Upload rows with <code>date</code>, <code>time</code>, <code>opponent</code>, and{' '}
+                <code>home_away</code>. Optional columns: <code>venue</code> and <code>season</code>. Legacy <code>date_time</code> is still supported.
               </p>
             </div>
 
@@ -624,7 +639,7 @@ export default function TeamSchedulePage() {
           ) : null}
 
           <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-            Example headers: <code>date_time,opponent,home_away,venue,season</code>
+            Example headers: <code>date,time,opponent,home_away,venue,season</code>
           </div>
 
           {scheduleImportRows.length > 0 ? (
@@ -648,7 +663,7 @@ export default function TeamSchedulePage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm font-semibold">
                         {row.opponent || 'Opponent missing'} • {row.home_away || 'side missing'} •{' '}
-                        {row.date_time || 'date missing'}
+                        {row.date && row.time ? `${row.date} ${row.time}` : row.date_time || 'date missing'}
                       </p>
                       {row.season ? (
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold ring-1 ring-current/10">
