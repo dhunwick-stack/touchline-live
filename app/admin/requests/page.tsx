@@ -165,7 +165,7 @@ export default function AdminRequestsPage() {
     });
   }
 
-  function getSuggestedTeams(request: TeamAccessRequest) {
+function getSuggestedTeams(request: TeamAccessRequest) {
     const requestKeys = getBrandSearchKeys([request.organization_name]);
 
     if (requestKeys.size === 0) return teams.slice(0, 5);
@@ -206,6 +206,14 @@ export default function AdminRequestsPage() {
       .sort((left, right) => right.score - left.score || left.team.name.localeCompare(right.team.name))
       .map((candidate) => candidate.team)
       .slice(0, 5);
+  }
+
+  function getTeamContextLabel(team: TeamRow) {
+    const parts = [team.club_name, team.organization?.name]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .map((value) => value.trim());
+
+    return [...new Set(parts)].join(' • ') || 'No organization';
   }
 
   if (!authChecked || accessLoading) {
@@ -336,31 +344,49 @@ export default function AdminRequestsPage() {
                         {suggestions.map((team) => (
                           <div
                             key={team.id}
-                            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                            onClick={() => {
+                              if (actingRequestId === request.id) return;
+                              toggleSelectedTeam(request.id, team.id);
+                            }}
+                            className={`grid gap-4 rounded-2xl border p-4 transition lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center ${
+                              selectedTeamIds.includes(team.id)
+                                ? 'border-emerald-300 bg-emerald-50/60'
+                                : 'border-slate-200 bg-white'
+                            } ${actingRequestId === request.id ? 'opacity-60' : 'cursor-pointer'}`}
                           >
-                            <label className="flex items-start gap-3">
+                            <div className="flex items-start gap-4">
                               <input
                                 type="checkbox"
                                 checked={selectedTeamIds.includes(team.id)}
                                 onChange={() => toggleSelectedTeam(request.id, team.id)}
+                                onClick={(event) => event.stopPropagation()}
                                 disabled={actingRequestId === request.id}
                                 className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                               />
+                            </div>
 
-                              <div>
-                                <p className="font-semibold text-slate-900">{team.name}</p>
-                                <p className="text-sm text-slate-500">
-                                  {[team.club_name, team.organization?.name].filter(Boolean).join(' • ') ||
-                                    'No organization'}
+                            <div className="min-w-0 text-left">
+                              <p className="text-lg font-semibold leading-tight text-slate-900">
+                                {team.name}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {getTeamContextLabel(team)}
+                              </p>
+                              {selectedTeamIds.includes(team.id) ? (
+                                <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                                  Selected
                                 </p>
-                              </div>
-                            </label>
+                              ) : null}
+                            </div>
 
                             <button
                               type="button"
-                              onClick={() => approveRequest(request, [team.id])}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void approveRequest(request, [team.id]);
+                              }}
                               disabled={actingRequestId === request.id}
-                              className="rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200 disabled:opacity-60"
+                              className="justify-self-start rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200 disabled:opacity-60 lg:justify-self-end"
                             >
                               Approve Only This Team
                             </button>
