@@ -68,6 +68,9 @@ const [error, setError] = useState('');
 const [editing, setEditing] = useState(false);
 const [saving, setSaving] = useState(false);
 const editSectionRef = useRef<HTMLElement | null>(null);
+const [inviteEmail, setInviteEmail] = useState('');
+const [inviteMessage, setInviteMessage] = useState('');
+const [inviting, setInviting] = useState(false);
 
   // ---------------------------------------------------
   // EDIT FORM STATE
@@ -303,6 +306,49 @@ const editSectionRef = useRef<HTMLElement | null>(null);
     setSaving(false);
   }
 
+  async function handleInviteAdmin() {
+    if (!team || !inviteEmail.trim()) {
+      setInviteMessage('Enter an email address to send an invite.');
+      return;
+    }
+
+    setInviting(true);
+    setInviteMessage('');
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setInviting(false);
+      setInviteMessage('You need to be signed in to send invites.');
+      return;
+    }
+
+    const response = await fetch(`/api/teams/${team.id}/invite-admin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email: inviteEmail.trim(),
+      }),
+    });
+
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+
+    if (!response.ok) {
+      setInviting(false);
+      setInviteMessage(body?.error || 'Failed to send invite.');
+      return;
+    }
+
+    setInviteEmail('');
+    setInviting(false);
+    setInviteMessage('Invite email sent.');
+  }
+
   // ---------------------------------------------------
   // DERIVED VALUES
   // ---------------------------------------------------
@@ -513,6 +559,47 @@ if ((accessError || error) && !team) {
           <SummaryCard label="Active Players" value={activePlayers.length} />
           <SummaryCard label="Goalkeepers" value={goalkeepers.length} />
           <SummaryCard label="Home Field" value={team.home_field_name || 'Not set'} />
+        </section>
+
+        <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Team Admins
+              </p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+                Invite another admin
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Send a Touchline Live invite email so another staff member can manage this team.
+              </p>
+            </div>
+
+            <div className="w-full max-w-xl">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="coach@school.org"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleInviteAdmin}
+                  disabled={inviting}
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {inviting ? 'Sending…' : 'Send Invite'}
+                </button>
+              </div>
+
+              {inviteMessage ? (
+                <p className="mt-3 text-sm font-medium text-slate-600">{inviteMessage}</p>
+              ) : null}
+            </div>
+          </div>
         </section>
 
         {/* --------------------------------------------------- */}

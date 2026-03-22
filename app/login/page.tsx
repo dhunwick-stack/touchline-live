@@ -39,7 +39,7 @@ function LoginPageInner() {
   const next = searchParams.get('next') || '/';
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [organizationName, setOrganizationName] = useState('');
   const [loading, setLoading] = useState(false);
