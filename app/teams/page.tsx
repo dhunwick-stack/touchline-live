@@ -292,6 +292,7 @@ export default function TeamsPage() {
       : sourceTeams.filter((team) => {
           const teamName = (team.name || '').toLowerCase();
           const club = (team.club_name || '').toLowerCase();
+          const nickname = (team.nickname || '').toLowerCase();
           const orgName = (team.organization?.name || '').toLowerCase();
           const age = (team.age_group || '').toLowerCase();
           const level = (team.team_level || '').toLowerCase();
@@ -300,6 +301,7 @@ export default function TeamsPage() {
           return (
             teamName.includes(q) ||
             club.includes(q) ||
+            nickname.includes(q) ||
             orgName.includes(q) ||
             age.includes(q) ||
             level.includes(q) ||
@@ -324,6 +326,101 @@ export default function TeamsPage() {
 
     return details ? `${parentName} • ${details}` : parentName;
   }
+
+  function getTeamCategory(team: TeamRow) {
+    const level = (team.team_level || '').trim().toLowerCase();
+    const organizationType = (team.organization?.organization_type || '').trim().toLowerCase();
+    const clubLevels = new Set(['e64', 'elite', 'premier', 'academy']);
+
+    if (level === 'jv' || level === 'junior varsity') {
+      return 'jv';
+    }
+
+    if (level === 'varsity') {
+      return 'varsity';
+    }
+
+    if (organizationType === 'club' || clubLevels.has(level)) {
+      return 'club';
+    }
+
+    return 'other';
+  }
+
+  const categorizedTeams = useMemo(() => {
+    const buckets = {
+      club: [] as TeamRow[],
+      varsity: [] as TeamRow[],
+      jv: [] as TeamRow[],
+      other: [] as TeamRow[],
+    };
+
+    filteredTeams.forEach((team) => {
+      buckets[getTeamCategory(team)].push(team);
+    });
+
+    return buckets;
+  }, [filteredTeams]);
+
+  function getGenderBucketLabel(team: TeamRow) {
+    const normalizedGender = (team.gender || '').trim().toLowerCase();
+    if (normalizedGender === 'boys') return 'Boys';
+    if (normalizedGender === 'girls') return 'Girls';
+    return 'Other';
+  }
+
+  function getGroupedTeamsByGender(teamList: TeamRow[]) {
+    const buckets = {
+      Boys: [] as TeamRow[],
+      Girls: [] as TeamRow[],
+      Other: [] as TeamRow[],
+    };
+
+    teamList.forEach((team) => {
+      buckets[getGenderBucketLabel(team)].push(team);
+    });
+
+    return [
+      { key: 'boys', title: 'Boys', teams: buckets.Boys },
+      { key: 'girls', title: 'Girls', teams: buckets.Girls },
+      { key: 'other', title: 'Other', teams: buckets.Other },
+    ].filter((group) => group.teams.length > 0);
+  }
+
+  const teamSections = [
+    {
+      key: 'club',
+      title: 'Club Teams',
+      description: 'Club and program teams grouped together.',
+      teams: categorizedTeams.club,
+      accent: 'from-sky-500/15 to-cyan-500/10',
+      badge: 'Club',
+    },
+    {
+      key: 'varsity',
+      title: 'Varsity Teams',
+      description: 'Primary school squads and top-level teams.',
+      teams: categorizedTeams.varsity,
+      accent: 'from-amber-500/15 to-orange-500/10',
+      badge: 'Varsity',
+    },
+    {
+      key: 'jv',
+      title: 'JV Teams',
+      description: 'Junior varsity and development school squads.',
+      teams: categorizedTeams.jv,
+      accent: 'from-emerald-500/15 to-teal-500/10',
+      badge: 'JV',
+    },
+    {
+      key: 'other',
+      title: 'Other Teams',
+      description: 'Everything else that does not fit the main groupings yet.',
+      teams: categorizedTeams.other,
+      accent: 'from-slate-500/10 to-slate-300/10',
+      badge: 'Other',
+    },
+  ].filter((section) => section.teams.length > 0);
 
   // ---------------------------------------------------
   // ACCESS LOADING
@@ -623,62 +720,101 @@ export default function TeamsPage() {
           ) : null}
         </div>
       ) : (
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredTeams.map((team) => (
-            <div
-              key={team.id}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-            >
-              <div
-                className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
-                style={{
-                  backgroundColor: team.primary_color || '#0e172b',
-                }}
-              />
-
-              <div className="flex items-center gap-3">
-                {team.logo_url ? (
-                  <img
-                    src={team.logo_url}
-                    alt={`${team.name} logo`}
-                    className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200"
-                  />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-                    LOGO
+        <div className="mt-8 space-y-8">
+          {teamSections.map((section) => (
+            <section key={section.key} className="space-y-4">
+              <div className={`rounded-3xl border border-slate-200 bg-gradient-to-r ${section.accent} px-5 py-4`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      {section.badge}
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black text-slate-900">{section.title}</h2>
+                    <p className="mt-1 text-sm text-slate-600">{section.description}</p>
                   </div>
-                )}
 
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/public/team/${team.id}`}
-                    className="block truncate font-semibold hover:underline"
-                    style={{ color: team.primary_color || '#0f172a' }}
-                  >
-                    {team.name}
-                  </Link>
-
-                  <div className="truncate text-sm text-slate-500">{getTeamSubtext(team)}</div>
+                  <div className="rounded-full bg-white/85 px-3 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                    {section.teams.length} team{section.teams.length === 1 ? '' : 's'}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Link
-                  href={`/public/team/${team.id}`}
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Public View
-                </Link>
+              {(section.key === 'varsity' || section.key === 'jv'
+                ? getGroupedTeamsByGender(section.teams)
+                : [{ key: 'all', title: '', teams: section.teams }]
+              ).map((group) => (
+                <div key={`${section.key}-${group.key}`} className="space-y-4">
+                  {group.title ? (
+                    <div className="flex items-center gap-3 px-1">
+                      <div className="h-px flex-1 bg-slate-200" />
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        {group.title}
+                      </p>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
+                  ) : null}
 
-                <Link
-                  href={`/teams/${team.id}`}
-                  className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
-                  style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
-                >
-                  Admin View
-                </Link>
-              </div>
-            </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {group.teams.map((team) => (
+                      <div
+                        key={team.id}
+                        className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                      >
+                        <div
+                          className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
+                          style={{
+                            backgroundColor: team.primary_color || '#0e172b',
+                          }}
+                        />
+
+                        <div className="flex items-center gap-3">
+                          {team.logo_url ? (
+                            <img
+                              src={team.logo_url}
+                              alt={`${team.name} logo`}
+                              className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                              LOGO
+                            </div>
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/public/team/${team.id}`}
+                              className="block truncate font-semibold hover:underline"
+                              style={{ color: team.primary_color || '#0f172a' }}
+                            >
+                              {team.name}
+                            </Link>
+
+                            <div className="truncate text-sm text-slate-500">{getTeamSubtext(team)}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                          <Link
+                            href={`/public/team/${team.id}`}
+                            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Public View
+                          </Link>
+
+                          <Link
+                            href={`/teams/${team.id}`}
+                            className="flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition hover:opacity-90"
+                            style={{ backgroundColor: '#0e172b', color: '#ffffff' }}
+                          >
+                            Admin View
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       )}
