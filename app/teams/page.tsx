@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { findInheritedBrandTeam } from '@/lib/teamBranding';
 import type { Organization, Team } from '@/lib/types';
 
 // ---------------------------------------------------
@@ -158,14 +159,12 @@ export default function TeamsPage() {
       organizations.find((org) => org.id === organizationId) || null;
 
     const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
-    const normalizedClubName = resolvedClubName?.trim().toLowerCase() || '';
-    const inheritedTeam =
-      !selectedOrganization && normalizedClubName
-        ? teams.find((team) => {
-            const candidateClubName = (team.club_name || '').trim().toLowerCase();
-            return candidateClubName === normalizedClubName;
-          }) || null
-        : null;
+    const inheritedTeam = findInheritedBrandTeam({
+      teamName: name.trim(),
+      clubName: resolvedClubName,
+      organizationId,
+      teams,
+    });
 
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),

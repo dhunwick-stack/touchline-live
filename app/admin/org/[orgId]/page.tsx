@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { findInheritedBrandTeam } from '@/lib/teamBranding';
 import type { Organization, Team } from '@/lib/types';
 import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
@@ -187,6 +188,12 @@ export default function AdminOrganizationPage() {
     setMessage('');
 
     const displayClubName = shortName.trim() || name.trim();
+    const inheritedTeam = findInheritedBrandTeam({
+      teamName: newTeamName.trim(),
+      clubName: displayClubName,
+      organizationId: orgId,
+      teams,
+    });
 
     const { error } = await supabase.from('teams').insert({
       name: newTeamName.trim(),
@@ -196,10 +203,14 @@ export default function AdminOrganizationPage() {
       team_level: newTeamLevel.trim() || null,
       gender: newGender.trim() || null,
       age_group: newAgeGroup.trim() || null,
-      logo_url: newLogoUrl.trim() || logoUrl.trim() || null,
-      banner_url: bannerUrl.trim() || null,
-      primary_color: primaryColor || null,
-      secondary_color: secondaryColor || null,
+      logo_url: newLogoUrl.trim() || inheritedTeam?.logo_url || logoUrl.trim() || null,
+      banner_url: inheritedTeam?.banner_url || bannerUrl.trim() || null,
+      primary_color: inheritedTeam?.primary_color || primaryColor || null,
+      secondary_color: inheritedTeam?.secondary_color || secondaryColor || null,
+      home_field_name: inheritedTeam?.home_field_name || null,
+      home_field_address: inheritedTeam?.home_field_address || null,
+      home_field_lat: inheritedTeam?.home_field_lat || null,
+      home_field_lng: inheritedTeam?.home_field_lng || null,
       is_reusable: true,
     });
 
