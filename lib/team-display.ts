@@ -1,5 +1,46 @@
 import type { Organization, Team } from '@/lib/types';
 
+function formatGenderLabel(gender?: string | null) {
+  const normalized = (gender || '').trim().toLowerCase();
+
+  if (!normalized) return null;
+  if (normalized === 'boys') return 'Boys';
+  if (normalized === 'girls') return 'Girls';
+  if (normalized === 'men') return 'Men';
+  if (normalized === 'women') return 'Women';
+  if (normalized === 'coed') return 'Coed';
+
+  return gender;
+}
+
+function formatTeamLevelLabel(teamLevel?: string | null) {
+  const normalized = (teamLevel || '').trim().toLowerCase();
+
+  if (!normalized) return null;
+  if (normalized === 'jv') return 'JV';
+  if (normalized === 'junior varsity') return 'JV';
+  if (normalized === 'varsity') return 'Varsity';
+
+  return teamLevel;
+}
+
+function includesToken(value: string, token?: string | null) {
+  if (!token) return false;
+  return value.toLowerCase().includes(token.toLowerCase());
+}
+
+function looksLikeSchoolName(value?: string | null) {
+  const normalized = (value || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    normalized.includes('school') ||
+    normalized.includes('high school') ||
+    normalized.includes('hs') ||
+    normalized.includes('academy')
+  );
+}
+
 // ---------------------------------------------------
 // ORGANIZATION DISPLAY HELPERS
 // ---------------------------------------------------
@@ -58,6 +99,57 @@ export function getTeamBanner(
 
 export function getTeamLevelLabel(team?: Team | null) {
   return team?.team_level || null;
+}
+
+export function getTeamHeaderName(
+  team?: Team | null,
+  organization?: Organization | null,
+) {
+  const baseName = team?.name?.trim() || 'Team';
+  const orgType = getOrganizationType(team, organization);
+  const organizationName = getOrganizationName(team, organization);
+  const shouldUseSchoolHeader =
+    orgType === 'school' ||
+    looksLikeSchoolName(organizationName) ||
+    looksLikeSchoolName(team?.club_name);
+
+  if (!shouldUseSchoolHeader) {
+    return baseName;
+  }
+
+  const genderLabel = formatGenderLabel(team?.gender);
+  const levelLabel = formatTeamLevelLabel(team?.team_level);
+  const parts = [baseName];
+
+  if (!includesToken(baseName, genderLabel)) {
+    parts.push(genderLabel || '');
+  }
+
+  if (!includesToken(baseName, levelLabel)) {
+    parts.push(levelLabel || '');
+  }
+
+  return parts.filter(Boolean).join(' ');
+}
+
+export function getTeamHeaderIndicators(
+  team?: Team | null,
+  organization?: Organization | null,
+) {
+  const orgType = getOrganizationType(team, organization);
+  const organizationName = getOrganizationName(team, organization);
+  const shouldUseSchoolHeader =
+    orgType === 'school' ||
+    looksLikeSchoolName(organizationName) ||
+    looksLikeSchoolName(team?.club_name);
+
+  if (!shouldUseSchoolHeader) {
+    return [] as string[];
+  }
+
+  return [formatGenderLabel(team?.gender), formatTeamLevelLabel(team?.team_level)].filter(
+    Boolean,
+  ) as string[];
 }
 
 export function getTeamDescriptor(

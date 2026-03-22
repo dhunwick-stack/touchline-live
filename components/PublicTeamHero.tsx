@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Lock, Trophy } from 'lucide-react';
-import { getOrganizationName } from '@/lib/team-display';
+import { getOrganizationName, getTeamHeaderIndicators, getTeamHeaderName } from '@/lib/team-display';
 import type { Team } from '@/lib/types';
 
 type PublicTeamHeroAction =
@@ -42,17 +42,11 @@ export default function PublicTeamHero({
   const hasOrganizationLink = !!team.organization?.slug;
   const showNationalChampionsPill =
     team.name === '06 Premier' && (team.club_name || '').toLowerCase().includes('jahbat');
-
-  const teamMeta = [
-  team.age_group,
-  team.team_level,
-  team.gender ? team.gender.charAt(0).toUpperCase() + team.gender.slice(1) : null
-]
-  .filter(Boolean)
-  .join(' • ');
+  const headerName = getTeamHeaderName(team);
+  const headerIndicators = getTeamHeaderIndicators(team);
 
   const secondaryLine =
-    [team.nickname, teamMeta || description || organizationName].filter(Boolean).join(' • ') || '';
+    [team.nickname, description || organizationName].filter(Boolean).join(' • ') || '';
 
   // ---------------------------------------------------
   // HERO STYLE
@@ -141,13 +135,26 @@ export default function PublicTeamHero({
                 </p>
 
                 <h1 className="mt-1 truncate text-3xl font-black tracking-tight text-white md:text-5xl">
-                  {team.name}
+                  {headerName}
                 </h1>
 
                 {secondaryLine ? (
                   <p className="mt-2 text-lg text-white/80">
                     {secondaryLine}
                   </p>
+                ) : null}
+
+                {headerIndicators.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {headerIndicators.map((indicator) => (
+                      <span
+                        key={indicator}
+                        className="inline-flex items-center rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/90"
+                      >
+                        {indicator}
+                      </span>
+                    ))}
+                  </div>
                 ) : null}
 
                 {showNationalChampionsPill ? (

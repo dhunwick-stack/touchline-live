@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Trophy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getTeamHeaderIndicators, getTeamHeaderName } from '@/lib/team-display';
 import type { Team } from '@/lib/types';
 
 type Props = {
@@ -28,6 +29,8 @@ export default function TeamBanner({
   const showNationalChampionsPill =
     team.name === '06 Premier' && (team.club_name || '').toLowerCase().includes('jahbat');
   const secondaryLine = [team.club_name, team.nickname].filter(Boolean).join(' • ');
+  const headerName = getTeamHeaderName(team);
+  const headerIndicators = getTeamHeaderIndicators(team);
 
   // ---------------------------------------------------
   // BANNER STYLE
@@ -94,9 +97,22 @@ export default function TeamBanner({
             <div>
               <p className="text-sm uppercase tracking-wide text-white/70">Team</p>
 
-              <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
+              <h1 className="text-3xl font-black tracking-tight">{headerName}</h1>
 
               <p className="text-white/85">{secondaryLine || 'No club name'}</p>
+
+              {headerIndicators.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {headerIndicators.map((indicator) => (
+                    <span
+                      key={indicator}
+                      className="inline-flex items-center rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/90"
+                    >
+                      {indicator}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               {showNationalChampionsPill ? (
                 <div className="mt-3">
