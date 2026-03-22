@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { getDefaultSeasonId } from '@/lib/seasonDefault';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import {
   LatestTeamResultHero,
@@ -44,7 +45,7 @@ export default function TeamResultsPage() {
   const [message, setMessage] = useState('');
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setMessage('');
 
@@ -85,7 +86,7 @@ export default function TeamResultsPage() {
     setTeam((teamData as Team) ?? null);
     setMatches(loadedMatches);
     setSeasons(loadedSeasons);
-    setSelectedSeasonId('all');
+    setSelectedSeasonId(getDefaultSeasonId(loadedSeasons));
 
     if (loadedMatches.length === 0) {
       setEvents([]);
@@ -110,12 +111,17 @@ export default function TeamResultsPage() {
 
     setEvents((eventData as MatchEvent[]) ?? []);
     setLoading(false);
-  }
+  }, [teamId]);
 
   useEffect(() => {
     if (!teamId || !authChecked) return;
-    loadData();
-  }, [teamId, authChecked]);
+
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [teamId, authChecked, loadData]);
 
   async function handleDeleteMatch(match: MatchRow) {
     const opponentName =

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { getDefaultSeasonId } from '@/lib/seasonDefault';
 import { buildReadableMatchSlug } from '@/lib/utils';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import { supabase } from '@/lib/supabase';
@@ -233,8 +234,7 @@ export default function TeamSchedulePage() {
     setMatches((matchData as MatchRow[]) ?? []);
     setSeasons(loadedSeasons);
 
-    const activeSeason = loadedSeasons.find((season) => season.is_active);
-    setSelectedSeasonId(activeSeason?.id || 'all');
+    setSelectedSeasonId(getDefaultSeasonId(loadedSeasons));
 
     setLoading(false);
   }, [teamId]);

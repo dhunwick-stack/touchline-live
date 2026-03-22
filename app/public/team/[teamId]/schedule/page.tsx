@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PublicTeamPageShell from '@/components/PublicTeamPageShell';
+import { getDefaultSeasonId } from '@/lib/seasonDefault';
 import { supabase } from '@/lib/supabase';
 import type { Match, Season, Team } from '@/lib/types';
 import {
@@ -20,52 +21,6 @@ type GroupedMatches = {
   label: string;
   matches: MatchRow[];
 };
-
-function getDefaultSeasonId(seasons: Season[]) {
-  const currentYear = new Date().getFullYear();
-  const getTrailingYear = (season: Season) => {
-    const match = (season.name || '').trim().match(/(\d{4})\s*$/);
-    return match ? Number.parseInt(match[1], 10) : null;
-  };
-
-  const exactYearSeason = seasons.find((season) => getTrailingYear(season) === currentYear);
-
-  if (exactYearSeason) {
-    return exactYearSeason.id;
-  }
-
-  const closestFutureOrCurrentNamedSeason = seasons
-    .map((season) => ({
-      season,
-      year: getTrailingYear(season),
-    }))
-    .filter((entry) => entry.year !== null && entry.year! >= currentYear)
-    .sort((a, b) => (a.year as number) - (b.year as number))[0];
-
-  if (closestFutureOrCurrentNamedSeason) {
-    return closestFutureOrCurrentNamedSeason.season.id;
-  }
-
-  const closestPastNamedSeason = seasons
-    .map((season) => ({
-      season,
-      year: getTrailingYear(season),
-    }))
-    .filter((entry) => entry.year !== null)
-    .sort((a, b) => (b.year as number) - (a.year as number))[0];
-
-  if (closestPastNamedSeason) {
-    return closestPastNamedSeason.season.id;
-  }
-
-  const activeSeason = seasons.find((season) => season.is_active);
-
-  if (activeSeason) {
-    return activeSeason.id;
-  }
-
-  return 'all';
-}
 
 export default function PublicTeamSchedulePage() {
   // ---------------------------------------------------
