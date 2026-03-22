@@ -1,5 +1,10 @@
 import type { Organization, Team } from '@/lib/types';
 
+type TeamIndicatorSource = {
+  gender?: string | null;
+  team_level?: string | null;
+};
+
 function formatGenderLabel(gender?: string | null) {
   const normalized = (gender || '').trim().toLowerCase();
 
@@ -132,7 +137,7 @@ export function getTeamHeaderName(
   return parts.filter(Boolean).join(' ');
 }
 
-export function getTeamHeaderIndicators(team?: Team | null) {
+export function getTeamHeaderIndicators(team?: TeamIndicatorSource | null) {
   return [formatGenderLabel(team?.gender), formatTeamLevelLabel(team?.team_level)].filter(
     Boolean,
   ) as string[];
