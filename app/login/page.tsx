@@ -64,7 +64,7 @@ function LoginPageInner() {
 
     const safeNext = next.startsWith('/') ? next : '/';
 
-    return `${baseUrl}${safeNext}`;
+    return `${baseUrl}/auth/confirm?next=${encodeURIComponent(safeNext)}`;
   }
 
   function getResetRedirectUrl() {
