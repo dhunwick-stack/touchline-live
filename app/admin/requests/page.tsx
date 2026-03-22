@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Organization, Team } from '@/lib/types';
 import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
@@ -30,12 +30,7 @@ export default function AdminRequestsPage() {
     nextPath: '/admin/requests',
   });
 
-  useEffect(() => {
-    if (!authChecked || !hasSuperAccess) return;
-    loadData();
-  }, [authChecked, hasSuperAccess]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setMessage('');
 
@@ -65,47 +60,50 @@ export default function AdminRequestsPage() {
     setRequests((requestData as TeamAccessRequest[]) ?? []);
     setTeams((teamData as TeamRow[]) ?? []);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || !hasSuperAccess) return;
+
+    const loadTimer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadTimer);
+    };
+  }, [authChecked, hasSuperAccess, loadData]);
 
   async function approveRequest(request: TeamAccessRequest, teamId: string) {
-    if (!request.user_id) {
-      setMessage('This request has no user id attached. The user may need to sign up again.');
-      return;
-    }
-
     setActingRequestId(request.id);
     setMessage('');
 
-    const { error: membershipError } = await supabase
-      .from('team_users')
-      .upsert(
-        {
-          team_id: teamId,
-          user_id: request.user_id,
-          role: 'team_admin',
-        },
-        {
-          onConflict: 'team_id,user_id',
-        },
-      );
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (membershipError) {
-      setMessage(membershipError.message || 'Failed to grant team access.');
+    if (!session?.access_token) {
+      setMessage('You must be signed in as a super admin to approve requests.');
       setActingRequestId('');
       return;
     }
 
-    const { error: requestError } = await supabase
-      .from('team_access_requests')
-      .update({
-        status: 'approved',
-        approved_team_id: teamId,
-        approved_at: new Date().toISOString(),
-      })
-      .eq('id', request.id);
+    const response = await fetch('/api/access-requests/approve', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        requestId: request.id,
+        teamId,
+      }),
+    });
 
-    if (requestError) {
-      setMessage(requestError.message || 'Access granted, but request status failed to update.');
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+
+    if (!response.ok) {
+      setMessage(body?.error || 'Failed to approve access request.');
       setActingRequestId('');
       return;
     }

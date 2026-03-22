@@ -78,7 +78,7 @@ function AuthConfirmPageInner() {
       return '/teams?mine=1';
     }
 
-    return '/';
+    return '/login?pending_approval=1';
   }, [sanitizeNextPath]);
 
   useEffect(() => {

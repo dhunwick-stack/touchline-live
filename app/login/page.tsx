@@ -212,7 +212,13 @@ function LoginPageInner() {
           <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
             {isInviteFlow
               ? 'Check your email to confirm your account and finish accepting the team admin invite.'
-              : 'Check your email to confirm your account and continue into Touchline Live.'}
+              : 'Check your email to confirm your account. After you verify, team admin access will appear once your request is approved.'}
+          </div>
+        ) : null}
+
+        {searchParams.get('pending_approval') === '1' ? (
+          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            Your account is confirmed. Team admin access will appear after your request is approved.
           </div>
         ) : null}
 
@@ -292,6 +298,9 @@ function LoginPageInner() {
               <p className="text-xs font-medium text-slate-500">
                 This helps identify which club, school, or organization is requesting access.
               </p>
+              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Creating your account does not automatically unlock team admin access. A team or platform admin still needs to approve your request.
+              </div>
             </div>
           ) : null}
         </div>
