@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { lookupTeamLocation } from '@/lib/teamLocationLookup';
 import { findInheritedBrandTeam } from '@/lib/teamBranding';
 import type { Organization, Team } from '@/lib/types';
 
@@ -165,6 +166,15 @@ export default function TeamsPage() {
       organizationId,
       teams,
     });
+    const derivedLocation =
+      inheritedTeam?.home_field_address
+        ? null
+        : await lookupTeamLocation({
+            teamName: name.trim(),
+            clubName: resolvedClubName,
+            city: selectedOrganization?.city || null,
+            state: selectedOrganization?.state || null,
+          });
 
     const { error } = await supabase.from('teams').insert({
       name: name.trim(),
@@ -179,9 +189,9 @@ export default function TeamsPage() {
       primary_color: inheritedTeam?.primary_color || null,
       secondary_color: inheritedTeam?.secondary_color || null,
       home_field_name: inheritedTeam?.home_field_name || null,
-      home_field_address: inheritedTeam?.home_field_address || null,
-      home_field_lat: inheritedTeam?.home_field_lat || null,
-      home_field_lng: inheritedTeam?.home_field_lng || null,
+      home_field_address: inheritedTeam?.home_field_address || derivedLocation?.address || null,
+      home_field_lat: inheritedTeam?.home_field_lat || derivedLocation?.lat || null,
+      home_field_lng: inheritedTeam?.home_field_lng || derivedLocation?.lng || null,
       is_reusable: true,
     });
 

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { extractLogoColors } from '@/lib/logoColorExtraction';
+import { lookupTeamLocation } from '@/lib/teamLocationLookup';
 import { supabase } from '@/lib/supabase';
 import { findInheritedBrandTeam } from '@/lib/teamBranding';
 import type { Organization, Team } from '@/lib/types';
@@ -71,6 +73,7 @@ export default function AdminOrganizationPage() {
   const [saving, setSaving] = useState(false);
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [message, setMessage] = useState('');
+  const [extractingLogoColors, setExtractingLogoColors] = useState(false);
 
   // ---------------------------------------------------
   // LOAD ORG + TEAMS
@@ -175,6 +178,29 @@ export default function AdminOrganizationPage() {
     setSaving(false);
   }
 
+  async function handleUseLogoColors() {
+    if (!logoUrl.trim()) {
+      setMessage('Enter a logo URL first.');
+      return;
+    }
+
+    setExtractingLogoColors(true);
+    setMessage('');
+
+    try {
+      const palette = await extractLogoColors(logoUrl.trim());
+      setPrimaryColor(palette.primary);
+      setSecondaryColor(palette.secondary);
+      setMessage('Logo colors applied.');
+    } catch (extractError) {
+      setMessage(
+        extractError instanceof Error ? extractError.message : 'Failed to extract logo colors.',
+      );
+    } finally {
+      setExtractingLogoColors(false);
+    }
+  }
+
   // ---------------------------------------------------
   // CREATE TEAM IN ORG
   // ---------------------------------------------------
@@ -194,6 +220,15 @@ export default function AdminOrganizationPage() {
       organizationId: orgId,
       teams,
     });
+    const derivedLocation =
+      inheritedTeam?.home_field_address
+        ? null
+        : await lookupTeamLocation({
+            teamName: newTeamName.trim(),
+            clubName: displayClubName,
+            city: city.trim() || null,
+            state: stateValue.trim() || null,
+          });
 
     const { error } = await supabase.from('teams').insert({
       name: newTeamName.trim(),
@@ -208,9 +243,9 @@ export default function AdminOrganizationPage() {
       primary_color: inheritedTeam?.primary_color || primaryColor || null,
       secondary_color: inheritedTeam?.secondary_color || secondaryColor || null,
       home_field_name: inheritedTeam?.home_field_name || null,
-      home_field_address: inheritedTeam?.home_field_address || null,
-      home_field_lat: inheritedTeam?.home_field_lat || null,
-      home_field_lng: inheritedTeam?.home_field_lng || null,
+      home_field_address: inheritedTeam?.home_field_address || derivedLocation?.address || null,
+      home_field_lat: inheritedTeam?.home_field_lat || derivedLocation?.lat || null,
+      home_field_lng: inheritedTeam?.home_field_lng || derivedLocation?.lng || null,
       is_reusable: true,
     });
 
@@ -356,12 +391,22 @@ export default function AdminOrganizationPage() {
           </Field>
 
           <Field label="Logo URL">
-            <input
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-            />
+            <div className="space-y-2">
+              <input
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+              />
+              <button
+                type="button"
+                onClick={handleUseLogoColors}
+                disabled={extractingLogoColors}
+                className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 disabled:opacity-60"
+              >
+                {extractingLogoColors ? 'Reading Logo Colors...' : 'Use Logo Colors'}
+              </button>
+            </div>
           </Field>
 
           <Field label="Banner URL">

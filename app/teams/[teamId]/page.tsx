@@ -9,6 +9,7 @@ import TeamPageIntro from '@/components/TeamPageIntro';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
 import LiveMatchHero from '@/components/LiveMatchHero';
+import { extractLogoColors } from '@/lib/logoColorExtraction';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -67,6 +68,7 @@ const [loading, setLoading] = useState(true);
 const [error, setError] = useState('');
 const [editing, setEditing] = useState(false);
 const [saving, setSaving] = useState(false);
+const [extractingLogoColors, setExtractingLogoColors] = useState(false);
 const editSectionRef = useRef<HTMLElement | null>(null);
 const [inviteEmail, setInviteEmail] = useState('');
 const [inviteMessage, setInviteMessage] = useState('');
@@ -304,6 +306,26 @@ const [inviting, setInviting] = useState(false);
     setTeam(updatedTeam);
     setEditing(false);
     setSaving(false);
+  }
+
+  async function handleUseLogoColors() {
+    if (!logoUrl.trim()) {
+      setError('Enter a logo URL first.');
+      return;
+    }
+
+    setExtractingLogoColors(true);
+    setError('');
+
+    try {
+      const palette = await extractLogoColors(logoUrl.trim());
+      setPrimaryColor(palette.primary);
+      setSecondaryColor(palette.secondary);
+    } catch (extractError) {
+      setError(extractError instanceof Error ? extractError.message : 'Failed to extract logo colors.');
+    } finally {
+      setExtractingLogoColors(false);
+    }
   }
 
   async function handleInviteAdmin() {
@@ -878,12 +900,22 @@ if ((accessError || error) && !team) {
             </Field>
 
             <Field label="Logo URL">
-              <input
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                placeholder="https://..."
-              />
+              <div className="space-y-2">
+                <input
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                  placeholder="https://..."
+                />
+                <button
+                  type="button"
+                  onClick={handleUseLogoColors}
+                  disabled={extractingLogoColors}
+                  className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 disabled:opacity-60"
+                >
+                  {extractingLogoColors ? 'Reading Logo Colors...' : 'Use Logo Colors'}
+                </button>
+              </div>
             </Field>
 
             <Field label="Home Field Name">
