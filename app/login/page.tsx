@@ -37,7 +37,8 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
 
   const next = searchParams.get('next') || '/';
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const isInviteFlow = next.startsWith('/accept-invite');
+  const [mode, setMode] = useState<'signin' | 'signup'>(isInviteFlow ? 'signup' : 'signin');
 
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
@@ -158,14 +159,16 @@ function LoginPageInner() {
       status: 'pending' as const,
     };
 
-    const { error: requestError } = await supabase
-      .from('team_access_requests')
-      .insert(requestPayload);
+    if (!isInviteFlow) {
+      const { error: requestError } = await supabase
+        .from('team_access_requests')
+        .insert(requestPayload);
 
-    if (requestError) {
-      setError(`Account created, but access request intake failed: ${requestError.message}`);
-      setLoading(false);
-      return;
+      if (requestError) {
+        setError(`Account created, but access request intake failed: ${requestError.message}`);
+        setLoading(false);
+        return;
+      }
     }
 
     setLoading(false);
@@ -212,6 +215,13 @@ function LoginPageInner() {
           </div>
         ) : null}
 
+        {isInviteFlow ? (
+          <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-800">
+            You are joining through a team admin invite. Sign in if you already have an
+            account, or create one below to accept the invite.
+          </div>
+        ) : null}
+
         {notice ? (
           <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800">
             {notice}
@@ -219,7 +229,11 @@ function LoginPageInner() {
         ) : null}
 
         <h1 className="text-2xl font-black">
-          {mode === 'signin' ? 'Sign in to Touchline' : 'Create your Touchline account'}
+          {mode === 'signin'
+            ? 'Sign in to Touchline'
+            : isInviteFlow
+              ? 'Create your account to accept the invite'
+              : 'Create your Touchline account'}
         </h1>
 
         <div className="mt-6 grid grid-cols-2 gap-3 rounded-2xl bg-slate-100 p-2">
@@ -265,7 +279,7 @@ function LoginPageInner() {
             className="w-full rounded-xl border px-4 py-3"
           />
 
-          {mode === 'signup' ? (
+          {mode === 'signup' && !isInviteFlow ? (
             <div className="space-y-2">
               <input
                 type="text"
