@@ -19,6 +19,11 @@ type TeamRow = Team & {
   organization: Organization | null;
 };
 
+type SuggestedLocation = {
+  source: 'inherited' | 'derived';
+  address: string;
+};
+
 // ---------------------------------------------------
 // PAGE
 // FILE: app/teams/page.tsx
@@ -84,6 +89,8 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [suggestedLocation, setSuggestedLocation] = useState<SuggestedLocation | null>(null);
+  const [lookingUpLocation, setLookingUpLocation] = useState(false);
 
   // ---------------------------------------------------
   // ACCESS CHECK
@@ -139,6 +146,59 @@ export default function TeamsPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTeams]);
 
+  const selectedOrganization = useMemo(
+    () => organizations.find((org) => org.id === organizationId) || null,
+    [organizationId, organizations],
+  );
+
+  const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
+  const inheritedTeamPreview = useMemo(
+    () =>
+      findInheritedBrandTeam({
+        teamName: name.trim(),
+        clubName: resolvedClubName,
+        organizationId,
+        teams,
+      }),
+    [name, resolvedClubName, organizationId, teams],
+  );
+  const visibleSuggestedLocation = inheritedTeamPreview?.home_field_address
+    ? {
+        source: 'inherited' as const,
+        address: inheritedTeamPreview.home_field_address,
+      }
+    : suggestedLocation;
+
+  useEffect(() => {
+    if (!showCreateForm || !name.trim() || inheritedTeamPreview?.home_field_address) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        setLookingUpLocation(true);
+        const derivedLocation = await lookupTeamLocation({
+          teamName: name.trim(),
+          clubName: resolvedClubName,
+          city: selectedOrganization?.city || null,
+          state: selectedOrganization?.state || null,
+        });
+
+        setSuggestedLocation(
+          derivedLocation
+            ? {
+                source: 'derived',
+                address: derivedLocation.address,
+              }
+            : null,
+        );
+        setLookingUpLocation(false);
+      })();
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showCreateForm, name, resolvedClubName, selectedOrganization, inheritedTeamPreview]);
+
   // ---------------------------------------------------
   // CREATE TEAM
   // ---------------------------------------------------
@@ -156,10 +216,6 @@ export default function TeamsPage() {
     setLoading(true);
     setMessage('');
 
-    const selectedOrganization =
-      organizations.find((org) => org.id === organizationId) || null;
-
-    const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
     const inheritedTeam = findInheritedBrandTeam({
       teamName: name.trim(),
       clubName: resolvedClubName,
@@ -213,6 +269,8 @@ export default function TeamsPage() {
     setGender('');
     setAgeGroup('');
     setLogoUrl('');
+    setSuggestedLocation(null);
+    setLookingUpLocation(false);
     setMessage('Team added.');
     setLoading(false);
     setShowCreateForm(false);
@@ -435,6 +493,24 @@ export default function TeamsPage() {
             </div>
           </div>
 
+          {name.trim() ? (
+            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm ring-1 ring-slate-200">
+              <p className="font-semibold text-slate-900">Suggested Home Field</p>
+              {lookingUpLocation ? (
+                <p className="mt-1 text-slate-600">Looking up likely address...</p>
+              ) : visibleSuggestedLocation ? (
+                <p className="mt-1 text-slate-600">
+                  {visibleSuggestedLocation.source === 'inherited'
+                    ? 'Inherited from a related team: '
+                    : 'Derived from team/location data: '}
+                  {visibleSuggestedLocation.address}
+                </p>
+              ) : (
+                <p className="mt-1 text-slate-500">No address suggestion yet.</p>
+              )}
+            </div>
+          ) : null}
+
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="submit"
@@ -446,7 +522,11 @@ export default function TeamsPage() {
 
             <button
               type="button"
-              onClick={() => setShowCreateForm(false)}
+              onClick={() => {
+                setShowCreateForm(false);
+                setSuggestedLocation(null);
+                setLookingUpLocation(false);
+              }}
               className="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel

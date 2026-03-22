@@ -10,6 +10,7 @@ import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
 import FieldCard from '@/components/FieldCard';
 import LiveMatchHero from '@/components/LiveMatchHero';
 import { extractLogoColors } from '@/lib/logoColorExtraction';
+import { lookupTeamLocation } from '@/lib/teamLocationLookup';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -69,6 +70,7 @@ const [error, setError] = useState('');
 const [editing, setEditing] = useState(false);
 const [saving, setSaving] = useState(false);
 const [extractingLogoColors, setExtractingLogoColors] = useState(false);
+const [lookingUpHomeField, setLookingUpHomeField] = useState(false);
 const editSectionRef = useRef<HTMLElement | null>(null);
 const [inviteEmail, setInviteEmail] = useState('');
 const [inviteMessage, setInviteMessage] = useState('');
@@ -87,6 +89,8 @@ const [inviting, setInviting] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
   const [homeFieldName, setHomeFieldName] = useState('');
   const [homeFieldAddress, setHomeFieldAddress] = useState('');
+  const [homeFieldLat, setHomeFieldLat] = useState<number | null>(null);
+  const [homeFieldLng, setHomeFieldLng] = useState<number | null>(null);
   const [primaryColor, setPrimaryColor] = useState('');
   const [secondaryColor, setSecondaryColor] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
@@ -227,6 +231,8 @@ const [inviting, setInviting] = useState(false);
     setLogoUrl(loadedTeam.logo_url || '');
     setHomeFieldName(loadedTeam.home_field_name || '');
     setHomeFieldAddress(loadedTeam.home_field_address || '');
+    setHomeFieldLat(loadedTeam.home_field_lat || null);
+    setHomeFieldLng(loadedTeam.home_field_lng || null);
     setPrimaryColor(loadedTeam.primary_color || '');
     setSecondaryColor(loadedTeam.secondary_color || '');
     setBannerUrl(loadedTeam.banner_url || '');
@@ -285,6 +291,8 @@ const [inviting, setInviting] = useState(false);
         logo_url: logoUrl.trim() || null,
         home_field_name: homeFieldName.trim() || null,
         home_field_address: homeFieldAddress.trim() || null,
+        home_field_lat: homeFieldLat,
+        home_field_lng: homeFieldLng,
         primary_color: primaryColor.trim() || null,
         secondary_color: secondaryColor.trim() || null,
         banner_url: bannerUrl.trim() || null,
@@ -325,6 +333,39 @@ const [inviting, setInviting] = useState(false);
       setError(extractError instanceof Error ? extractError.message : 'Failed to extract logo colors.');
     } finally {
       setExtractingLogoColors(false);
+    }
+  }
+
+  async function handleSuggestHomeField() {
+    const selectedOrganization =
+      organizations.find((org) => org.id === organizationId) || team?.organization || null;
+    const resolvedClubName = clubName.trim() || selectedOrganization?.name || null;
+
+    setLookingUpHomeField(true);
+    setError('');
+
+    try {
+      const suggestion = await lookupTeamLocation({
+        teamName: teamName.trim() || team?.name || null,
+        clubName: resolvedClubName,
+        city: selectedOrganization?.city || null,
+        state: selectedOrganization?.state || null,
+      });
+
+      if (!suggestion) {
+        setError('No likely home field was found from the current team and location data.');
+        return;
+      }
+
+      setHomeFieldAddress(suggestion.address);
+      setHomeFieldLat(suggestion.lat);
+      setHomeFieldLng(suggestion.lng);
+    } catch (lookupError) {
+      setError(
+        lookupError instanceof Error ? lookupError.message : 'Failed to suggest a home field.',
+      );
+    } finally {
+      setLookingUpHomeField(false);
     }
   }
 
@@ -929,12 +970,22 @@ if ((accessError || error) && !team) {
 
             <div className="md:col-span-2">
               <Field label="Home Field Address">
-                <input
-                  value={homeFieldAddress}
-                  onChange={(e) => setHomeFieldAddress(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-                  placeholder="123 Main St, Evanston, IL"
-                />
+                <div className="space-y-2">
+                  <input
+                    value={homeFieldAddress}
+                    onChange={(e) => setHomeFieldAddress(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3"
+                    placeholder="123 Main St, Evanston, IL"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSuggestHomeField}
+                    disabled={lookingUpHomeField}
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
+                  >
+                    {lookingUpHomeField ? 'Looking Up Home Field...' : 'Suggest Home Field'}
+                  </button>
+                </div>
               </Field>
             </div>
 
@@ -1001,6 +1052,8 @@ if ((accessError || error) && !team) {
                 setLogoUrl(team.logo_url || '');
                 setHomeFieldName(team.home_field_name || '');
                 setHomeFieldAddress(team.home_field_address || '');
+                setHomeFieldLat(team.home_field_lat || null);
+                setHomeFieldLng(team.home_field_lng || null);
                 setPrimaryColor(team.primary_color || '');
                 setSecondaryColor(team.secondary_color || '');
                 setBannerUrl(team.banner_url || '');

@@ -44,6 +44,9 @@ type TeamLocationResult = {
   lng: number;
 };
 
+const CHICAGO_AREA_BBOX = '-88.65,41.45,-87.35,42.35';
+const CHICAGO_PROXIMITY = '-87.6298,41.8781';
+
 export async function lookupTeamLocation({
   teamName,
   clubName,
@@ -69,7 +72,7 @@ export async function lookupTeamLocation({
 
   for (const query of queries) {
     const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&types=poi,address,place,locality&access_token=${token}`,
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&country=us&bbox=${CHICAGO_AREA_BBOX}&proximity=${CHICAGO_PROXIMITY}&types=poi,address,place,locality&access_token=${token}`,
     );
 
     if (!response.ok) continue;

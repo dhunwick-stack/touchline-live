@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { extractLogoColors } from '@/lib/logoColorExtraction';
 import { lookupTeamLocation } from '@/lib/teamLocationLookup';
@@ -12,6 +12,11 @@ import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
 type TeamRow = Team & {
   organization: Organization | null;
+};
+
+type SuggestedLocation = {
+  source: 'inherited' | 'derived';
+  address: string;
 };
 
 export default function AdminOrganizationPage() {
@@ -74,6 +79,8 @@ export default function AdminOrganizationPage() {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [message, setMessage] = useState('');
   const [extractingLogoColors, setExtractingLogoColors] = useState(false);
+  const [suggestedLocation, setSuggestedLocation] = useState<SuggestedLocation | null>(null);
+  const [lookingUpLocation, setLookingUpLocation] = useState(false);
 
   // ---------------------------------------------------
   // LOAD ORG + TEAMS
@@ -139,6 +146,54 @@ export default function AdminOrganizationPage() {
 
     loadOrg();
   }, [orgId, authChecked, hasSuperAccess]);
+
+  const displayClubName = shortName.trim() || name.trim();
+  const inheritedTeamPreview = useMemo(
+    () =>
+      findInheritedBrandTeam({
+        teamName: newTeamName.trim(),
+        clubName: displayClubName,
+        organizationId: orgId,
+        teams,
+      }),
+    [newTeamName, displayClubName, orgId, teams],
+  );
+  const visibleSuggestedLocation = inheritedTeamPreview?.home_field_address
+    ? {
+        source: 'inherited' as const,
+        address: inheritedTeamPreview.home_field_address,
+      }
+    : suggestedLocation;
+
+  useEffect(() => {
+    if (!newTeamName.trim() || inheritedTeamPreview?.home_field_address) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        setLookingUpLocation(true);
+        const derivedLocation = await lookupTeamLocation({
+          teamName: newTeamName.trim(),
+          clubName: displayClubName,
+          city: city.trim() || null,
+          state: stateValue.trim() || null,
+        });
+
+        setSuggestedLocation(
+          derivedLocation
+            ? {
+                source: 'derived',
+                address: derivedLocation.address,
+              }
+            : null,
+        );
+        setLookingUpLocation(false);
+      })();
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [newTeamName, displayClubName, city, stateValue, inheritedTeamPreview]);
 
   // ---------------------------------------------------
   // SAVE ORG
@@ -213,7 +268,6 @@ export default function AdminOrganizationPage() {
     setCreatingTeam(true);
     setMessage('');
 
-    const displayClubName = shortName.trim() || name.trim();
     const inheritedTeam = findInheritedBrandTeam({
       teamName: newTeamName.trim(),
       clubName: displayClubName,
@@ -261,6 +315,8 @@ export default function AdminOrganizationPage() {
     setNewGender('');
     setNewAgeGroup('');
     setNewLogoUrl('');
+    setSuggestedLocation(null);
+    setLookingUpLocation(false);
     setMessage('Team created.');
 
     const { data: refreshedTeams } = await supabase
@@ -567,6 +623,24 @@ export default function AdminOrganizationPage() {
               </p>
             </Field>
           </div>
+
+          {newTeamName.trim() ? (
+            <div className="md:col-span-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm ring-1 ring-slate-200">
+              <p className="font-semibold text-slate-900">Suggested Home Field</p>
+              {lookingUpLocation ? (
+                <p className="mt-1 text-slate-600">Looking up likely address...</p>
+              ) : visibleSuggestedLocation ? (
+                <p className="mt-1 text-slate-600">
+                  {visibleSuggestedLocation.source === 'inherited'
+                    ? 'Inherited from a related team: '
+                    : 'Derived from team/location data: '}
+                  {visibleSuggestedLocation.address}
+                </p>
+              ) : (
+                <p className="mt-1 text-slate-500">No address suggestion yet.</p>
+              )}
+            </div>
+          ) : null}
 
           <div className="md:col-span-2">
             <button

@@ -132,21 +132,7 @@ export function getTeamHeaderName(
   return parts.filter(Boolean).join(' ');
 }
 
-export function getTeamHeaderIndicators(
-  team?: Team | null,
-  organization?: Organization | null,
-) {
-  const orgType = getOrganizationType(team, organization);
-  const organizationName = getOrganizationName(team, organization);
-  const shouldUseSchoolHeader =
-    orgType === 'school' ||
-    looksLikeSchoolName(organizationName) ||
-    looksLikeSchoolName(team?.club_name);
-
-  if (!shouldUseSchoolHeader) {
-    return [] as string[];
-  }
-
+export function getTeamHeaderIndicators(team?: Team | null) {
   return [formatGenderLabel(team?.gender), formatTeamLevelLabel(team?.team_level)].filter(
     Boolean,
   ) as string[];
