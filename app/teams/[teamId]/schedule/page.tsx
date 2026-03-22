@@ -440,9 +440,7 @@ export default function TeamSchedulePage() {
           opponentName: row.opponent,
           importingTeam: team,
           teams: allTeams,
-        }) ||
-        teamsByName.get(opponentKey) ||
-        null;
+        }) || null;
 
       let opponentTeamId = reusedCreatedOpponentId || matchedOpponentTeam?.id || '';
 
