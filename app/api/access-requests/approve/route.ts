@@ -10,8 +10,15 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
-function renderApprovalEmail(params: { teamName: string; loginUrl: string }) {
-  const { teamName, loginUrl } = params;
+function formatTeamList(teamNames: string[]) {
+  if (teamNames.length <= 1) return teamNames[0] || 'your team';
+  if (teamNames.length === 2) return `${teamNames[0]} and ${teamNames[1]}`;
+  return `${teamNames.slice(0, -1).join(', ')}, and ${teamNames[teamNames.length - 1]}`;
+}
+
+function renderApprovalEmail(params: { teamNames: string[]; loginUrl: string }) {
+  const { teamNames, loginUrl } = params;
+  const formattedTeamList = formatTeamList(teamNames);
 
   const html = `
     <div style="font-family:Arial,sans-serif;background:#eef2f7;padding:32px;color:#0f172a;">
@@ -20,7 +27,7 @@ function renderApprovalEmail(params: { teamName: string; loginUrl: string }) {
           <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72);">Touchline Live</p>
           <h1 style="margin:0;font-size:30px;line-height:1.1;">Team access approved</h1>
           <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:rgba(255,255,255,.9);">
-            You can now administer ${escapeHtml(teamName)} in Touchline Live.
+            You can now administer ${escapeHtml(formattedTeamList)} in Touchline Live.
           </p>
         </div>
         <div style="padding:28px;">
@@ -42,7 +49,7 @@ function renderApprovalEmail(params: { teamName: string; loginUrl: string }) {
 
   const text = [
     'Touchline Live',
-    `Your team admin access for ${teamName} has been approved.`,
+    `Your team admin access for ${formattedTeamList} has been approved.`,
     '',
     `Sign in: ${loginUrl}`,
   ].join('\n');
@@ -79,32 +86,38 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json().catch(() => null)) as
-      | { requestId?: string; teamId?: string }
+      | { requestId?: string; teamId?: string; teamIds?: string[] }
       | null;
 
     const requestId = body?.requestId?.trim() || '';
-    const teamId = body?.teamId?.trim() || '';
+    const teamIds = Array.from(
+      new Set(
+        (Array.isArray(body?.teamIds) ? body?.teamIds : [body?.teamId])
+          .map((value) => value?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
 
-    if (!requestId || !teamId) {
-      return NextResponse.json({ error: 'Request id and team id are required.' }, { status: 400 });
+    if (!requestId || teamIds.length === 0) {
+      return NextResponse.json({ error: 'Request id and at least one team id are required.' }, { status: 400 });
     }
 
-    const [{ data: accessRequest, error: requestError }, { data: team, error: teamError }] =
+    const [{ data: accessRequest, error: requestError }, { data: teams, error: teamError }] =
       await Promise.all([
         supabaseAdmin
           .from('team_access_requests')
           .select('id, user_id, email, status')
           .eq('id', requestId)
           .maybeSingle(),
-        supabaseAdmin.from('teams').select('id, name').eq('id', teamId).maybeSingle(),
+        supabaseAdmin.from('teams').select('id, name').in('id', teamIds),
       ]);
 
     if (requestError || !accessRequest) {
       return NextResponse.json({ error: requestError?.message || 'Access request not found.' }, { status: 404 });
     }
 
-    if (teamError || !team) {
-      return NextResponse.json({ error: teamError?.message || 'Team not found.' }, { status: 404 });
+    if (teamError || !teams || teams.length !== teamIds.length) {
+      return NextResponse.json({ error: teamError?.message || 'One or more teams were not found.' }, { status: 404 });
     }
 
     if (!accessRequest.user_id) {
@@ -114,18 +127,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const memberships = teamIds.map((teamId) => ({
+      team_id: teamId,
+      user_id: accessRequest.user_id,
+      role: 'team_admin',
+    }));
+
     const { error: membershipError } = await supabaseAdmin
       .from('team_users')
-      .upsert(
-        {
-          team_id: teamId,
-          user_id: accessRequest.user_id,
-          role: 'team_admin',
-        },
-        {
-          onConflict: 'team_id,user_id',
-        },
-      );
+      .upsert(memberships, {
+        onConflict: 'team_id,user_id',
+      });
 
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message || 'Failed to grant team access.' }, { status: 400 });
@@ -135,7 +147,7 @@ export async function POST(request: Request) {
       .from('team_access_requests')
       .update({
         status: 'approved',
-        approved_team_id: teamId,
+        approved_team_id: teamIds[0],
         approved_at: new Date().toISOString(),
       })
       .eq('id', requestId);
@@ -154,7 +166,7 @@ export async function POST(request: Request) {
     if (resendApiKey && accessRequest.email) {
       const loginUrl = `${appBaseUrl}/login`;
       const { html, text } = renderApprovalEmail({
-        teamName: team.name || 'your team',
+        teamNames: teams.map((team) => team.name || 'your team'),
         loginUrl,
       });
 
@@ -167,7 +179,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           from: fromEmail,
           to: [accessRequest.email],
-          subject: `Your access to ${team.name || 'your team'} is approved`,
+          subject: `Your access to ${formatTeamList(teams.map((team) => team.name || 'your team'))} is approved`,
           html,
           text,
         }),

@@ -27,6 +27,7 @@ export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<TeamAccessRequest[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [actingRequestId, setActingRequestId] = useState('');
+  const [selectedTeamsByRequest, setSelectedTeamsByRequest] = useState<Record<string, string[]>>({});
   const { authChecked, currentUser, hasSuperAccess, loading: accessLoading } = useSuperAdminGuard({
     nextPath: '/admin/requests',
   });
@@ -75,9 +76,15 @@ export default function AdminRequestsPage() {
     };
   }, [authChecked, hasSuperAccess, loadData]);
 
-  async function approveRequest(request: TeamAccessRequest, teamId: string) {
+  async function approveRequest(request: TeamAccessRequest, teamIds: string[]) {
     setActingRequestId(request.id);
     setMessage('');
+
+    if (teamIds.length === 0) {
+      setMessage('Choose at least one team before approving.');
+      setActingRequestId('');
+      return;
+    }
 
     const {
       data: { session },
@@ -97,7 +104,7 @@ export default function AdminRequestsPage() {
       },
       body: JSON.stringify({
         requestId: request.id,
-        teamId,
+        teamIds,
       }),
     });
 
@@ -110,6 +117,11 @@ export default function AdminRequestsPage() {
     }
 
     await loadData();
+    setSelectedTeamsByRequest((current) => {
+      const next = { ...current };
+      delete next[request.id];
+      return next;
+    });
     setActingRequestId('');
   }
 
@@ -138,6 +150,20 @@ export default function AdminRequestsPage() {
     () => requests.filter((request) => request.status === 'pending'),
     [requests],
   );
+
+  function toggleSelectedTeam(requestId: string, teamId: string) {
+    setSelectedTeamsByRequest((current) => {
+      const existing = current[requestId] || [];
+      const nextSelection = existing.includes(teamId)
+        ? existing.filter((value) => value !== teamId)
+        : [...existing, teamId];
+
+      return {
+        ...current,
+        [requestId]: nextSelection,
+      };
+    });
+  }
 
   function getSuggestedTeams(request: TeamAccessRequest) {
     const requestKeys = getBrandSearchKeys([request.organization_name]);
@@ -245,6 +271,7 @@ export default function AdminRequestsPage() {
           <div className="space-y-5">
             {pendingRequests.map((request) => {
               const suggestions = getSuggestedTeams(request);
+              const selectedTeamIds = selectedTeamsByRequest[request.id] || [];
 
               return (
                 <div
@@ -279,9 +306,26 @@ export default function AdminRequestsPage() {
                   </div>
 
                   <div className="mt-5">
-                    <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      Suggested Teams
-                    </p>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                        Suggested Teams
+                      </p>
+
+                      {suggestions.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => approveRequest(request, selectedTeamIds)}
+                          disabled={actingRequestId === request.id || selectedTeamIds.length === 0}
+                          className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {selectedTeamIds.length > 1
+                            ? `Approve ${selectedTeamIds.length} Teams`
+                            : selectedTeamIds.length === 1
+                              ? 'Approve Selected Team'
+                              : 'Select Team(s)'}
+                        </button>
+                      ) : null}
+                    </div>
 
                     {suggestions.length === 0 ? (
                       <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
@@ -294,21 +338,31 @@ export default function AdminRequestsPage() {
                             key={team.id}
                             className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                           >
-                            <div>
-                              <p className="font-semibold text-slate-900">{team.name}</p>
-                              <p className="text-sm text-slate-500">
-                                {[team.club_name, team.organization?.name].filter(Boolean).join(' • ') ||
-                                  'No organization'}
-                              </p>
-                            </div>
+                            <label className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedTeamIds.includes(team.id)}
+                                onChange={() => toggleSelectedTeam(request.id, team.id)}
+                                disabled={actingRequestId === request.id}
+                                className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              />
+
+                              <div>
+                                <p className="font-semibold text-slate-900">{team.name}</p>
+                                <p className="text-sm text-slate-500">
+                                  {[team.club_name, team.organization?.name].filter(Boolean).join(' • ') ||
+                                    'No organization'}
+                                </p>
+                              </div>
+                            </label>
 
                             <button
                               type="button"
-                              onClick={() => approveRequest(request, team.id)}
+                              onClick={() => approveRequest(request, [team.id])}
                               disabled={actingRequestId === request.id}
-                              className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                              className="rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200 disabled:opacity-60"
                             >
-                              Approve for Team
+                              Approve Only This Team
                             </button>
                           </div>
                         ))}
