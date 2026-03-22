@@ -188,6 +188,23 @@ function findImportedOpponentMatch(params: {
   return exactCompatibleMatch || null;
 }
 
+function buildImportMatchKey(params: {
+  homeTeamId: string;
+  awayTeamId: string;
+  matchDateIso: string;
+  seasonId?: string | null;
+  venue?: string | null;
+}) {
+  const { homeTeamId, awayTeamId, matchDateIso, seasonId, venue } = params;
+  return [
+    homeTeamId,
+    awayTeamId,
+    matchDateIso,
+    seasonId || '',
+    normalizeName(venue),
+  ].join('::');
+}
+
 // ---------------------------------------------------
 // PAGE
 // FILE: app/teams/[teamId]/schedule/page.tsx
@@ -401,7 +418,19 @@ export default function TeamSchedulePage() {
     }
 
     const createdOpponentIds = new Map<string, string>();
+    const existingMatchKeys = new Set(
+      matches.map((match) =>
+        buildImportMatchKey({
+          homeTeamId: match.home_team_id || '',
+          awayTeamId: match.away_team_id || '',
+          matchDateIso: match.match_date || '',
+          seasonId: match.season_id,
+          venue: match.venue,
+        }),
+      ),
+    );
     const payload: Array<Record<string, string | null>> = [];
+    let skippedDuplicateCount = 0;
 
     for (const row of validRows) {
       const opponentKey = normalizeName(row.opponent);
@@ -463,6 +492,21 @@ export default function TeamSchedulePage() {
           : allSeasons.find((season) => season.is_active) || null);
 
       const isHome = row.home_away === 'home';
+      const matchDateIso = new Date(row.date_time).toISOString();
+      const importKey = buildImportMatchKey({
+        homeTeamId: isHome ? teamId : opponentTeamId,
+        awayTeamId: isHome ? opponentTeamId : teamId,
+        matchDateIso,
+        seasonId: matchedSeason?.id || null,
+        venue: row.venue || null,
+      });
+
+      if (existingMatchKeys.has(importKey)) {
+        skippedDuplicateCount += 1;
+        continue;
+      }
+
+      existingMatchKeys.add(importKey);
 
       payload.push({
         season_id: matchedSeason?.id || null,
@@ -471,14 +515,24 @@ export default function TeamSchedulePage() {
         home_tracking_mode: isHome ? team.match_tracking_mode : 'basic',
         away_tracking_mode: isHome ? 'basic' : team.match_tracking_mode,
         venue: row.venue || null,
-        match_date: new Date(row.date_time).toISOString(),
+        match_date: matchDateIso,
         public_slug: buildReadableMatchSlug({
           homeTeamName: isHome ? team.name : row.opponent,
           awayTeamName: isHome ? row.opponent : team.name,
-          matchDate: new Date(row.date_time).toISOString(),
+          matchDate: matchDateIso,
         }),
         status: 'not_started',
       });
+    }
+
+    if (payload.length === 0) {
+      setMessage(
+        skippedDuplicateCount > 0
+          ? `All valid rows were skipped because matching fixtures already exist (${skippedDuplicateCount} duplicate${skippedDuplicateCount === 1 ? '' : 's'}).`
+          : 'Schedule import has no new rows to add.',
+      );
+      setImportingSchedule(false);
+      return;
     }
 
     const { error } = await supabase.from('matches').insert(payload);
@@ -492,6 +546,11 @@ export default function TeamSchedulePage() {
     setScheduleImportRows([]);
     setScheduleImportFileName('');
     await loadData();
+    if (skippedDuplicateCount > 0) {
+      setMessage(
+        `Imported ${payload.length} match${payload.length === 1 ? '' : 'es'}. Skipped ${skippedDuplicateCount} duplicate${skippedDuplicateCount === 1 ? '' : 's'}.`,
+      );
+    }
     setImportingSchedule(false);
   }
 
