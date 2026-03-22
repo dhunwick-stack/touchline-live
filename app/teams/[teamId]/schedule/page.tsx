@@ -141,6 +141,52 @@ function normalizeName(value?: string | null) {
   return (value || '').trim().toLowerCase();
 }
 
+function normalizeLevel(value?: string | null) {
+  const normalized = (value || '').trim().toLowerCase();
+
+  if (!normalized) return '';
+  if (normalized === 'junior varsity') return 'jv';
+
+  return normalized;
+}
+
+function normalizeGender(value?: string | null) {
+  return (value || '').trim().toLowerCase();
+}
+
+function findImportedOpponentMatch(params: {
+  opponentName: string;
+  importingTeam: Team;
+  teams: Team[];
+}) {
+  const { opponentName, importingTeam, teams } = params;
+  const opponentKey = normalizeName(opponentName);
+
+  if (!opponentKey) return null;
+
+  const exactNameMatches = teams.filter((candidate) => normalizeName(candidate.name) === opponentKey);
+
+  if (exactNameMatches.length === 0) return null;
+
+  const importingLevel = normalizeLevel(importingTeam.team_level);
+  const importingGender = normalizeGender(importingTeam.gender);
+  const importingNeedsGuard = importingLevel === 'jv' || importingLevel === 'varsity' || Boolean(importingGender);
+
+  if (!importingNeedsGuard) {
+    return exactNameMatches[0];
+  }
+
+  const exactCompatibleMatch = exactNameMatches.find((candidate) => {
+    const candidateLevel = normalizeLevel(candidate.team_level);
+    const candidateGender = normalizeGender(candidate.gender);
+    const levelMatches = !importingLevel || !candidateLevel || candidateLevel === importingLevel;
+    const genderMatches = !importingGender || !candidateGender || candidateGender === importingGender;
+    return levelMatches && genderMatches;
+  });
+
+  return exactCompatibleMatch || null;
+}
+
 // ---------------------------------------------------
 // PAGE
 // FILE: app/teams/[teamId]/schedule/page.tsx
@@ -358,8 +404,17 @@ export default function TeamSchedulePage() {
 
     for (const row of validRows) {
       const opponentKey = normalizeName(row.opponent);
-      let opponentTeamId =
-        createdOpponentIds.get(opponentKey) || teamsByName.get(opponentKey)?.id || '';
+      const reusedCreatedOpponentId = createdOpponentIds.get(opponentKey) || '';
+      const matchedOpponentTeam =
+        findImportedOpponentMatch({
+          opponentName: row.opponent,
+          importingTeam: team,
+          teams: allTeams,
+        }) ||
+        teamsByName.get(opponentKey) ||
+        null;
+
+      let opponentTeamId = reusedCreatedOpponentId || matchedOpponentTeam?.id || '';
 
       if (!opponentTeamId) {
         const inheritedTeam = findInheritedBrandTeam({
@@ -382,6 +437,8 @@ export default function TeamSchedulePage() {
             home_field_lat: inheritedTeam?.home_field_lat || null,
             home_field_lng: inheritedTeam?.home_field_lng || null,
             organization_id: inheritedTeam?.organization_id || null,
+            team_level: inheritedTeam?.team_level || team.team_level || null,
+            gender: inheritedTeam?.gender || team.gender || null,
             is_reusable: false,
             match_tracking_mode: 'basic',
           })
