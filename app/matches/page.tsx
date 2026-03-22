@@ -6,6 +6,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { getTeamHeaderIndicators } from '@/lib/team-display';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import type { Match, Team } from '@/lib/types';
@@ -646,6 +647,19 @@ function MatchCard({
                 </span>
               ) : null}
             </div>
+
+            {match.home_team ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {getTeamHeaderIndicators(match.home_team).map((indicator) => (
+                  <span
+                    key={`home-${match.id}-${indicator}`}
+                    className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600"
+                  >
+                    {indicator}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-white shadow-sm">
@@ -683,6 +697,19 @@ function MatchCard({
                 </span>
               ) : null}
             </div>
+
+            {match.away_team ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {getTeamHeaderIndicators(match.away_team).map((indicator) => (
+                  <span
+                    key={`away-${match.id}-${indicator}`}
+                    className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600"
+                  >
+                    {indicator}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 

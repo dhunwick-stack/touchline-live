@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
 import { findInheritedBrandTeam } from '@/lib/teamBranding';
+import { getTeamHeaderIndicators } from '@/lib/team-display';
 import { getDefaultSeasonId } from '@/lib/seasonDefault';
 import { buildReadableMatchSlug } from '@/lib/utils';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
@@ -827,6 +828,19 @@ export default function TeamSchedulePage() {
                     {nextUpcomingMatch.home_team?.name || 'Home Team'}
                   </h3>
                 </div>
+
+                {nextUpcomingMatch.home_team ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {getTeamHeaderIndicators(nextUpcomingMatch.home_team).map((indicator) => (
+                      <span
+                        key={`next-home-${nextUpcomingMatch.id}-${indicator}`}
+                        className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 ring-1 ring-white/10"
+                      >
+                        {indicator}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {/* ------------------------------------------------- */}
@@ -861,6 +875,19 @@ export default function TeamSchedulePage() {
                     />
                   ) : null}
                 </div>
+
+                {nextUpcomingMatch.away_team ? (
+                  <div className="mt-2 flex flex-wrap justify-end gap-2">
+                    {getTeamHeaderIndicators(nextUpcomingMatch.away_team).map((indicator) => (
+                      <span
+                        key={`next-away-${nextUpcomingMatch.id}-${indicator}`}
+                        className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 ring-1 ring-white/10"
+                      >
+                        {indicator}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -1066,6 +1093,19 @@ function ScheduleMatchCard({
                 {match.home_team?.name || 'Home Team'}
               </h3>
             </div>
+
+            {match.home_team ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {getTeamHeaderIndicators(match.home_team).map((indicator) => (
+                  <span
+                    key={`schedule-home-${match.id}-${indicator}`}
+                    className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200"
+                  >
+                    {indicator}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           {/* ------------------------------------------------- */}
@@ -1104,6 +1144,19 @@ function ScheduleMatchCard({
                 />
               ) : null}
             </div>
+
+            {match.away_team ? (
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
+                {getTeamHeaderIndicators(match.away_team).map((indicator) => (
+                  <span
+                    key={`schedule-away-${match.id}-${indicator}`}
+                    className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200"
+                  >
+                    {indicator}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
