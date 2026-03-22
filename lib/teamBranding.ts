@@ -2,8 +2,10 @@ import type { Team } from '@/lib/types';
 
 const TEAM_DESCRIPTOR_PATTERN =
   /\b(boys?|girls?|mens?|women|womens|varsity|junior varsity|jv|freshman|frosh|sophomore|sv|junior|seniors?)\b/gi;
+const SCHOOL_DESCRIPTOR_PATTERN =
+  /\b(high school|high|school|academy|township|hs)\b/gi;
 
-function normalizeBrandKey(value?: string | null) {
+export function normalizeBrandKey(value?: string | null) {
   return (value || '')
     .toLowerCase()
     .replace(/&/g, ' and ')
@@ -13,16 +15,51 @@ function normalizeBrandKey(value?: string | null) {
     .trim();
 }
 
-function getTeamBrandKeys(team?: Team | null) {
+function stripSchoolDescriptors(value?: string | null) {
+  return (value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(TEAM_DESCRIPTOR_PATTERN, ' ')
+    .replace(SCHOOL_DESCRIPTOR_PATTERN, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildAcronym(value?: string | null) {
+  const words = (value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(TEAM_DESCRIPTOR_PATTERN, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+
+  if (words.length < 2) return '';
+
+  return words.map((word) => word[0]).join('');
+}
+
+export function getBrandSearchKeys(values: Array<string | null | undefined>) {
   const keys = new Set<string>();
 
-  const normalizedName = normalizeBrandKey(team?.name);
-  const normalizedClubName = normalizeBrandKey(team?.club_name);
+  values.forEach((value) => {
+    const normalized = normalizeBrandKey(value);
+    const stripped = stripSchoolDescriptors(value);
+    const acronym = buildAcronym(value);
 
-  if (normalizedName) keys.add(normalizedName);
-  if (normalizedClubName) keys.add(normalizedClubName);
+    if (normalized) keys.add(normalized);
+    if (stripped) keys.add(stripped);
+    if (acronym) keys.add(acronym);
+  });
 
   return keys;
+}
+
+function getTeamBrandKeys(team?: Team | null) {
+  return getBrandSearchKeys([team?.name, team?.club_name]);
 }
 
 export function findInheritedBrandTeam({

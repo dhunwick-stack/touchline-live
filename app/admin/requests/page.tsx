@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getBrandSearchKeys } from '@/lib/teamBranding';
 import type { Organization, Team } from '@/lib/types';
 import { useSuperAdminGuard } from '@/lib/useSuperAdminGuard';
 
@@ -139,22 +140,45 @@ export default function AdminRequestsPage() {
   );
 
   function getSuggestedTeams(request: TeamAccessRequest) {
-    const query = (request.organization_name || '').trim().toLowerCase();
-    if (!query) return teams.slice(0, 5);
+    const requestKeys = getBrandSearchKeys([request.organization_name]);
+
+    if (requestKeys.size === 0) return teams.slice(0, 5);
 
     return teams
-      .filter((team) => {
-        const haystack = [
+      .map((team) => {
+        const teamKeys = getBrandSearchKeys([
           team.name,
           team.club_name,
           team.organization?.name,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
+        ]);
 
-        return haystack.includes(query);
+        let score = 0;
+
+        requestKeys.forEach((requestKey) => {
+          teamKeys.forEach((teamKey) => {
+            if (requestKey === teamKey) {
+              score += 4;
+              return;
+            }
+
+            if (
+              requestKey.length >= 3 &&
+              teamKey.length >= 3 &&
+              (requestKey.includes(teamKey) || teamKey.includes(requestKey))
+            ) {
+              score += 2;
+            }
+          });
+        });
+
+        return {
+          team,
+          score,
+        };
       })
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) => right.score - left.score || left.team.name.localeCompare(right.team.name))
+      .map((candidate) => candidate.team)
       .slice(0, 5);
   }
 
