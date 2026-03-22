@@ -1,10 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 export default function AcceptInvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
+          <div className="w-full rounded-3xl bg-white p-8 shadow-md ring-1 ring-slate-200">
+            Loading invite...
+          </div>
+        </main>
+      }
+    >
+      <AcceptInvitePageInner />
+    </Suspense>
+  );
+}
+
+function AcceptInvitePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
