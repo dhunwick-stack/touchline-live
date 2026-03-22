@@ -70,7 +70,8 @@ function LoginPageInner() {
   function getResetRedirectUrl() {
     const baseUrl = getBaseUrl();
     if (!baseUrl) return undefined;
-    return `${baseUrl}/reset-password`;
+
+    return `${baseUrl}/auth/confirm?next=${encodeURIComponent('/reset-password')}`;
   }
 
   // ---------------------------------------------------
