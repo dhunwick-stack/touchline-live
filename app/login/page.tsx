@@ -212,7 +212,7 @@ function LoginPageInner() {
           <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
             {isInviteFlow
               ? 'Check your email to confirm your account and finish accepting the team admin invite.'
-              : 'Check your email to confirm your account. If the link still points to localhost, update your Supabase Auth Site URL and Redirect URLs to your live domain.'}
+              : 'Check your email to confirm your account and continue into Touchline Live.'}
           </div>
         ) : null}
 
