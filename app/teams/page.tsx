@@ -319,7 +319,7 @@ export default function TeamsPage() {
   // ---------------------------------------------------
 
   function getTeamSubtext(team: TeamRow) {
-    const parentName = team.organization?.name || team.club_name || 'No organization';
+    const parentName = team.organization?.name || team.club_name || '';
     const details = [team.age_group, team.team_level, team.gender]
       .filter(Boolean)
       .join(' • ');

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getTeamHeaderIndicators } from '@/lib/team-display';
 import { supabase } from '@/lib/supabase';
 import type { Team } from '@/lib/types';
 
@@ -10,7 +11,17 @@ type NavTeamLink = {
   id: string;
   href: string;
   name: string;
+  detail: string;
 };
+
+function buildNavTeamLink(team: Pick<Team, 'id' | 'name' | 'gender' | 'team_level'>, href: string): NavTeamLink {
+  return {
+    id: team.id,
+    name: team.name,
+    href,
+    detail: getTeamHeaderIndicators(team).join(' • '),
+  };
+}
 
 export default function AppChrome({
   children,
@@ -42,19 +53,15 @@ export default function AppChrome({
         setPendingRequestCount(0);
         const { data: publicTeams } = await supabase
           .from('teams')
-          .select('id, name')
+          .select('id, name, gender, team_level')
           .order('name', { ascending: true })
           .limit(16);
 
         if (!active) return;
         setTeams(
-          ((publicTeams as Pick<Team, 'id' | 'name'>[]) ?? [])
+          ((publicTeams as Pick<Team, 'id' | 'name' | 'gender' | 'team_level'>[]) ?? [])
             .filter((team) => !!team.name)
-            .map((team) => ({
-              id: team.id,
-              name: team.name,
-              href: `/public/team/${team.id}`,
-            })),
+            .map((team) => buildNavTeamLink(team, `/public/team/${team.id}`)),
         );
         return;
       }
@@ -73,24 +80,20 @@ export default function AppChrome({
       if (superAccess) {
         const { data: adminTeams } = await supabase
           .from('teams')
-          .select('id, name')
+          .select('id, name, gender, team_level')
           .order('name', { ascending: true })
           .limit(16);
 
         if (!active) return;
         setTeams(
-          ((adminTeams as Pick<Team, 'id' | 'name'>[]) ?? [])
+          ((adminTeams as Pick<Team, 'id' | 'name' | 'gender' | 'team_level'>[]) ?? [])
             .filter((team) => !!team.name)
-            .map((team) => ({
-              id: team.id,
-              name: team.name,
-              href: `/teams/${team.id}`,
-            })),
+            .map((team) => buildNavTeamLink(team, `/teams/${team.id}`)),
         );
       } else {
         const { data: memberships } = await supabase
           .from('team_users')
-          .select('team_id, teams:team_id(id, name)')
+          .select('team_id, teams:team_id(id, name, gender, team_level)')
           .eq('user_id', user.id)
           .limit(16);
 
@@ -98,17 +101,20 @@ export default function AppChrome({
 
         const memberTeams = ((memberships as {
           team_id: string;
-          teams: Pick<Team, 'id' | 'name'> | Pick<Team, 'id' | 'name'>[] | null;
+          teams:
+            | Pick<Team, 'id' | 'name' | 'gender' | 'team_level'>
+            | Pick<Team, 'id' | 'name' | 'gender' | 'team_level'>[]
+            | null;
         }[]) ?? [])
           .map((membership) =>
             Array.isArray(membership.teams) ? membership.teams[0] : membership.teams,
           )
-          .filter((team): team is Pick<Team, 'id' | 'name'> => !!team?.id && !!team?.name)
-          .map((team) => ({
-            id: team.id,
-            name: team.name,
-            href: `/teams/${team.id}`,
-          }));
+          .filter(
+            (
+              team,
+            ): team is Pick<Team, 'id' | 'name' | 'gender' | 'team_level'> => !!team?.id && !!team?.name,
+          )
+          .map((team) => buildNavTeamLink(team, `/teams/${team.id}`));
 
         setTeams(memberTeams);
       }
@@ -229,10 +235,15 @@ export default function AppChrome({
                           <Link
                             key={team.id}
                             href={team.href}
-                            className="block rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                            className="block rounded-xl px-3 py-2 hover:bg-slate-100"
                             onClick={() => setTeamsMenuOpen(false)}
                           >
-                            {team.name}
+                            <div className="text-sm font-medium text-slate-700">{team.name}</div>
+                            {team.detail ? (
+                              <div className="mt-0.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                                {team.detail}
+                              </div>
+                            ) : null}
                           </Link>
                         ))
                       ) : (
