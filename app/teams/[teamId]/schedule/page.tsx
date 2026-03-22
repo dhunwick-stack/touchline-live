@@ -180,8 +180,8 @@ function findImportedOpponentMatch(params: {
   const exactCompatibleMatch = exactNameMatches.find((candidate) => {
     const candidateLevel = normalizeLevel(candidate.team_level);
     const candidateGender = normalizeGender(candidate.gender);
-    const levelMatches = !importingLevel || !candidateLevel || candidateLevel === importingLevel;
-    const genderMatches = !importingGender || !candidateGender || candidateGender === importingGender;
+    const levelMatches = !importingLevel || candidateLevel === importingLevel;
+    const genderMatches = !importingGender || candidateGender === importingGender;
     return levelMatches && genderMatches;
   });
 
@@ -465,8 +465,8 @@ export default function TeamSchedulePage() {
             home_field_lat: inheritedTeam?.home_field_lat || null,
             home_field_lng: inheritedTeam?.home_field_lng || null,
             organization_id: inheritedTeam?.organization_id || null,
-            team_level: inheritedTeam?.team_level || team.team_level || null,
-            gender: inheritedTeam?.gender || team.gender || null,
+            team_level: team.team_level || inheritedTeam?.team_level || null,
+            gender: team.gender || inheritedTeam?.gender || null,
             is_reusable: false,
             match_tracking_mode: 'basic',
           })
