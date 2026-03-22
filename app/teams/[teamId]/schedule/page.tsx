@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import TeamPageIntro from '@/components/TeamPageIntro';
+import { findInheritedBrandTeam } from '@/lib/teamBranding';
 import { getDefaultSeasonId } from '@/lib/seasonDefault';
 import { buildReadableMatchSlug } from '@/lib/utils';
 import { useTeamAccessGuard } from '@/lib/useTeamAccessGuard';
@@ -361,10 +362,26 @@ export default function TeamSchedulePage() {
         createdOpponentIds.get(opponentKey) || teamsByName.get(opponentKey)?.id || '';
 
       if (!opponentTeamId) {
+        const inheritedTeam = findInheritedBrandTeam({
+          teamName: row.opponent,
+          teams: allTeams,
+        });
+
         const { data: createdOpponent, error: createOpponentError } = await supabase
           .from('teams')
           .insert({
             name: row.opponent,
+            club_name: inheritedTeam?.club_name || null,
+            nickname: inheritedTeam?.nickname || null,
+            logo_url: inheritedTeam?.logo_url || null,
+            banner_url: inheritedTeam?.banner_url || null,
+            primary_color: inheritedTeam?.primary_color || null,
+            secondary_color: inheritedTeam?.secondary_color || null,
+            home_field_name: inheritedTeam?.home_field_name || null,
+            home_field_address: inheritedTeam?.home_field_address || null,
+            home_field_lat: inheritedTeam?.home_field_lat || null,
+            home_field_lng: inheritedTeam?.home_field_lng || null,
+            organization_id: inheritedTeam?.organization_id || null,
             is_reusable: false,
             match_tracking_mode: 'basic',
           })
