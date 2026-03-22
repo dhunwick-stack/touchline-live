@@ -44,17 +44,32 @@ function LoginPageInner() {
   const [organizationName, setOrganizationName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  function getSignupRedirectUrl() {
+  function getBaseUrl() {
     if (typeof window === 'undefined') return undefined;
 
-    const safeNext = next.startsWith('/') ? next : '/';
-    const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-    const baseUrl = configuredSiteUrl
+    const configuredSiteUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+    return configuredSiteUrl
       ? configuredSiteUrl.replace(/\/+$/, '')
       : window.location.origin;
+  }
+
+  function getSignupRedirectUrl() {
+    const baseUrl = getBaseUrl();
+    if (!baseUrl) return undefined;
+
+    const safeNext = next.startsWith('/') ? next : '/';
 
     return `${baseUrl}${safeNext}`;
+  }
+
+  function getResetRedirectUrl() {
+    const baseUrl = getBaseUrl();
+    if (!baseUrl) return undefined;
+    return `${baseUrl}/reset-password`;
   }
 
   // ---------------------------------------------------
@@ -91,6 +106,7 @@ function LoginPageInner() {
   async function handleLogin() {
     setLoading(true);
     setError('');
+    setNotice('');
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -116,6 +132,7 @@ function LoginPageInner() {
   async function handleSignup() {
     setLoading(true);
     setError('');
+    setNotice('');
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -157,6 +174,30 @@ function LoginPageInner() {
     );
   }
 
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      setError('Enter your email address first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: getResetRedirectUrl(),
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    setNotice('Password reset email sent. Check your inbox for the recovery link.');
+  }
+
   // ---------------------------------------------------
   // UI
   // ---------------------------------------------------
@@ -168,6 +209,12 @@ function LoginPageInner() {
           <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
             Check your email to confirm your account. If the link still points to localhost,
             update your Supabase Auth Site URL and Redirect URLs to your live domain.
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800">
+            {notice}
           </div>
         ) : null}
 
@@ -235,6 +282,19 @@ function LoginPageInner() {
         </div>
 
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+        {mode === 'signin' ? (
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={loading}
+              className="text-sm font-semibold text-slate-600 transition hover:text-slate-900 disabled:opacity-60"
+            >
+              Forgot password?
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-6 flex gap-3">
           {mode === 'signin' ? (
